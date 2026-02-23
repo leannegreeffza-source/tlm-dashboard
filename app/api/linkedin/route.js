@@ -1,0 +1,62 @@
+import { getToken } from 'next-auth/jwt';
+import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+export async function GET(request) {
+  try {
+    const token = await getToken({ 
+      req: request, 
+      secret: process.env.NEXTAUTH_SECRET 
+    });
+    
+    if (!token?.accessToken) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${token.accessToken}`,
+      'Linkedin-Version': '202504',
+      'X-RestLi-Protocol-Version': '2.0.0',
+    };
+
+    let accounts = [];
+    let start = 0;
+
+    // Load 3000 accounts
+    while (start < 3000) {
+      const response = await fetch(
+        `https://api.linkedin.com/rest/adAccounts?q=search&start=${start}&count=100`,
+        { headers }
+      );
+
+      if (!response.ok) break;
+
+      const data = await response.json();
+      const elements = data.elements || [];
+      
+      if (elements.length === 0) break;
+      
+      accounts.push(...elements);
+      console.log(`Loaded ${accounts.length} accounts...`);
+      
+      if (elements.length < 100) break;
+      start += 100;
+    }
+
+    console.log(`✅ Total: ${accounts.length} accounts`);
+
+    // CRITICAL: Return with matching field names
+    return NextResponse.json(
+      accounts.map(acc => ({
+        clientId: acc.id,           // Map id -> clientId
+        clientName: acc.name || `Account ${acc.id}`,  // Map name -> clientName
+      }))
+    );
+
+  } catch (error) {
+    console.error('Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
