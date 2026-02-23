@@ -66,7 +66,7 @@ function DateRangePicker({ value, onChange }) {
 
   function formatDisplay(start, end) {
     const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
-    return `${fmt(start)} – ${fmt(end)}`;
+    return `${fmt(start)} - ${fmt(end)}`;
   }
 
   return (
@@ -77,7 +77,6 @@ function DateRangePicker({ value, onChange }) {
         {formatDisplay(value.start, value.end)}
         <ChevronDown className="w-4 h-4 text-slate-400" />
       </button>
-
       {open && (
         <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl flex" style={{minWidth: 560}}>
           <div className="w-40 border-r border-gray-100 py-2">
@@ -227,13 +226,11 @@ function TopPerformingBlock({ title, items, accountId, type, nameMap }) {
 }
 
 function FXCalculatorBlock({ reportData, currentRange }) {
-  const defaultPeriods = [
+  const [periods, setPeriods] = useState([
     { start: currentRange.start, end: '', rate: '' },
     { start: '', end: '', rate: '' },
     { start: '', end: currentRange.end, rate: '' },
-  ];
-
-  const [periods, setPeriods] = useState(defaultPeriods);
+  ]);
 
   function updatePeriod(index, field, value) {
     setPeriods(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
@@ -243,14 +240,11 @@ function FXCalculatorBlock({ reportData, currentRange }) {
   const totalImpressions = reportData?.current?.impressions || 0;
   const totalClicks = reportData?.current?.clicks || 0;
 
-  // Calculate total days in selected range
   const rangeStart = new Date(currentRange.start + 'T00:00:00');
   const rangeEnd = new Date(currentRange.end + 'T00:00:00');
   const totalRangeDays = Math.max(1, Math.round((rangeEnd - rangeStart) / 86400000) + 1);
 
-  // For each valid period, calculate its proportion of total spend and apply FX rate
   let zarTotalSpend = 0;
-  let totalCoveredDays = 0;
   const periodResults = periods.map((p, i) => {
     if (!p.start || !p.end || !p.rate || isNaN(parseFloat(p.rate))) {
       return { label: `Period ${i + 1}`, days: 0, usdSpend: 0, zarSpend: 0, rate: 0, valid: false };
@@ -263,17 +257,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
     const rate = parseFloat(p.rate);
     const zarSpend = usdSpend * rate;
     zarTotalSpend += zarSpend;
-    totalCoveredDays += days;
-    return {
-      label: `Period ${i + 1}`,
-      days,
-      usdSpend,
-      zarSpend,
-      rate,
-      valid: true,
-      start: p.start,
-      end: p.end,
-    };
+    return { label: `Period ${i + 1}`, days, usdSpend, zarSpend, rate, valid: true, start: p.start, end: p.end };
   });
 
   const blendedRate = totalSpendUSD > 0 ? zarTotalSpend / totalSpendUSD : 0;
@@ -282,6 +266,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
 
   const periodColors = ['border-blue-500 bg-blue-900/20', 'border-purple-500 bg-purple-900/20', 'border-emerald-500 bg-emerald-900/20'];
   const labelColors = ['text-blue-400', 'text-purple-400', 'text-emerald-400'];
+  const barColors = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500'];
 
   return (
     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 mt-6">
@@ -293,7 +278,6 @@ function FXCalculatorBlock({ reportData, currentRange }) {
         </div>
       </div>
 
-      {/* Period Inputs */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {periods.map((p, i) => (
           <div key={i} className={`rounded-xl p-4 border-2 ${periodColors[i]}`}>
@@ -303,42 +287,28 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 <span className="text-xs text-slate-400 font-mono">{periodResults[i].days} days</span>
               )}
             </div>
-
             <div className="space-y-2">
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={p.start}
+                <input type="date" value={p.start}
                   onChange={e => updatePeriod(i, 'start', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
-                />
+                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={p.end}
+                <input type="date" value={p.end}
                   onChange={e => updatePeriod(i, 'end', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
-                />
+                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Exchange Rate (R per $1)</label>
                 <div className="relative">
                   <span className="absolute left-2 top-1.5 text-slate-400 text-xs font-bold">R</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="18.50"
-                    value={p.rate}
+                  <input type="number" step="0.01" placeholder="18.50" value={p.rate}
                     onChange={e => updatePeriod(i, 'rate', e.target.value)}
-                    className="w-full pl-6 pr-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
-                  />
+                    className="w-full pl-6 pr-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
-
-              {/* Per-period result */}
               {periodResults[i].valid && (
                 <div className="mt-3 pt-3 border-t border-slate-600 space-y-1">
                   <div className="flex justify-between text-xs">
@@ -356,7 +326,6 @@ function FXCalculatorBlock({ reportData, currentRange }) {
         ))}
       </div>
 
-      {/* Summary Results */}
       {zarTotalSpend > 0 && (
         <>
           <div className="border-t border-slate-700 pt-6">
@@ -364,9 +333,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
               <h4 className="text-sm font-bold text-white uppercase tracking-wide">ZAR Summary</h4>
               <span className="text-xs text-slate-500">Blended Rate: R{blendedRate.toFixed(4)} / $1</span>
             </div>
-
             <div className="grid grid-cols-3 gap-4">
-              {/* ZAR Total Spend */}
               <div className="bg-slate-700/50 rounded-xl p-5 border border-slate-600">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">ZAR Total Spend</span>
@@ -376,31 +343,25 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                   R{zarTotalSpend.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </div>
                 <div className="text-xs text-slate-400">
-                  ≈ ${totalSpendUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD
+                  = ${totalSpendUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD
                 </div>
-                {/* Period breakdown bar */}
                 <div className="mt-3 h-2 bg-slate-600 rounded-full overflow-hidden flex">
                   {periodResults.map((pr, i) => {
                     if (!pr.valid) return null;
                     const pct = (pr.days / totalRangeDays * 100).toFixed(1);
-                    const barColors = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500'];
                     return <div key={i} className={`h-full ${barColors[i]}`} style={{width: `${pct}%`}} title={`Period ${i+1}: ${pct}%`} />;
                   })}
                 </div>
                 <div className="flex gap-3 mt-2">
-                  {periodResults.filter(pr => pr.valid).map((pr, i) => {
-                    const dotColors = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500'];
-                    return (
-                      <div key={i} className="flex items-center gap-1">
-                        <div className={`w-2 h-2 rounded-full ${dotColors[i]}`}></div>
-                        <span className="text-xs text-slate-400">P{i+1}: {(pr.days / totalRangeDays * 100).toFixed(0)}%</span>
-                      </div>
-                    );
-                  })}
+                  {periodResults.filter(pr => pr.valid).map((pr, i) => (
+                    <div key={i} className="flex items-center gap-1">
+                      <div className={`w-2 h-2 rounded-full ${barColors[i]}`}></div>
+                      <span className="text-xs text-slate-400">P{i+1}: {(pr.days / totalRangeDays * 100).toFixed(0)}%</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* ZAR CPM */}
               <div className="bg-slate-700/50 rounded-xl p-5 border border-slate-600">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">ZAR CPM</span>
@@ -409,9 +370,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 <div className="text-3xl font-bold text-white mb-1">
                   R{zarCPM.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </div>
-                <div className="text-xs text-slate-400">
-                  per 1,000 impressions
-                </div>
+                <div className="text-xs text-slate-400">per 1,000 impressions</div>
                 <div className="mt-3 pt-3 border-t border-slate-600">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">USD CPM</span>
@@ -420,7 +379,6 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 </div>
               </div>
 
-              {/* ZAR CPC */}
               <div className="bg-slate-700/50 rounded-xl p-5 border border-slate-600">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">ZAR CPC</span>
@@ -429,9 +387,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 <div className="text-3xl font-bold text-white mb-1">
                   R{zarCPC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </div>
-                <div className="text-xs text-slate-400">
-                  per click
-                </div>
+                <div className="text-xs text-slate-400">per click</div>
                 <div className="mt-3 pt-3 border-t border-slate-600">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">USD CPC</span>
@@ -442,7 +398,6 @@ function FXCalculatorBlock({ reportData, currentRange }) {
             </div>
           </div>
 
-          {/* Period Summary Table */}
           <div className="mt-4 bg-slate-700/30 rounded-lg p-4 border border-slate-600">
             <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Period Breakdown</h5>
             <table className="w-full text-xs">
@@ -460,7 +415,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 {periodResults.filter(pr => pr.valid).map((pr, i) => (
                   <tr key={i} className="border-b border-slate-700">
                     <td className={`py-2 font-semibold ${labelColors[i]}`}>Period {i + 1}</td>
-                    <td className="py-2 text-slate-300 font-mono">{pr.start} → {pr.end}</td>
+                    <td className="py-2 text-slate-300 font-mono">{pr.start} to {pr.end}</td>
                     <td className="py-2 text-right text-slate-300">{pr.days}</td>
                     <td className="py-2 text-right text-slate-300">R{pr.rate.toFixed(2)}</td>
                     <td className="py-2 text-right text-slate-300">${pr.usdSpend.toFixed(2)}</td>
@@ -514,16 +469,16 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
   }
 
   function trendArrow(trend) {
-    if (trend === 'up') return '↑';
-    if (trend === 'down') return '↓';
-    return '→';
+    if (trend === 'up') return 'up';
+    if (trend === 'down') return 'down';
+    return 'stable';
   }
 
   function perfBadge(perf) {
     if (!perf) return '';
-    if (perf.includes('above')) return '✅ Above Benchmark';
-    if (perf.includes('below')) return '❌ Below Benchmark';
-    return '➖ At Benchmark';
+    if (perf.includes('above')) return 'Above Benchmark';
+    if (perf.includes('below')) return 'Below Benchmark';
+    return 'At Benchmark';
   }
 
   return (
@@ -531,14 +486,14 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
       <div className="bg-white rounded-2xl w-full max-w-6xl my-4 overflow-hidden shadow-2xl">
         <div className="flex justify-between items-center px-6 py-3 bg-gray-100 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-700">✦ AI Campaign Report</span>
+            <span className="text-sm font-semibold text-gray-700">AI Campaign Report</span>
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Editable</span>
           </div>
           <div className="flex gap-2">
             {report && !generatingReport && (
               <button onClick={downloadHTML}
                 className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 font-medium">
-                ↓ Download HTML
+                Download HTML
               </button>
             )}
             <button onClick={onClose}
@@ -552,26 +507,22 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
           <div className="flex flex-col items-center justify-center py-32 bg-white">
             <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
             <p className="text-gray-800 font-semibold text-xl">Analyzing your campaigns...</p>
-            <p className="text-gray-400 text-sm mt-2">This may take 15–30 seconds</p>
+            <p className="text-gray-400 text-sm mt-2">This may take 15-30 seconds</p>
           </div>
         ) : report ? (
           <div ref={reportRef} style={{fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", background: '#f4fbff', padding: '20px'}}>
             <div style={{maxWidth: '100%', margin: '0 auto', background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', overflow: 'hidden'}}>
-
               <div style={{background: '#0e1034', color: 'white', padding: '30px'}} contentEditable suppressContentEditableWarning>
-                <h1 style={{fontSize: '28px', marginBottom: '10px', margin: 0}}>📊 Campaign Optimization Summary</h1>
+                <h1 style={{fontSize: '28px', marginBottom: '10px', margin: 0}}>Campaign Optimization Summary</h1>
                 <p style={{opacity: 0.9, fontSize: '14px', marginTop: '10px'}}>
-                  <strong>Report Period:</strong> {currentRange.start} to {currentRange.end} &nbsp;|&nbsp;
-                  <strong>Compare Period:</strong> {previousRange.start} to {previousRange.end}
+                  <strong>Report Period:</strong> {currentRange.start} to {currentRange.end} | <strong>Compare Period:</strong> {previousRange.start} to {previousRange.end}
                 </p>
               </div>
-
               <div style={{padding: '20px 30px', background: '#f0f4ff', borderBottom: '1px solid #e0e0e0'}}>
                 <p style={{fontSize: '14px', color: '#333', lineHeight: 1.7}} contentEditable suppressContentEditableWarning>
                   {report.executiveSummary}
                 </p>
               </div>
-
               <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', padding: '30px'}}>
                 {[
                   { label: 'Total Spend', value: `$${metrics?.current?.spent?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, sub: `vs $${metrics?.previous?.spent?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} prev` },
@@ -588,7 +539,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                   </div>
                 ))}
               </div>
-
               <div style={{padding: '30px', borderTop: '1px solid #e0e0e0'}}>
                 <h2 style={{fontSize: '22px', marginBottom: '20px', color: '#0e1034'}}>Campaign Performance Comparison</h2>
                 <div style={{overflowX: 'auto'}}>
@@ -596,9 +546,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                     <thead>
                       <tr>
                         {['Campaign', 'Impressions', 'Clicks', 'CTR', 'Spent (USD)', 'Leads', 'CPL', 'Performance', 'Trend'].map(h => (
-                          <th key={h} style={{textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0', background: '#f5f5f5', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#666'}}>
-                            {h}
-                          </th>
+                          <th key={h} style={{textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0', background: '#f5f5f5', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#666'}}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -617,15 +565,9 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                             <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.ctr}%</td>
                             <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>${c.spent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                             <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.leads || 0}</td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>
-                              {c.leads > 0 ? `$${(c.spent / c.leads).toFixed(2)}` : '—'}
-                            </td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0', color: statusColor(analysis?.status)}} contentEditable suppressContentEditableWarning>
-                              {perfBadge(analysis?.performance)}
-                            </td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0', fontSize: '20px'}} contentEditable suppressContentEditableWarning>
-                              {trendArrow(analysis?.trend)}
-                            </td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.leads > 0 ? `$${(c.spent / c.leads).toFixed(2)}` : '-'}</td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0', color: statusColor(analysis?.status)}} contentEditable suppressContentEditableWarning>{perfBadge(analysis?.performance)}</td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{trendArrow(analysis?.trend)}</td>
                           </tr>
                         );
                       })}
@@ -633,7 +575,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                   </table>
                 </div>
               </div>
-
               <div style={{padding: '30px', borderTop: '1px solid #e0e0e0'}}>
                 <h2 style={{fontSize: '22px', marginBottom: '20px', color: '#0e1034'}}>Performance Charts</h2>
                 <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
@@ -650,7 +591,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                   ))}
                 </div>
               </div>
-
               <div style={{padding: '30px', borderTop: '1px solid #e0e0e0'}}>
                 <h2 style={{fontSize: '22px', marginBottom: '20px', color: '#0e1034'}}>Optimization Recommendations</h2>
                 {report.campaignAnalysis?.map((analysis, i) => {
@@ -663,7 +603,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                       <ul style={{listStyle: 'none', padding: 0}}>
                         {analysis.recommendations?.map((rec, j) => (
                           <li key={j} style={{padding: '5px 0', paddingLeft: '20px', position: 'relative', color: '#444', fontSize: '14px'}} contentEditable suppressContentEditableWarning>
-                            <span style={{position: 'absolute', left: 0, color: '#2196F3'}}>→</span>
+                            <span style={{position: 'absolute', left: 0, color: '#2196F3'}}>-&gt;</span>
                             {rec}
                           </li>
                         ))}
@@ -672,21 +612,20 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                   );
                 })}
               </div>
-
               <div style={{padding: '30px', borderTop: '1px solid #e0e0e0'}}>
-                <h2 style={{fontSize: '22px', marginBottom: '20px', color: '#0e1034'}}>Key Insights & Action Items</h2>
+                <h2 style={{fontSize: '22px', marginBottom: '20px', color: '#0e1034'}}>Key Insights and Action Items</h2>
                 {[
-                  { title: '🎯 Top Performers', items: report.topPerformers, color: '#4caf50' },
-                  { title: '⚠️ Areas for Improvement', items: report.areasForImprovement, color: '#ff9800' },
-                  { title: '💡 Strategic Recommendations', items: report.strategicRecommendations, color: '#2196F3' },
-                  { title: '🚀 Immediate Next Steps', items: report.immediateActions, color: '#ff5252' },
+                  { title: 'Top Performers', items: report.topPerformers, color: '#4caf50' },
+                  { title: 'Areas for Improvement', items: report.areasForImprovement, color: '#ff9800' },
+                  { title: 'Strategic Recommendations', items: report.strategicRecommendations, color: '#2196F3' },
+                  { title: 'Immediate Next Steps', items: report.immediateActions, color: '#ff5252' },
                 ].map((section, si) => (
                   <div key={si} style={{background: '#f9f9f9', borderLeft: `4px solid ${section.color}`, padding: '15px', margin: '10px 0', borderRadius: '4px'}}>
                     <h4 style={{color: '#0e1034', marginBottom: '10px', fontSize: '15px'}}>{section.title}</h4>
                     <ul style={{listStyle: 'none', padding: 0}}>
                       {section.items?.map((item, j) => (
                         <li key={j} style={{padding: '5px 0', paddingLeft: '20px', position: 'relative', color: '#444', fontSize: '14px'}} contentEditable suppressContentEditableWarning>
-                          <span style={{position: 'absolute', left: 0, color: section.color}}>→</span>
+                          <span style={{position: 'absolute', left: 0, color: section.color}}>-&gt;</span>
                           {item}
                         </li>
                       ))}
@@ -695,7 +634,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                 ))}
                 {report.budgetRecommendation && (
                   <div style={{background: '#e8f5e9', borderLeft: '4px solid #4caf50', padding: '15px', margin: '10px 0', borderRadius: '4px'}}>
-                    <h4 style={{color: '#0e1034', marginBottom: '10px', fontSize: '15px'}}>💰 Budget Recommendation</h4>
+                    <h4 style={{color: '#0e1034', marginBottom: '10px', fontSize: '15px'}}>Budget Recommendation</h4>
                     <p style={{color: '#444', fontSize: '14px'}} contentEditable suppressContentEditableWarning>{report.budgetRecommendation}</p>
                   </div>
                 )}
@@ -703,7 +642,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
             </div>
           </div>
         ) : null}
-
         {report && metrics?.topCampaigns?.length > 0 && (
           <ChartRenderer campaigns={metrics.topCampaigns} campaignNameMap={campaignNameMap} />
         )}
@@ -752,8 +690,8 @@ function generateFullHTML(reportResult, reportData, currentRange, previousRange,
   const metrics = reportResult?.metrics;
   const campaigns = metrics?.topCampaigns || [];
   const statusColor = (s) => s === 'critical' ? '#ff5252' : s === 'warning' ? '#ff9800' : '#4caf50';
-  const trendArrow = (t) => t === 'up' ? '↑' : t === 'down' ? '↓' : '→';
-  const perfBadge = (p) => p?.includes('above') ? '✅ Above Benchmark' : p?.includes('below') ? '❌ Below Benchmark' : '➖ At Benchmark';
+  const trendArrow = (t) => t === 'up' ? 'up' : t === 'down' ? 'down' : 'stable';
+  const perfBadge = (p) => p?.includes('above') ? 'Above Benchmark' : p?.includes('below') ? 'Below Benchmark' : 'At Benchmark';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -791,7 +729,7 @@ canvas{max-height:280px!important}
 <body>
 <div class="container">
 <header>
-<h1>📊 Campaign Optimization Summary</h1>
+<h1>Campaign Optimization Summary</h1>
 <p><strong>Report Period:</strong> ${currentRange.start} to ${currentRange.end} | <strong>Compare Period:</strong> ${previousRange.start} to ${previousRange.end}</p>
 </header>
 <div class="exec">${report?.executiveSummary || ''}</div>
@@ -817,9 +755,9 @@ ${campaigns.map((c,i)=>{
 <td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${c.id}</span></td>
 <td>${c.impressions.toLocaleString()}</td><td>${c.clicks.toLocaleString()}</td><td>${c.ctr}%</td>
 <td>$${c.spent.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-<td>${c.leads||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'—'}</td>
+<td>${c.leads||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
 <td style="color:${statusColor(a?.status)}">${perfBadge(a?.performance)}</td>
-<td style="font-size:20px">${trendArrow(a?.trend)}</td></tr>`;
+<td>${trendArrow(a?.trend)}</td></tr>`;
 }).join('')}
 </tbody></table>
 </section>
@@ -838,23 +776,23 @@ ${(report?.campaignAnalysis||[]).map(a=>{
   const name=campaignNameMap?.[String(a.id)]||`Campaign ${a.id}`;
   return `<div class="rec" style="border-left:4px solid #2196F3">
 <h4>${name} <span style="font-size:11px;color:#999">(ID: ${a.id})</span></h4>
-<ul>${(a.recommendations||[]).map(r=>`<li><span style="position:absolute;left:0;color:#2196F3">→</span>${r}</li>`).join('')}</ul>
+<ul>${(a.recommendations||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
 </div>`;
 }).join('')}
 </section>
 <section>
-<h2>Key Insights & Action Items</h2>
+<h2>Key Insights and Action Items</h2>
 ${[
-  {title:'🎯 Top Performers',items:report?.topPerformers,color:'#4caf50'},
-  {title:'⚠️ Areas for Improvement',items:report?.areasForImprovement,color:'#ff9800'},
-  {title:'💡 Strategic Recommendations',items:report?.strategicRecommendations,color:'#2196F3'},
-  {title:'🚀 Immediate Next Steps',items:report?.immediateActions,color:'#ff5252'},
+  {title:'Top Performers',items:report?.topPerformers,color:'#4caf50'},
+  {title:'Areas for Improvement',items:report?.areasForImprovement,color:'#ff9800'},
+  {title:'Strategic Recommendations',items:report?.strategicRecommendations,color:'#2196F3'},
+  {title:'Immediate Next Steps',items:report?.immediateActions,color:'#ff5252'},
 ].map(s=>`<div class="rec" style="border-left:4px solid ${s.color}">
 <h4>${s.title}</h4>
-<ul>${(s.items||[]).map(i=>`<li><span style="position:absolute;left:0;color:${s.color}">→</span>${i}</li>`).join('')}</ul>
+<ul>${(s.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
 </div>`).join('')}
 ${report?.budgetRecommendation?`<div class="rec" style="border-left:4px solid #4caf50;background:#e8f5e9">
-<h4>💰 Budget Recommendation</h4><p style="color:#444;font-size:14px">${report.budgetRecommendation}</p></div>`:''}
+<h4>Budget Recommendation</h4><p style="color:#444;font-size:14px">${report.budgetRecommendation}</p></div>`:''}
 </section>
 </div>
 <script>
@@ -1023,7 +961,6 @@ export default function Dashboard() {
   function exportToCSV() {
     if (!reportData) return;
     const { current, previous, topCampaigns } = reportData;
-
     const rows = [
       ['LinkedIn Campaign Dashboard Export'],
       [`Generated: ${new Date().toLocaleDateString()}`],
@@ -1046,10 +983,9 @@ export default function Dashboard() {
         campaignNameMap[String(c.id)] || `Campaign ${c.id}`,
         c.id, c.impressions, c.clicks, c.ctr,
         c.spent.toFixed(2), c.leads || 0,
-        c.leads > 0 ? (c.spent / c.leads).toFixed(2) : '—'
+        c.leads > 0 ? (c.spent / c.leads).toFixed(2) : '-'
       ]),
     ];
-
     const csv = rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1080,7 +1016,6 @@ export default function Dashboard() {
   return (
     <>
       <style>{`@media print { .no-print { display: none !important; } body { background: #0f172a !important; } @page { margin: 1cm; } }`}</style>
-
       <div className="min-h-screen bg-slate-900">
         <div className="bg-slate-800 border-b border-slate-700 shadow-lg">
           <div className="max-w-screen-2xl mx-auto px-6 py-4 flex justify-between items-center">
@@ -1102,7 +1037,7 @@ export default function Dashboard() {
                   </button>
                   <button onClick={() => window.print()}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold text-sm">
-                    ↓ Export PDF
+                    Export PDF
                   </button>
                 </>
               )}
@@ -1116,7 +1051,6 @@ export default function Dashboard() {
 
         <div className="max-w-screen-2xl mx-auto p-6">
           <div className="grid grid-cols-12 gap-6">
-
             <div className="col-span-3 space-y-3 no-print">
               <div className="flex items-center gap-2 px-1">
                 <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
@@ -1235,7 +1169,6 @@ export default function Dashboard() {
                     <p className="text-slate-400 text-sm">Period: {currentRange.start} to {currentRange.end} | Compare: {previousRange.start} to {previousRange.end}</p>
                   </div>
 
-                  {/* Metrics Grid */}
                   <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-slate-700">
                     <h3 className="text-lg font-bold text-white mb-6">Campaign Performance</h3>
                     <div className="grid grid-cols-4 gap-4">
@@ -1260,7 +1193,6 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Top Performers */}
                   <div className="grid grid-cols-2 gap-6 mb-6">
                     <TopPerformingBlock title="Top Campaigns" items={reportData.topCampaigns}
                       accountId={primaryAccountId} type="campaign" nameMap={campaignNameMap} />
@@ -1268,11 +1200,9 @@ export default function Dashboard() {
                       accountId={primaryAccountId} type="ad" nameMap={adNameMap} />
                   </div>
 
-                  {/* Budget Pacing */}
                   <BudgetPacingCard pacing={reportData.budgetPacing}
                     manualBudget={manualBudget} onBudgetChange={setManualBudget} />
 
-                  {/* FX Calculator */}
                   <FXCalculatorBlock reportData={reportData} currentRange={currentRange} />
                 </>
               )}
@@ -1339,19 +1269,24 @@ function BudgetPacingCard({ pacing, manualBudget, onBudgetChange }) {
             <span className="absolute left-3 top-2.5 text-slate-400 text-sm font-bold">$</span>
             <input type="number" placeholder="Enter budget..." value={manualBudget}
               onChange={e => onBudgetChange(e.target.value)}
-              className="no-print w-full pl-7 pr-3
-className="no-print w-full pl-7 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-lg font-bold focus:outline-none focus:border-blue-500" />
+              className="no-print w-full pl-7 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-lg font-bold focus:outline-none focus:border-blue-500" />
           </div>
-          {manualBudget && <div className="hidden print:block text-2xl font-bold text-white">${parseFloat(manualBudget).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>}
+          {manualBudget && (
+            <div className="hidden print:block text-2xl font-bold text-white">
+              ${parseFloat(manualBudget).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+            </div>
+          )}
         </div>
         <div>
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-2">Spent (USD)</label>
-          <div className="text-2xl font-bold text-white">${pacing.spent.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+          <div className="text-2xl font-bold text-white">
+            ${pacing.spent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+          </div>
         </div>
         <div>
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-2">Pacing</label>
           <div className={`text-2xl font-bold ${parseFloat(pacingPercent) > 90 ? 'text-red-400' : parseFloat(pacingPercent) > 70 ? 'text-yellow-400' : 'text-emerald-400'}`}>
-            {budget > 0 ? `${pacingPercent}%` : '—'}
+            {budget > 0 ? `${pacingPercent}%` : '-'}
           </div>
         </div>
       </div>
