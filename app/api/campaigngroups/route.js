@@ -11,67 +11,73 @@ export async function POST(request) {
     }
 
     const { accountIds } = await request.json();
-
-    const headers = {
-      'Authorization': `Bearer ${token.accessToken}`,
-      'Linkedin-Version': '202504',
-      'X-RestLi-Protocol-Version': '2.0.0',
-    };
+    if (!accountIds || accountIds.length === 0) {
+      return NextResponse.json([]);
+    }
 
     const allGroups = [];
 
-    const end = new Date();
-    const start = new Date(Date.now() - 90 * 86400000);
-    const fmt = d => ({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
-    const s = fmt(start); const e = fmt(end);
-    const dateRangeParam = `dateRange=(start:(year:${s.year},month:${s.month},day:${s.day}),end:(year:${e.year},month:${e.month},day:${e.day}))`;
-
-    for (const accountId of accountIds) {
-      const accountUrn = encodeURIComponent(`urn:li:sponsoredAccount:${accountId}`);
-
-      // Get campaign group IDs via analytics pivot
-      const url = `https://api.linkedin.com/rest/adAnalytics?q=analytics&pivot=CAMPAIGN_GROUP&timeGranularity=ALL&${dateRangeParam}&accounts=List(${accountUrn})&fields=impressions,pivotValues`;
-      console.log('Fetching campaign groups:', url);
-
-      const res = await fetch(url, { headers });
-      console.log('Campaign groups status:', res.status);
-
-      if (!res.ok) {
-        console.error('Campaign groups failed:', await res.text());
-        continue;
-      }
-
-      const data = await res.json();
-      console.log('Campaign group elements:', data.elements?.length);
-
-      (data.elements || []).forEach(el => {
-        const urn = el.pivotValues?.[0];
-        if (urn) {
-          const id = parseInt(urn.split(':').pop());
-          if (!allGroups.find(g => g.id === id)) {
-            allGroups.push({ id, name: `Campaign Group ${id}`, accountId });
-          }
-        }
-      });
-    }
-
-    // Fetch real names
     await Promise.all(
-      allGroups.map(async (g, i) => {
-        const res = await fetch(`https://api.linkedin.com/rest/adCampaignGroups/${g.id}`, { headers });
-        if (res.ok) {
-          const detail = await res.json();
-          if (detail.name) allGroups[i].name = detail.name;
-          allGroups[i].status = detail.status || 'ACTIVE';
+      accountIds.map(async (accountId) => {
+        let start = 0;
+        const count = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+          try {
+            const res = await fetch(
+              `https://api.linkedin.com/v2/adCampaignGroupsV2?q=search&search.account.values[0]=urn:li:sponsoredAccount:${accountId}&fields=id,name,status,account&count=${count}&start=${start}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token.accessToken}`,
+                  'LinkedIn-Version': '202401',
+                },
+              }
+            );
+
+            if (!res.ok) {
+              console.error(`Campaign groups failed for account ${accountId}:`, await res.text());
+              break;
+            }
+
+            const data = await res.json();
+            const elements = data.elements || [];
+
+            elements.forEach(g => {
+              const rawId = g.id;
+              const id = typeof rawId === 'string' && rawId.includes(':')
+                ? parseInt(rawId.split(':').pop())
+                : parseInt(rawId);
+
+              // LinkedIn returns name directly on the object
+              const name = g.name || g.displayName || `Campaign Group ${id}`;
+
+              allGroups.push({
+                id,
+                name,
+                accountId: parseInt(accountId),
+                status: g.status || 'ACTIVE',
+              });
+            });
+
+            const paging = data.paging;
+            hasMore = paging && paging.total
+              ? start + count < paging.total
+              : elements.length === count;
+            start += count;
+            if (start >= 500) break;
+          } catch (err) {
+            console.error(`Campaign groups error for account ${accountId}:`, err);
+            break;
+          }
         }
       })
     );
 
-    console.log('Total campaign groups:', allGroups.length);
+    allGroups.sort((a, b) => a.name.localeCompare(b.name));
     return NextResponse.json(allGroups);
-
   } catch (error) {
-    console.error('Campaign groups error:', error);
+    console.error('Campaign groups API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
