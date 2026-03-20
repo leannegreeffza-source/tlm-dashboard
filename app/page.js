@@ -1085,6 +1085,192 @@ function BenchmarkManager() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CAMPAIGN CHARTS — Chart.js 2×2 grid per campaign
+// ─────────────────────────────────────────────────────────────
+function CampaignCharts({ campaignId, campaign: c, bench, region }) {
+  const chartRef = useRef(null);
+  const chartsRef = useRef([]);
+
+  // Build week-level data from the campaign object
+  // LinkedIn API returns totals; we simulate week buckets from daily data if available,
+  // otherwise show single-period bars with benchmark lines
+  const weeks  = c.weeklyData?.map(w => w.label) || ['Period Total'];
+  const ctrArr = c.weeklyData?.map(w => +(w.ctr*100).toFixed(2))  || [+(c.impressions>0?(c.clicks/c.impressions*100):0).toFixed(2)];
+  const engArr = c.weeklyData?.map(w => +(w.eng*100).toFixed(2))  || [+(c.impressions>0?((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions*100:0).toFixed(2)];
+  const cpcArr = c.weeklyData?.map(w => +w.cpc.toFixed(2))        || [+(c.clicks>0?(c.spent/c.clicks):0).toFixed(2)];
+  const spdArr = c.weeklyData?.map(w => +w.spend.toFixed(2))      || [+c.spent.toFixed(2)];
+
+  const bCTR = bench['Sponsored Content CTR']?.low * 100 || 0.4;
+  const bEng = bench['Sponsored Engagement Rate']?.low * 100 || 2.5;
+
+  const uid = String(campaignId).slice(-8).replace(/[^a-z0-9]/gi,'');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    script.onload = () => {
+      const Chart = window.Chart;
+      chartsRef.current.forEach(ch => { try { ch.destroy(); } catch(e){} });
+      chartsRef.current = [];
+
+      const benchLine = (n, val, label, color) => ({
+        label, data: Array(n).fill(val),
+        borderColor: color, borderDash: [6,4], borderWidth: 1.5,
+        pointRadius: 0, fill: false, type: 'line'
+      });
+
+      const defaults = {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 }, boxWidth: 14 } } }
+      };
+
+      // CTR line
+      const el1 = document.getElementById(`ctr-${uid}`);
+      if (el1) chartsRef.current.push(new Chart(el1, {
+        type: 'line',
+        data: { labels: weeks, datasets: [
+          { label: 'CTR %', data: ctrArr, borderColor: '#1a3fcf', backgroundColor: 'rgba(26,63,207,0.08)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#1a3fcf' },
+          benchLine(weeks.length, bCTR, `${bCTR.toFixed(1)}% Benchmark`, '#059669')
+        ]},
+        options: { ...defaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'CTR (%)' } } } }
+      }));
+
+      // Engagement Rate line
+      const el2 = document.getElementById(`eng-${uid}`);
+      if (el2) chartsRef.current.push(new Chart(el2, {
+        type: 'line',
+        data: { labels: weeks, datasets: [
+          { label: 'Eng Rate %', data: engArr, borderColor: '#059669', backgroundColor: 'rgba(5,150,105,0.08)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#059669' },
+          benchLine(weeks.length, bEng, `${bEng.toFixed(1)}% Benchmark`, '#d97706')
+        ]},
+        options: { ...defaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'Engagement Rate (%)' } } } }
+      }));
+
+      // CPC bar
+      const el3 = document.getElementById(`cpc-${uid}`);
+      if (el3) chartsRef.current.push(new Chart(el3, {
+        type: 'bar',
+        data: { labels: weeks, datasets: [
+          { label: 'Avg CPC $', data: cpcArr,
+            backgroundColor: cpcArr.map(v => {
+              const bv = bench['CPC ($)']?.high || 2;
+              return v > bv * 1.5 ? '#dc2626' : v > bv ? '#d97706' : '#1a3fcf';
+            })
+          }
+        ]},
+        options: { ...defaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'CPC ($)' } } } }
+      }));
+
+      // Spend bar
+      const el4 = document.getElementById(`spd-${uid}`);
+      if (el4) chartsRef.current.push(new Chart(el4, {
+        type: 'bar',
+        data: { labels: weeks, datasets: [{ label: 'Spend $', data: spdArr, backgroundColor: '#272828' }]},
+        options: { ...defaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'Spend ($)' } } } }
+      }));
+    };
+    document.head.appendChild(script);
+    return () => {
+      chartsRef.current.forEach(ch => { try { ch.destroy(); } catch(e){} });
+      try { document.head.removeChild(script); } catch(e){}
+    };
+  }, [campaignId]);
+
+  return (
+    <div style={{padding:'0 24px 24px'}} ref={chartRef}>
+      <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',marginBottom:'16px',paddingTop:'8px',borderTop:'1px solid #e8e6df'}}>
+        Performance Charts — Week on Week
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
+        {[
+          { id:`ctr-${uid}`, title:'CTR % — Week on Week' },
+          { id:`eng-${uid}`, title:'Engagement Rate % — Week on Week' },
+          { id:`cpc-${uid}`, title:'Avg CPC ($) — Week on Week' },
+          { id:`spd-${uid}`, title:'Weekly Spend ($)' },
+        ].map(chart => (
+          <div key={chart.id} style={{background:'#fafaf9',border:'1px solid #e8e6df',borderRadius:'4px',padding:'16px'}}>
+            <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',marginBottom:'12px'}}>{chart.title}</div>
+            <canvas id={chart.id} style={{maxHeight:'200px'}} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// WEEKLY BREAKDOWN TABLE — per campaign
+// ─────────────────────────────────────────────────────────────
+function WeeklyBreakdown({ campaign: c, bench, region, campaignNameMap }) {
+  const bCTR = bench['Sponsored Content CTR'];
+  const bEng = bench['Sponsored Engagement Rate'];
+
+  // Use weeklyData if available from API, else single summary row
+  const rows = c.weeklyData || [{
+    label:       'Period Total',
+    dateRange:   '',
+    ctr:         c.impressions>0 ? c.clicks/c.impressions : 0,
+    cpc:         c.clicks>0 ? c.spent/c.clicks : 0,
+    engRate:     c.impressions>0 ? ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions : 0,
+    webClicks:   c.webClicks || 0,
+    webCtr:      c.impressions>0 ? (c.webClicks||0)/c.impressions : 0,
+    impressions: c.impressions || 0,
+    clicks:      c.clicks || 0,
+    engagements: (c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0),
+    spend:       c.spent || 0,
+    days:        '—',
+    ctrStatus:   calcRating('Sponsored Content CTR', c.impressions>0?c.clicks/c.impressions:0, region),
+    engStatus:   calcRating('Sponsored Engagement Rate', c.impressions>0?((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions:0, region),
+  }];
+
+  function statusCell(r) {
+    const color = r==='exc'||r==='above' ? '#059669' : r==='near' ? '#d97706' : '#dc2626';
+    const label = r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below';
+    return <td style={{padding:'9px 12px',fontSize:'11px',color,whiteSpace:'nowrap'}}>{label}</td>;
+  }
+
+  return (
+    <div style={{margin:'0 24px 24px'}}>
+      <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',padding:'8px 12px',background:'#f2f1ec',borderRadius:'4px 4px 0 0',borderBottom:'1px solid #e8e6df'}}>
+        Week-by-Week Summary — Objective: Engagement
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead>
+            <tr style={{background:'#f2f1ec'}}>
+              {['Week','Date Range','CTR %','CPC $','Eng Rate %','Web Clicks','Web CTR %','Impressions','Clicks','Engagements','Total Spend','Days','CTR Status','Eng Status'].map(h => (
+                <th key={h} style={{textAlign:'left',padding:'8px 12px',fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',whiteSpace:'nowrap',borderBottom:'1px solid #e8e6df'}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} style={{background:i%2===0?'white':'#fafaf9',borderBottom:'1px solid #e8e6df'}}>
+                <td style={{padding:'9px 12px',fontWeight:600,color:'#272828',fontSize:'13px',whiteSpace:'nowrap'}}>{row.label}</td>
+                <td style={{padding:'9px 12px',fontSize:'12px',color:'#8a8880',whiteSpace:'nowrap'}}>{row.dateRange}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px',fontWeight:600,color: calcRating('Sponsored Content CTR',row.ctr,region)==='exc'||calcRating('Sponsored Content CTR',row.ctr,region)==='above'?'#059669':'#dc2626'}}>{(row.ctr*100).toFixed(2)}%</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>${row.cpc.toFixed(2)}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px',fontWeight:600,color: calcRating('Sponsored Engagement Rate',row.engRate,region)==='exc'||calcRating('Sponsored Engagement Rate',row.engRate,region)==='above'?'#059669':'#dc2626'}}>{(row.engRate*100).toFixed(2)}%</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>{row.webClicks}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>{(row.webCtr*100).toFixed(2)}%</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>{Number(row.impressions).toLocaleString()}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>{Number(row.clicks).toLocaleString()}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>{Number(row.engagements).toLocaleString()}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>${row.spend.toFixed(2)}</td>
+                <td style={{padding:'9px 12px',fontFamily:'monospace',fontSize:'12px'}}>{row.days}</td>
+                {statusCell(row.ctrStatus || calcRating('Sponsored Content CTR',row.ctr,region))}
+                {statusCell(row.engStatus || calcRating('Sponsored Engagement Rate',row.engRate,region))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // LEVEL SELECTOR — reusable checkbox list with search + import
 // ─────────────────────────────────────────────────────────────
 function LevelSelector({ label, items, allItems, selectedIds, onToggle, onClear, search, onSearch, loading, placeholder, emptyMsg, onImport, showImport }) {
@@ -2066,6 +2252,13 @@ ${aiSection}
                                 </tr></tbody>
                               </table>
                             </div>
+
+                            {/* ── Charts: 2x2 grid ── */}
+                            <CampaignCharts campaignId={c.id} campaign={c} bench={bench} region={report.region} />
+
+                            {/* ── Week-by-Week Summary Table ── */}
+                            <WeeklyBreakdown campaign={c} bench={bench} region={report.region} campaignNameMap={campaignNameMap} />
+
                           </>
                         )}
                       </div>
