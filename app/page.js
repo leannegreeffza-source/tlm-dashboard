@@ -1087,40 +1087,135 @@ function BenchmarkManager() {
 // ─────────────────────────────────────────────────────────────
 // TLM REPORT GENERATOR — full branded report matching template
 // ─────────────────────────────────────────────────────────────
-function TLMReportGenerator({ session, accounts, campaigns, reportData: liveData, currentRange, campaignNameMap }) {
+function TLMReportGenerator({ session, currentRange: parentRange }) {
+  // ── Own data state — fully independent from Campaign Manager ──
+  const [ownAccounts,     setOwnAccounts]     = useState([]);
+  const [ownCampaigns,    setOwnCampaigns]    = useState([]);
+  const [ownLiveData,     setOwnLiveData]     = useState(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [loadingCampaigns,setLoadingCampaigns]= useState(false);
+  const [loadingData,     setLoadingData]     = useState(false);
+  const [fetchError,      setFetchError]      = useState(null);
+
+  // ── Config state ──
   const [region,        setRegion]        = useState('ZA');
   const [campIds,       setCampIds]       = useState([]);
-  const [dateStart,     setDateStart]     = useState(currentRange?.start || '');
-  const [dateEnd,       setDateEnd]       = useState(currentRange?.end   || '');
+  const [selectedAcctId,setSelectedAcctId]= useState(null);
+  const [dateStart,     setDateStart]     = useState(parentRange?.start || '');
+  const [dateEnd,       setDateEnd]       = useState(parentRange?.end   || '');
+
+  // ── Report + AI state ──
   const [report,        setReport]        = useState(null);
   const [aiText,        setAiText]        = useState(null);
   const [aiLoading,     setAiLoading]     = useState(false);
   const [aiError,       setAiError]       = useState(null);
+
+  // ── Search + import state ──
   const [acctSearch,    setAcctSearch]    = useState('');
   const [campSearch,    setCampSearch]    = useState('');
   const [idImport,      setIdImport]      = useState('');
   const [idImportErr,   setIdImportErr]   = useState('');
   const [showIdImport,  setShowIdImport]  = useState(false);
+
   const printRef = useRef(null);
 
+  // ── Sync date range when parent changes ──
   useEffect(() => {
-    setDateStart(currentRange?.start || '');
-    setDateEnd(currentRange?.end   || '');
-  }, [currentRange]);
+    setDateStart(parentRange?.start || '');
+    setDateEnd(parentRange?.end   || '');
+  }, [parentRange]);
 
-  const allCampaigns  = campaigns || [];
+  // ── Load accounts directly from LinkedIn on mount ──
+  useEffect(() => {
+    async function fetchAccounts() {
+      setLoadingAccounts(true);
+      setFetchError(null);
+      try {
+        const res = await fetch('/api/accounts');
+        if (res.ok) {
+          const data = await res.json();
+          setOwnAccounts(data || []);
+          // Auto-select first account
+          if (data?.length > 0 && !selectedAcctId) {
+            setSelectedAcctId(String(data[0].id));
+          }
+        } else {
+          setFetchError('Failed to load accounts from LinkedIn.');
+        }
+      } catch (e) {
+        setFetchError('Could not connect to LinkedIn API.');
+      }
+      setLoadingAccounts(false);
+    }
+    fetchAccounts();
+  }, []);
+
+  // ── Load campaigns when account changes ──
+  useEffect(() => {
+    if (!selectedAcctId) return;
+    async function fetchCampaigns() {
+      setLoadingCampaigns(true);
+      setCampIds([]);
+      setOwnCampaigns([]);
+      setOwnLiveData(null);
+      try {
+        const res = await fetch('/api/campaigns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountIds: [selectedAcctId] })
+        });
+        if (res.ok) setOwnCampaigns(await res.json());
+      } catch (e) { console.error(e); }
+      setLoadingCampaigns(false);
+    }
+    fetchCampaigns();
+  }, [selectedAcctId]);
+
+  // ── Fetch analytics for selected account + campaigns ──
+  async function fetchAnalytics() {
+    if (!selectedAcctId) return;
+    setLoadingData(true);
+    setFetchError(null);
+    try {
+      const res = await fetch('/api/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountIds: [selectedAcctId],
+          campaignIds: campIds.length > 0 ? campIds : null,
+          currentRange: { start: dateStart, end: dateEnd },
+          previousRange: {
+            start: new Date(new Date(dateStart).getTime() - (new Date(dateEnd) - new Date(dateStart)) - 86400000).toISOString().split('T')[0],
+            end:   new Date(new Date(dateStart).getTime() - 86400000).toISOString().split('T')[0],
+          },
+          exchangeRate: 18.5
+        })
+      });
+      if (res.ok) {
+        setOwnLiveData(await res.json());
+      } else {
+        setFetchError('Failed to fetch analytics from LinkedIn.');
+      }
+    } catch (e) {
+      setFetchError('Could not fetch analytics. Check your API connection.');
+    }
+    setLoadingData(false);
+  }
+
+  // Derived values
+  const allCampaigns     = ownCampaigns;
+  const liveData         = ownLiveData;
+  const selectedAccount  = ownAccounts.find(a => String(a.id) === String(selectedAcctId));
+  const accountName      = selectedAccount?.name || session?.user?.name || 'Client';
+
+  const campaignNameMap  = Object.fromEntries(ownCampaigns.map(c => [String(c.id), c.name]));
 
   // ── Account search filter ──
-  const filteredAccounts = (accounts || []).filter(a =>
+  const filteredAccounts = ownAccounts.filter(a =>
     !acctSearch ||
     a.name?.toLowerCase().includes(acctSearch.toLowerCase()) ||
     String(a.id).includes(acctSearch)
   );
-  const [selectedAcctId, setSelectedAcctId] = useState(null);
-  const selectedAccount = selectedAcctId
-    ? (accounts || []).find(a => String(a.id) === String(selectedAcctId))
-    : (accounts || [])[0];
-  const accountName = selectedAccount?.name || session?.user?.name || 'Client';
 
   // ── Campaign search filter ──
   const filteredCampaigns = allCampaigns.filter(c =>
@@ -1395,9 +1490,15 @@ ${aiSection}
         {/* Row 1: Account search + Region + Dates */}
         <div className="grid grid-cols-4 gap-4 mb-5">
 
-          {/* Account — searchable */}
+          {/* Account — searchable, fetched directly from LinkedIn */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Account</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+              Account
+              {loadingAccounts && <RefreshCw className="w-3 h-3 animate-spin text-yellow-500" />}
+              {!loadingAccounts && ownAccounts.length > 0 && (
+                <span className="text-slate-600 font-normal normal-case">{ownAccounts.length} accounts</span>
+              )}
+            </label>
             <div className="relative mb-2">
               <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
               <input
@@ -1424,7 +1525,16 @@ ${aiSection}
                 );
               })}
               {filteredAccounts.length === 0 && acctSearch && (
-                <p className="text-xs text-slate-500 px-2 py-2">No accounts match "{acctSearch}"</p>
+                <p className="text-xs text-slate-500 px-2 py-2">No accounts match &quot;{acctSearch}&quot;</p>
+              )}
+              {ownAccounts.length === 0 && !loadingAccounts && (
+                <p className="text-xs text-slate-500 px-2 py-3">No accounts found. Make sure you are signed in with LinkedIn.</p>
+              )}
+              {loadingAccounts && (
+                <div className="flex items-center gap-2 px-2 py-3 text-xs text-slate-500">
+                  <RefreshCw className="w-3 h-3 animate-spin" style={{color:'#F6DC4E'}} />
+                  Loading accounts from LinkedIn...
+                </div>
               )}
             </div>
           </div>
@@ -1456,8 +1566,9 @@ ${aiSection}
         {/* Row 2: Campaign selection */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
               Campaigns
+              {loadingCampaigns && <RefreshCw className="w-3 h-3 animate-spin text-yellow-500" />}
               {campIds.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold" style={{background:'#F6DC4E',color:'#272828'}}>
                   {campIds.length} selected
@@ -1567,28 +1678,62 @@ ${aiSection}
               </div>
             </>
           ) : (
-            <p className="text-xs text-slate-500 py-2">No campaigns loaded — select an account in Campaign Manager first, or import IDs above.</p>
+            <div className="text-xs py-2">
+              {loadingCampaigns
+                ? <span className="flex items-center gap-2 text-slate-500"><RefreshCw className="w-3 h-3 animate-spin" style={{color:'#F6DC4E'}} />Loading campaigns from LinkedIn...</span>
+                : selectedAcctId
+                  ? <span className="text-slate-500">No campaigns found for this account.</span>
+                  : <span className="text-slate-500">Select an account above to load its campaigns.</span>
+              }
+            </div>
           )}
         </div>
 
-        {!liveData && (
-          <div className="mb-4 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(246,220,78,0.08)',borderColor:'rgba(246,220,78,0.3)',color:'#F6DC4E'}}>
-            ⚠ No live data loaded — select an account in the Campaign Manager tab first, then return here.
+        {/* Fetch error */}
+        {fetchError && (
+          <div className="mb-4 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(220,38,38,0.08)',borderColor:'rgba(220,38,38,0.4)',color:'#f87171'}}>
+            ⚠ {fetchError}
           </div>
         )}
 
-        <div className="flex gap-3 pt-2 flex-wrap">
-          <button onClick={generateReport} disabled={!liveData}
+        {/* Live data status */}
+        {liveData && !loadingData && (
+          <div className="mb-4 px-4 py-3 rounded-lg border text-xs flex items-center gap-2" style={{background:'rgba(16,185,129,0.08)',borderColor:'rgba(16,185,129,0.3)',color:'#6ee7b7'}}>
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'#10b981'}} />
+            Live data loaded · {fmtNum(liveData.current?.impressions || 0)} impressions · {liveData.current?.leads || 0} leads · {fmtDate(dateStart)} – {fmtDate(dateEnd)}
+            <button onClick={fetchAnalytics} className="ml-auto text-xs border border-emerald-700 rounded px-2 py-1 hover:bg-emerald-900/30 transition-colors">
+              Refresh
+            </button>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-3 pt-2 flex-wrap items-center">
+          {/* Primary: Load Data from LinkedIn */}
+          <button onClick={fetchAnalytics} disabled={!selectedAcctId || !dateStart || !dateEnd || loadingData}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            style={{background:'#0000FF',color:'white',border:'1px solid #0000cc'}}>
+            {loadingData
+              ? <RefreshCw className="w-4 h-4 animate-spin" />
+              : <RefreshCw className="w-4 h-4" />}
+            {loadingData ? 'Loading from LinkedIn...' : 'Load LinkedIn Data'}
+          </button>
+
+          {/* Generate report */}
+          <button onClick={generateReport} disabled={!liveData || loadingData}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             style={{background:'#272828',color:'white',border:'1px solid #444'}}>
             <FileText className="w-4 h-4" /> Generate Report
           </button>
+
+          {/* AI */}
           <button onClick={getAIInsights} disabled={!report || aiLoading}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             style={{background:'#F6DC4E',color:'#272828'}}>
             {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {aiLoading ? 'Analysing...' : 'AI Recommendations'}
           </button>
+
           {report && (
             <button onClick={exportHTML}
               className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
@@ -2153,11 +2298,7 @@ export default function Dashboard() {
         {activeMainTab === 'report' && (
           <TLMReportGenerator
             session={session}
-            accounts={accounts}
-            campaigns={campaigns}
-            reportData={reportData}
             currentRange={currentRange}
-            campaignNameMap={campaignNameMap}
           />
         )}
 
