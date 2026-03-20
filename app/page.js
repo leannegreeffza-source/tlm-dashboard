@@ -2214,7 +2214,6 @@ ${aiSection}
               </div>
             </div>
           )}
-          )}
 
           {/* ── Benchmark Reference ── */}
           <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
