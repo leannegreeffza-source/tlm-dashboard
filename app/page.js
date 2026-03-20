@@ -1184,10 +1184,15 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           accountIds: [selectedAcctId],
           campaignIds: campIds.length > 0 ? campIds : null,
           currentRange: { start: dateStart, end: dateEnd },
-          previousRange: {
-            start: new Date(new Date(dateStart).getTime() - (new Date(dateEnd) - new Date(dateStart)) - 86400000).toISOString().split('T')[0],
-            end:   new Date(new Date(dateStart).getTime() - 86400000).toISOString().split('T')[0],
-          },
+          previousRange: (() => {
+            const start = new Date(dateStart + 'T00:00:00').getTime();
+            const end   = new Date(dateEnd   + 'T00:00:00').getTime();
+            const span  = Math.max(end - start, 86400000);
+            return {
+              start: new Date(start - span - 86400000).toISOString().split('T')[0],
+              end:   new Date(start - 86400000).toISOString().split('T')[0],
+            };
+          })(),
           exchangeRate: 18.5
         })
       });
@@ -1492,13 +1497,13 @@ ${aiSection}
 
           {/* Account — searchable, fetched directly from LinkedIn */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-2">
-              Account
-              {loadingAccounts && <RefreshCw className="w-3 h-3 animate-spin text-yellow-500" />}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Account</span>
+              {loadingAccounts && <RefreshCw className="w-3 h-3 animate-spin" style={{color:'#F6DC4E'}} />}
               {!loadingAccounts && ownAccounts.length > 0 && (
-                <span className="text-slate-600 font-normal normal-case">{ownAccounts.length} accounts</span>
+                <span className="text-slate-500 text-xs font-normal normal-case">{ownAccounts.length} loaded</span>
               )}
-            </label>
+            </div>
             <div className="relative mb-2">
               <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
               <input
@@ -1510,9 +1515,9 @@ ${aiSection}
               />
             </div>
             <div className="max-h-32 overflow-y-auto space-y-1">
-              {(filteredAccounts.length > 0 ? filteredAccounts : (accounts||[])).map(a => {
+              {(filteredAccounts.length > 0 ? filteredAccounts : ownAccounts).map(a => {
                 const sid = String(a.id);
-                const sel = String(selectedAcctId || (accounts||[])[0]?.id) === sid;
+                const sel = String(selectedAcctId || ownAccounts[0]?.id) === sid;
                 return (
                   <button key={sid} onClick={() => setSelectedAcctId(sid)}
                     className="w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors"
@@ -1566,16 +1571,16 @@ ${aiSection}
         {/* Row 2: Campaign selection */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
-              Campaigns
-              {loadingCampaigns && <RefreshCw className="w-3 h-3 animate-spin text-yellow-500" />}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Campaigns</span>
+              {loadingCampaigns && <RefreshCw className="w-3 h-3 animate-spin" style={{color:'#F6DC4E'}} />}
               {campIds.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold" style={{background:'#F6DC4E',color:'#272828'}}>
                   {campIds.length} selected
                 </span>
               )}
-              <span className="ml-2 text-slate-500 font-normal normal-case">(leave empty = all loaded data)</span>
-            </label>
+              <span className="text-slate-500 font-normal normal-case text-xs">(leave empty = all loaded data)</span>
+            </div>
             <div className="flex items-center gap-2">
               {campIds.length > 0 && (
                 <button onClick={() => setCampIds([])}
