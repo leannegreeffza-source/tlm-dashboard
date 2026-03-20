@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { Search, TrendingUp, TrendingDown, DollarSign, MousePointer, Eye, Target, Users, RefreshCw, ChevronDown, Calendar, ExternalLink } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, DollarSign, MousePointer, Eye, Target, Users, RefreshCw, ChevronDown, Calendar, ExternalLink, Layers, Video, Globe, Zap, BarChart2, FileText, Settings, Sparkles } from 'lucide-react';
 
 function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -852,8 +852,810 @@ mc('impressionsChart',${JSON.stringify(campaigns.map(c=>c.impressions))},'Impres
 </body></html>`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// BENCHMARKS DATA — sourced from LinkedIn Q4 2025 In-Depth
+// ─────────────────────────────────────────────────────────────
+let _benchmarks = {
+  'ZA': {
+    'Sponsored Content CTR':     { low: 0.0014, median: 0.0057, high: 0.0117 },
+    'Sponsored Engagement Rate': { low: 0.0020, median: 0.0088, high: 0.0183 },
+    'Lead Gen Form Fill Rate':   { low: 0.0626, median: 0.1537, high: 0.3552 },
+    'Cost Per Lead ($)':         { low: 3.67,   median: 10.83,  high: 29.19  },
+    'Organic CTR':               { low: 0.0261, median: 0.0474, high: 0.1019 },
+    'Organic Engagement Rate':   { low: 0.0360, median: 0.0615, high: 0.1188 },
+    'Video View Through Rate':   { low: 0.318,  median: 0.459,  high: 0.755  },
+    'CPM ($)':                   { low: 4.40,   median: 4.40,   high: 4.40   },
+    'CPC ($)':                   { low: 0.91,   median: 0.91,   high: 0.91   },
+  },
+  'Africa': {
+    'Sponsored Content CTR':     { low: 0.0030, median: 0.0060, high: 0.0122 },
+    'Sponsored Engagement Rate': { low: 0.0040, median: 0.0092, high: 0.0225 },
+    'Lead Gen Form Fill Rate':   { low: 0.0374, median: 0.0965, high: 0.2397 },
+    'Cost Per Lead ($)':         { low: 5.57,   median: 16.76,  high: 48.02  },
+    'Organic CTR':               { low: 0.0298, median: 0.0524, high: 0.1203 },
+    'Organic Engagement Rate':   { low: 0.0442, median: 0.0713, high: 0.1436 },
+    'Video View Through Rate':   { low: 0.284,  median: 0.378,  high: 0.594  },
+    'CPM ($)':                   { low: 3.75,   median: 3.75,   high: 3.75   },
+    'CPC ($)':                   { low: 0.57,   median: 0.57,   high: 0.57   },
+  },
+  'North America': {
+    'Sponsored Content CTR':     { low: 0.0013, median: 0.0057, high: 0.0141 },
+    'Sponsored Engagement Rate': { low: 0.0017, median: 0.0046, high: 0.0093 },
+    'Lead Gen Form Fill Rate':   { low: 0.0281, median: 0.0833, high: 0.2211 },
+    'Cost Per Lead ($)':         { low: 77.31,  median: 110,    high: 160    },
+    'Organic CTR':               { low: 0.0194, median: 0.0367, high: 0.0716 },
+    'Organic Engagement Rate':   { low: 0.0334, median: 0.0554, high: 0.0940 },
+    'CPM ($)':                   { low: 6.00,   median: 6.00,   high: 6.00   },
+    'CPC ($)':                   { low: 2.50,   median: 2.50,   high: 2.50   },
+  },
+  'Europe': {
+    'Sponsored Content CTR':     { low: 0.0023, median: 0.0047, high: 0.0092 },
+    'Sponsored Engagement Rate': { low: 0.0042, median: 0.0102, high: 0.0238 },
+    'Lead Gen Form Fill Rate':   { low: 0.0238, median: 0.0685, high: 0.1739 },
+    'Cost Per Lead ($)':         { low: 49.23,  median: 80,     high: 130    },
+    'Organic CTR':               { low: 0.0298, median: 0.0524, high: 0.1203 },
+    'Organic Engagement Rate':   { low: 0.0442, median: 0.0713, high: 0.1436 },
+    'CPM ($)':                   { low: 5.20,   median: 5.20,   high: 5.20   },
+    'CPC ($)':                   { low: 2.10,   median: 2.10,   high: 2.10   },
+  },
+  'South America': {
+    'Sponsored Content CTR':     { low: 0.0023, median: 0.0064, high: 0.0164 },
+    'Sponsored Engagement Rate': { low: 0.0034, median: 0.0089, high: 0.0234 },
+    'Lead Gen Form Fill Rate':   { low: 0.0250, median: 0.0909, high: 0.2692 },
+    'Cost Per Lead ($)':         { low: 7.12,   median: 20,     high: 50     },
+    'Organic CTR':               { low: 0.0259, median: 0.0463, high: 0.1191 },
+    'Organic Engagement Rate':   { low: 0.0391, median: 0.0635, high: 0.1380 },
+    'CPM ($)':                   { low: 3.20,   median: 3.20,   high: 3.20   },
+    'CPC ($)':                   { low: 0.80,   median: 0.80,   high: 0.80   },
+  },
+};
+function getBenchmarks() { return _benchmarks; }
+
+// ─────────────────────────────────────────────────────────────
+// TL LOGO SVG (inline, matches brand asset)
+// ─────────────────────────────────────────────────────────────
+function TLLogo({ size = 32, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <rect width="400" height="400" fill="#272828"/>
+      <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
+      <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
+      <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// RATING HELPERS
+// ─────────────────────────────────────────────────────────────
+function calcRating(metric, value, region) {
+  const bench = _benchmarks[region];
+  if (!bench?.[metric]) return null;
+  const { low, median, high } = bench[metric];
+  const isCost = metric.includes('Cost') || metric.includes('CPM') || metric.includes('CPC');
+  if (isCost) {
+    if (value <= low * 0.75) return 'exc';
+    if (value <= median)     return 'above';
+    if (value <= high)       return 'near';
+    return 'below';
+  }
+  if (value >= high * 1.5)  return 'exc';
+  if (value >= median)      return 'above';
+  if (value >= low * 0.75)  return 'near';
+  return 'below';
+}
+
+function RatingPill({ rating }) {
+  if (!rating) return null;
+  const map = {
+    exc:   { label: '🟢 Exceptional',     cls: 'bg-emerald-900/60 text-emerald-300 border border-emerald-700' },
+    above: { label: '🔵 Above Benchmark', cls: 'bg-blue-900/60 text-blue-300 border border-blue-700' },
+    near:  { label: '🟡 Near Benchmark',  cls: 'bg-yellow-900/60 text-yellow-300 border border-yellow-700' },
+    below: { label: '🔴 Below Benchmark', cls: 'bg-red-900/60 text-red-300 border border-red-700' },
+  };
+  const c = map[rating];
+  if (!c) return null;
+  return <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-bold ${c.cls}`}>{c.label}</span>;
+}
+
+function fmtPct(v)  { return `${(v * 100).toFixed(2)}%`; }
+function fmtCur(v)  { return `$${Number(v).toFixed(2)}`; }
+function fmtNum(v)  { return Number(v).toLocaleString(); }
+function fmtBenchV(metric, v) {
+  if (metric.includes('Cost') || metric.includes('CPM') || metric.includes('CPC')) return fmtCur(v);
+  return fmtPct(v);
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// ─────────────────────────────────────────────────────────────
+// BENCHMARK MANAGER  (developer-only tab)
+// ─────────────────────────────────────────────────────────────
+function BenchmarkManager() {
+  const [localBench, setLocalBench] = useState(() => JSON.parse(JSON.stringify(_benchmarks)));
+  const [saved,   setSaved]   = useState({});
+  const [saving,  setSaving]  = useState({});
+  const [loadErr, setLoadErr] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/benchmarks')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setLocalBench(data);
+          Object.keys(data).forEach(region => {
+            if (_benchmarks[region]) {
+              Object.keys(data[region]).forEach(metric => {
+                _benchmarks[region][metric] = { ...data[region][metric] };
+              });
+            }
+          });
+        }
+      })
+      .catch(() => setLoadErr('Could not load saved benchmarks — showing defaults.'));
+  }, []);
+
+  function handleChange(region, metric, level, val) {
+    setLocalBench(prev => ({
+      ...prev,
+      [region]: { ...prev[region], [metric]: { ...prev[region][metric], [level]: parseFloat(val) || 0 } }
+    }));
+  }
+
+  async function saveRegion(region) {
+    setSaving(prev => ({ ...prev, [region]: true }));
+    const updated = { ..._benchmarks, [region]: localBench[region] };
+    Object.entries(localBench[region]).forEach(([metric, vals]) => {
+      if (_benchmarks[region]) _benchmarks[region][metric] = { ...vals };
+    });
+    try {
+      const res = await fetch('/api/benchmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      if (res.ok) {
+        setSaved(prev => ({ ...prev, [region]: true }));
+        setTimeout(() => setSaved(prev => ({ ...prev, [region]: false })), 2500);
+      }
+    } catch (e) { console.error(e); }
+    setSaving(prev => ({ ...prev, [region]: false }));
+  }
+
+  return (
+    <div className="max-w-screen-2xl mx-auto p-6">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white mb-1" style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Benchmark Manager</h2>
+          <p className="text-slate-400 text-sm">LinkedIn Q4 2025 benchmarks. Changes persist to server and apply immediately to all new reports.</p>
+          {loadErr && <p className="mt-2 text-yellow-400 text-xs">{loadErr}</p>}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
+          <Settings className="w-3.5 h-3.5 text-yellow-500" />
+          Developer Access Only
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-5">
+        {Object.entries(localBench).map(([region, metrics]) => (
+          <div key={region} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700" style={{background:'#1a1a1a'}}>
+              <div>
+                <h3 className="font-bold text-white text-sm">{region}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{Object.keys(metrics).length} metrics</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {saved[region] && <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1">✓ Saved</span>}
+                <button onClick={() => saveRegion(region)} disabled={saving[region]}
+                  className="px-3 py-1.5 text-black rounded-lg text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                  style={{background:'#F6DC4E'}}>
+                  {saving[region] && <RefreshCw className="w-3 h-3 animate-spin" />}
+                  {saving[region] ? 'Saving...' : `Save ${region}`}
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-4 gap-2 mb-2 px-2">
+                {['Metric','Low','Median','High'].map(h => (
+                  <span key={h} className="text-xs font-bold text-slate-500 uppercase tracking-wide">{h}</span>
+                ))}
+              </div>
+              <div className="space-y-1.5">
+                {Object.entries(metrics).map(([metric, vals]) => (
+                  <div key={metric} className="grid grid-cols-4 gap-2 items-center bg-slate-700/30 rounded-lg px-2 py-2">
+                    <span className="text-xs text-slate-300 font-medium truncate" title={metric}>{metric}</span>
+                    {['low','median','high'].map(lvl => (
+                      <div key={lvl}>
+                        <input type="number" step="0.0001" value={vals[lvl]}
+                          onChange={e => handleChange(region, metric, lvl, e.target.value)}
+                          className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white text-center focus:outline-none focus:border-yellow-500 font-mono" />
+                        <div className="text-center text-xs text-slate-500 mt-0.5">{fmtBenchV(metric, vals[lvl])}</div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// TLM REPORT GENERATOR — full branded report matching template
+// ─────────────────────────────────────────────────────────────
+function TLMReportGenerator({ session, accounts, campaigns, reportData: liveData, currentRange, campaignNameMap }) {
+  const [region,      setRegion]      = useState('ZA');
+  const [campIds,     setCampIds]     = useState([]);
+  const [dateStart,   setDateStart]   = useState(currentRange?.start || '');
+  const [dateEnd,     setDateEnd]     = useState(currentRange?.end   || '');
+  const [report,      setReport]      = useState(null);
+  const [aiText,      setAiText]      = useState(null);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [aiError,     setAiError]     = useState(null);
+  const printRef = useRef(null);
+
+  useEffect(() => {
+    setDateStart(currentRange?.start || '');
+    setDateEnd(currentRange?.end   || '');
+  }, [currentRange]);
+
+  const allCampaigns  = campaigns || [];
+  const accountName   = accounts?.[0]?.name || session?.user?.name || 'Client';
+
+  // ── Build aggregated metrics from live LinkedIn data ──
+  function buildAgg() {
+    if (!liveData) return null;
+    const { current, topCampaigns } = liveData;
+
+    if (campIds.length > 0 && topCampaigns?.length) {
+      const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
+      if (filtered.length > 0) {
+        const imp = filtered.reduce((s,c) => s + (c.impressions||0), 0);
+        const clk = filtered.reduce((s,c) => s + (c.clicks||0), 0);
+        const spd = filtered.reduce((s,c) => s + (c.spent||0), 0);
+        const lds = filtered.reduce((s,c) => s + (c.leads||0), 0);
+        const eng = filtered.reduce((s,c) => s + ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0)), 0);
+        return { impressions:imp, clicks:clk, spend:spd, leads:lds,
+          ctr: imp>0 ? clk/imp : 0,
+          cpl: lds>0 ? spd/lds : 0,
+          ffr: clk>0 ? lds/clk : 0,
+          engRate: imp>0 ? eng/imp : 0,
+          reach: Math.round(imp * 0.82),
+          cpm: imp>0 ? (spd/imp)*1000 : 0,
+          cpc: clk>0 ? spd/clk : 0,
+        };
+      }
+    }
+
+    const imp = current.impressions || 0;
+    const clk = current.clicks || 0;
+    const spd = current.spent  || 0;
+    const lds = current.leads  || 0;
+    const eng = current.engagements || Math.round(clk * 1.4);
+    return {
+      impressions: imp, clicks: clk, spend: spd, leads: lds,
+      ctr:     current.ctr     ? current.ctr/100  : (imp>0 ? clk/imp : 0),
+      cpl:     current.cpl     || (lds>0 ? spd/lds : 0),
+      ffr:     clk>0 ? lds/clk : 0,
+      engRate: current.engagementRate ? current.engagementRate/100 : (imp>0 ? eng/imp : 0),
+      reach:   Math.round(imp * 0.82),
+      cpm:     current.cpm || (imp>0 ? (spd/imp)*1000 : 0),
+      cpc:     current.cpc || (clk>0 ? spd/clk : 0),
+    };
+  }
+
+  // ── Audience breakdown from top campaigns ──
+  function buildAudience(agg) {
+    const tc = liveData?.topCampaigns || [];
+    const filtered = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
+    // Use campaign names as proxy audience items
+    const totalLeads = agg.leads || 1;
+    const functions = filtered.slice(0,10).map((c,i) => ({
+      rank: i+1, name: campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`,
+      leads: c.leads || 0, pct: ((c.leads||0)/totalLeads*100).toFixed(1)+'%'
+    }));
+    return { functions, industries: [], countries: [] };
+  }
+
+  const selectedNames = campIds.length > 0
+    ? campIds.map(id => campaignNameMap?.[id] || `Campaign ${id}`)
+    : ['All Campaigns'];
+
+  function generateReport() {
+    const agg = buildAgg();
+    if (!agg) return;
+    setAiText(null); setAiError(null);
+    setReport({ agg, region, bench: getBenchmarks()[region], dateStart, dateEnd, selectedNames, accountName });
+  }
+
+  async function getAIInsights() {
+    if (!report) return;
+    setAiLoading(true); setAiError(null); setAiText(null);
+    const { agg, region, bench } = report;
+    const b = bench || {};
+
+    const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this LinkedIn campaign performance report and provide concise, professional, actionable recommendations.
+
+CLIENT: ${accountName}
+CAMPAIGNS: ${selectedNames.join(', ')}
+PERIOD: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}
+BENCHMARK REGION: ${region} (LinkedIn Q4 2025)
+
+CAMPAIGN PERFORMANCE:
+- Impressions: ${fmtNum(agg.impressions)}
+- Clicks: ${fmtNum(agg.clicks)}
+- Leads: ${agg.leads}
+- Total Spend: ${fmtCur(agg.spend)}
+- CTR: ${fmtPct(agg.ctr)} | Benchmark median: ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : 'N/A'}
+- Engagement Rate: ${fmtPct(agg.engRate)} | Benchmark median: ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : 'N/A'}
+- Form Fill Rate: ${fmtPct(agg.ffr)} | Benchmark median: ${b['Lead Gen Form Fill Rate'] ? fmtPct(b['Lead Gen Form Fill Rate'].median) : 'N/A'}
+- Cost Per Lead: ${fmtCur(agg.cpl)} | Benchmark median: ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].median) : 'N/A'}
+- CPM: ${fmtCur(agg.cpm)} | CPC: ${fmtCur(agg.cpc)}
+
+Respond with exactly these five sections. Use "## " to start each header. Use "- " for bullet points. Be specific and data-driven.
+
+## Executive Summary
+## What's Working
+## Optimization Opportunities
+## Audience & Targeting Strategy
+## Next 30-Day Action Plan`;
+
+    try {
+      const res = await fetch('/api/ai-recommendations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      const data = await res.json();
+      if (data.text) setAiText(data.text);
+      else setAiError('No response from Claude. Check your API key.');
+    } catch (e) {
+      setAiError('Failed to connect to AI service. Please try again.');
+    }
+    setAiLoading(false);
+  }
+
+  // ── Export full branded HTML ──
+  function exportHTML() {
+    if (!report) return;
+    const { agg, region, bench, dateStart, dateEnd, selectedNames, accountName } = report;
+    const b = bench || {};
+    const now = new Date().toLocaleDateString('en-ZA', { day:'numeric', month:'long', year:'numeric' });
+
+    function ratingIndicator(metric, val) {
+      const r = calcRating(metric, val, region);
+      if (r === 'exc')   return '🟢';
+      if (r === 'above') return '🔵';
+      if (r === 'near')  return '🟡';
+      if (r === 'below') return '🔴';
+      return '';
+    }
+
+    const benchRows = [
+      ['Sponsored Content CTR', fmtPct(agg.ctr), 'Sponsored Content CTR'],
+      ['Engagement Rate', fmtPct(agg.engRate), 'Sponsored Engagement Rate'],
+      ['Form Fill Rate', fmtPct(agg.ffr), 'Lead Gen Form Fill Rate'],
+      ['Cost Per Lead', fmtCur(agg.cpl), 'Cost Per Lead ($)'],
+      ['CPM', fmtCur(agg.cpm), 'CPM ($)'],
+      ['CPC', fmtCur(agg.cpc), 'CPC ($)'],
+    ].map(([label, val, metric]) => {
+      const bv = b[metric];
+      const ind = ratingIndicator(metric, metric.includes('Cost')||metric.includes('CPM')||metric.includes('CPC') ? parseFloat(val.replace('$','')) : parseFloat(val)/100);
+      return `<tr>
+        <td style="padding:12px 15px;border-bottom:1px solid #e5e3de;font-weight:600">${label}</td>
+        <td style="padding:12px 15px;border-bottom:1px solid #e5e3de;font-size:1.1em;font-weight:700;color:#272828">${val}</td>
+        <td style="padding:12px 15px;border-bottom:1px solid #e5e3de;color:#888">${bv ? fmtBenchV(metric, bv.low) : '—'}</td>
+        <td style="padding:12px 15px;border-bottom:1px solid #e5e3de;color:#888">${bv ? fmtBenchV(metric, bv.median) : '—'}</td>
+        <td style="padding:12px 15px;border-bottom:1px solid #e5e3de;color:#888">${bv ? fmtBenchV(metric, bv.high) : '—'}</td>
+        <td style="padding:12px 15px;border-bottom:1px solid #e5e3de;font-size:1.2em">${ind}</td>
+      </tr>`;
+    }).join('');
+
+    const aiSection = aiText ? `
+      <div style="background:#272828;border-radius:10px;padding:30px;margin-bottom:30px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <div style="width:36px;height:36px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#272828;flex-shrink:0">AI</div>
+          <div>
+            <div style="color:white;font-weight:700;font-size:15px">Claude AI Recommendations</div>
+            <div style="color:#888;font-size:12px">Powered by Claude Sonnet · ${region} Q4 2025 Benchmarks</div>
+          </div>
+        </div>
+        <div style="color:#d1cbc3;font-size:14px;line-height:1.8">${aiText.replace(/## (.+)/g,'<h4 style="color:#F6DC4E;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:20px 0 8px">$1</h4>').replace(/^- (.+)$/gm,'<li style="margin-bottom:6px;margin-left:20px">$1</li>').replace(/\n\n/g,'<br/>')}</div>
+      </div>` : '';
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${accountName} — LinkedIn Report ${fmtDate(dateStart)}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#F4F3F0;color:#272828;line-height:1.6}.container{max-width:1200px;margin:0 auto;padding:24px}@media print{body{background:white}.no-print{display:none!important}}</style>
+</head><body><div class="container">
+<div style="background:#272828;color:white;padding:40px;border-radius:12px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-start">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <svg width="36" height="36" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#1a1a1a"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
+      <span style="color:#B1AAA4;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Turn Left Media</span>
+    </div>
+    <h1 style="font-size:2em;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px">${accountName}</h1>
+    <p style="color:#B1AAA4;font-size:13px">${selectedNames.join(' · ')}</p>
+  </div>
+  <div style="text-align:right">
+    <div style="color:#F6DC4E;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">LinkedIn Performance Report</div>
+    <div style="color:#B1AAA4;font-size:13px">Period: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}</div>
+    <div style="color:#B1AAA4;font-size:13px">Benchmark: ${region}</div>
+    <div style="color:#555;font-size:12px;margin-top:6px">Generated: ${now}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:28px">
+${[
+  ['Total Impressions', fmtNum(agg.impressions), 'Across all campaigns'],
+  ['Total Clicks', fmtNum(agg.clicks), `CTR: ${fmtPct(agg.ctr)}`],
+  ['Total Leads', agg.leads, `Form Fill Rate: ${fmtPct(agg.ffr)}`],
+  ['Engagement Rate', fmtPct(agg.engRate), `${calcRating('Sponsored Engagement Rate', agg.engRate, region) === 'exc' ? 'Exceptional' : 'vs benchmark'}`],
+  ['Reach', fmtNum(agg.reach), 'Unique members'],
+  ['Cost Per Lead', fmtCur(agg.cpl), `Total spend: ${fmtCur(agg.spend)}`],
+].map(([t,v,s]) => `<div style="background:white;padding:24px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.06)"><div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${t}</div><div style="font-size:2em;font-weight:700;color:#272828;margin-bottom:4px">${v}</div><div style="font-size:13px;color:#999">${s}</div></div>`).join('')}
+</div>
+
+<div style="background:white;padding:30px;border-radius:10px;margin-bottom:28px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+  <h2 style="font-size:1.6em;font-weight:700;color:#272828;margin-bottom:6px;padding-bottom:12px;border-bottom:3px solid #F6DC4E">Performance vs ${region} Benchmarks</h2>
+  <table style="width:100%;border-collapse:collapse;margin-top:16px">
+    <thead><tr style="background:#272828;color:white"><th style="padding:12px 15px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase">Metric</th><th style="padding:12px 15px;text-align:left">Your Result</th><th style="padding:12px 15px;text-align:left">Low</th><th style="padding:12px 15px;text-align:left">Median</th><th style="padding:12px 15px;text-align:left">High</th><th style="padding:12px 15px;text-align:left">Rating</th></tr></thead>
+    <tbody>${benchRows}</tbody>
+  </table>
+  <div style="margin-top:16px;padding:12px 16px;background:#F4F3F0;border-radius:8px;font-size:12px;color:#888">
+    🟢 Exceptional (+50% vs benchmark) &nbsp;|&nbsp; 🔵 Above Benchmark &nbsp;|&nbsp; 🟡 Near Benchmark &nbsp;|&nbsp; 🔴 Below Benchmark
+  </div>
+</div>
+
+${aiSection}
+
+<div style="text-align:center;padding:20px;color:#888;font-size:12px;border-top:1px solid #e5e3de;margin-top:16px">
+  <p>Report generated by Turn Left Media · ${now}</p>
+  <p style="margin-top:4px">AI powered by Claude · LinkedIn Q4 2025 Benchmarks (${region})</p>
+</div>
+</div></body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `TLM-Report-${accountName.replace(/\s+/g,'-')}-${dateStart}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Render AI text into sections ──
+  function renderAI(text) {
+    if (!text) return null;
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('## '))
+        return <h4 key={i} className="text-xs font-bold uppercase tracking-widest mt-5 mb-2" style={{color:'#F6DC4E'}}>{line.replace('## ','')}</h4>;
+      if (line.startsWith('- '))
+        return <li key={i} className="text-slate-300 text-sm mb-1.5 ml-4 list-disc">{line.replace('- ','')}</li>;
+      if (line.trim())
+        return <p key={i} className="text-slate-300 text-sm mb-1.5">{line}</p>;
+      return null;
+    });
+  }
+
+  const agg   = report?.agg;
+  const bench = report?.bench || {};
+
+  // ── Main render ──
+  return (
+    <div className="max-w-screen-2xl mx-auto p-6 space-y-5" ref={printRef}>
+
+      {/* ── Config panel ── */}
+      <div className="rounded-xl border border-slate-700 p-6" style={{background:'#1a1a1a'}}>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5"
+          style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Report Configuration</h2>
+        <div className="grid grid-cols-4 gap-4 mb-5">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Account</label>
+            <div className="px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white font-medium truncate">
+              {accountName}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Benchmark Region</label>
+            <select value={region} onChange={e => setRegion(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none"
+              style={{'--tw-ring-color':'#F6DC4E'}}>
+              {Object.keys(getBenchmarks()).map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Start Date</label>
+            <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">End Date</label>
+            <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none" />
+          </div>
+        </div>
+
+        {allCampaigns.length > 0 && (
+          <div className="mb-5">
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">
+              Campaigns <span className="text-slate-500 font-normal normal-case">(leave empty to use all loaded data)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+              {allCampaigns.map(c => {
+                const sid = String(c.id);
+                const sel = campIds.includes(sid);
+                return (
+                  <label key={c.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer text-xs transition-colors ${
+                    sel ? 'border-yellow-500 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700'
+                  }`} style={sel ? {background:'rgba(246,220,78,0.1)'} : {}}>
+                    <input type="checkbox" checked={sel}
+                      onChange={() => setCampIds(prev => sel ? prev.filter(x=>x!==sid) : [...prev,sid])}
+                      className="w-3.5 h-3.5 flex-shrink-0" style={{accentColor:'#F6DC4E'}} />
+                    <span className="truncate font-medium">{c.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {!liveData && (
+          <div className="mb-4 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(246,220,78,0.08)',borderColor:'rgba(246,220,78,0.3)',color:'#F6DC4E'}}>
+            ⚠ No live data loaded — select an account in the Campaign Manager tab first, then return here.
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2 flex-wrap">
+          <button onClick={generateReport} disabled={!liveData}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            style={{background:'#272828',color:'white',border:'1px solid #444'}}>
+            <FileText className="w-4 h-4" /> Generate Report
+          </button>
+          <button onClick={getAIInsights} disabled={!report || aiLoading}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            style={{background:'#F6DC4E',color:'#272828'}}>
+            {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {aiLoading ? 'Analysing...' : 'AI Recommendations'}
+          </button>
+          {report && (
+            <button onClick={exportHTML}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
+              <ExternalLink className="w-4 h-4" /> Export HTML
+            </button>
+          )}
+          {report && (
+            <button onClick={() => window.print()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
+              Export PDF
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Empty state ── */}
+      {!report && (
+        <div className="rounded-xl border border-slate-700 p-16 text-center" style={{background:'#1a1a1a'}}>
+          <TLLogo size={48} className="mx-auto mb-5 opacity-30" />
+          <h3 className="text-lg font-bold text-white mb-2">No Report Generated</h3>
+          <p className="text-slate-500 text-sm">Configure above and click Generate Report. Make sure an account is loaded in Campaign Manager first.</p>
+        </div>
+      )}
+
+      {report && agg && (
+        <>
+          {/* ── Report Header ── */}
+          <div className="rounded-xl p-8 flex items-start justify-between" style={{background:'#272828'}}>
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <TLLogo size={36} />
+                <span className="text-xs font-bold tracking-widest uppercase" style={{color:'#B1AAA4'}}>Turn Left Media</span>
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-1" style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif',letterSpacing:'-0.5px'}}>{accountName}</h1>
+              <p className="text-sm" style={{color:'#B1AAA4'}}>{report.selectedNames.join(' · ')}</p>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-bold tracking-widest uppercase mb-2" style={{color:'#F6DC4E'}}>LinkedIn Performance Report</div>
+              <div className="text-sm" style={{color:'#B1AAA4'}}>Period: {fmtDate(report.dateStart)} – {fmtDate(report.dateEnd)}</div>
+              <div className="text-sm" style={{color:'#B1AAA4'}}>Benchmark: {report.region}</div>
+              <div className="text-xs mt-1" style={{color:'#555'}}>
+                Generated: {new Date().toLocaleDateString('en-ZA',{day:'numeric',month:'long',year:'numeric'})}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Summary KPI Cards (3-col like template) ── */}
+          <div className="grid grid-cols-3 gap-5">
+            {[
+              { label:'Total Impressions', val: fmtNum(agg.impressions), sub:`Across all campaigns` },
+              { label:'Total Clicks',      val: fmtNum(agg.clicks),      sub:`CTR: ${fmtPct(agg.ctr)}` },
+              { label:'Total Leads',       val: agg.leads,               sub:`Form Fill Rate: ${fmtPct(agg.ffr)}` },
+              { label:'Engagement Rate',   val: fmtPct(agg.engRate),     sub:<RatingPill rating={calcRating('Sponsored Engagement Rate',agg.engRate,report.region)} /> },
+              { label:'Reach',             val: fmtNum(agg.reach),       sub:'Unique members' },
+              { label:'Cost Per Lead',     val: fmtCur(agg.cpl),         sub:`Total spend: ${fmtCur(agg.spend)}` },
+            ].map(({ label, val, sub }) => (
+              <div key={label} className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:-translate-y-0.5 transition-transform">
+                <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{color:'#888',letterSpacing:'1px'}}>{label}</div>
+                <div className="text-3xl font-bold mb-2" style={{color:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>{val}</div>
+                <div className="text-sm" style={{color:'#999'}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Performance vs Benchmarks ── */}
+          <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+            <div className="px-8 py-5 border-b-2 flex items-center justify-between" style={{borderColor:'#F6DC4E'}}>
+              <h2 className="text-xl font-bold" style={{color:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Performance vs {report.region} Benchmarks</h2>
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{background:'#272828',color:'#F6DC4E',letterSpacing:'1px',textTransform:'uppercase'}}>Q4 2025 Data</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr style={{background:'#272828'}}>
+                    {['Metric','Your Result','Benchmark Low','Benchmark Median','Benchmark High','Rating'].map(h => (
+                      <th key={h} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wide" style={{color:'white',letterSpacing:'1px'}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label:'Sponsored Content CTR', val:agg.ctr,     fmt:fmtPct, metric:'Sponsored Content CTR' },
+                    { label:'Engagement Rate',        val:agg.engRate, fmt:fmtPct, metric:'Sponsored Engagement Rate' },
+                    { label:'Form Fill Rate',          val:agg.ffr,    fmt:fmtPct, metric:'Lead Gen Form Fill Rate' },
+                    { label:'Cost Per Lead',           val:agg.cpl,    fmt:fmtCur, metric:'Cost Per Lead ($)' },
+                    { label:'CPM',                     val:agg.cpm,    fmt:fmtCur, metric:'CPM ($)' },
+                    { label:'CPC',                     val:agg.cpc,    fmt:fmtCur, metric:'CPC ($)' },
+                  ].map(({ label, val, fmt, metric }, i) => {
+                    const bv = bench[metric];
+                    const r  = bv ? calcRating(metric, val, report.region) : null;
+                    return (
+                      <tr key={label} className={i%2===0?'bg-white':'bg-slate-50'} style={{transition:'background .15s'}}>
+                        <td className="px-5 py-3 font-semibold" style={{color:'#272828',borderBottom:'1px solid #e5e3de'}}>{label}</td>
+                        <td className="px-5 py-3 font-bold text-lg" style={{color:'#272828',borderBottom:'1px solid #e5e3de'}}>{fmt(val)}</td>
+                        <td className="px-5 py-3" style={{color:'#888',borderBottom:'1px solid #e5e3de'}}>{bv ? fmtBenchV(metric,bv.low) : '—'}</td>
+                        <td className="px-5 py-3" style={{color:'#888',borderBottom:'1px solid #e5e3de'}}>{bv ? fmtBenchV(metric,bv.median) : '—'}</td>
+                        <td className="px-5 py-3" style={{color:'#888',borderBottom:'1px solid #e5e3de'}}>{bv ? fmtBenchV(metric,bv.high) : '—'}</td>
+                        <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}><RatingPill rating={r} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-3 text-xs flex gap-5 flex-wrap" style={{background:'#F4F3F0',color:'#888'}}>
+              <span>🟢 Exceptional (+50% vs benchmark)</span>
+              <span>🔵 Above Benchmark (0–50%)</span>
+              <span>🟡 Near Benchmark (–25–0%)</span>
+              <span>🔴 Below Benchmark (&lt;–25%)</span>
+            </div>
+          </div>
+
+          {/* ── AI Insights ── */}
+          {(aiLoading || aiText || aiError) && (
+            <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#272828'}}>
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-700">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0" style={{background:'#F6DC4E',color:'#272828'}}>AI</div>
+                <div>
+                  <div className="font-bold text-white text-sm">Claude AI Recommendations</div>
+                  <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.region} Q4 2025 Benchmarks</div>
+                </div>
+                {aiText && !aiLoading && (
+                  <button onClick={getAIInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+                    Refresh
+                  </button>
+                )}
+              </div>
+              <div className="px-6 py-5">
+                {aiLoading && (
+                  <div className="flex items-center gap-3 text-slate-400 text-sm">
+                    <RefreshCw className="w-4 h-4 animate-spin" style={{color:'#F6DC4E'}} />
+                    Analysing campaign data against {report.region} benchmarks...
+                  </div>
+                )}
+                {aiError  && <p className="text-red-400 text-sm">{aiError}</p>}
+                {aiText   && <ul className="list-none">{renderAI(aiText)}</ul>}
+              </div>
+            </div>
+          )}
+
+          {/* ── Campaign Performance Table ── */}
+          {liveData?.topCampaigns?.length > 0 && (
+            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+              <div className="px-8 py-5 border-b-2" style={{borderColor:'#272828'}}>
+                <h2 className="text-xl font-bold" style={{color:'#272828'}}>Campaign Performance</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{background:'#272828'}}>
+                      {['Campaign','Impressions','Clicks','CTR','Spend','Leads','CPL'].map(h => (
+                        <th key={h} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wide" style={{color:'white'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(campIds.length > 0
+                      ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id)))
+                      : liveData.topCampaigns
+                    ).map((c, i) => {
+                      const name = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+                      const ctr  = c.impressions > 0 ? (c.clicks/c.impressions*100).toFixed(3)+'%' : '0.000%';
+                      const cpl  = c.leads > 0 ? fmtCur(c.spent/c.leads) : '—';
+                      return (
+                        <tr key={c.id} className={i%2===0?'bg-white':'bg-slate-50'}>
+                          <td className="px-5 py-3 font-semibold" style={{borderBottom:'1px solid #e5e3de',color:'#272828'}}>
+                            {name}
+                            <div className="text-xs font-mono" style={{color:'#B1AAA4'}}>ID: {c.id}</div>
+                          </td>
+                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{fmtNum(c.impressions)}</td>
+                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{fmtNum(c.clicks)}</td>
+                          <td className="px-5 py-3 font-semibold" style={{borderBottom:'1px solid #e5e3de',color:'#272828'}}>{ctr}</td>
+                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{fmtCur(c.spent)}</td>
+                          <td className="px-5 py-3 font-bold" style={{borderBottom:'1px solid #e5e3de'}}>{c.leads||0}</td>
+                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{cpl}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── What's Working section (mirrors template) ── */}
+          {aiText && (
+            <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-100">
+              <h2 className="text-xl font-bold mb-5 pb-3 border-b-2" style={{color:'#272828',borderColor:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>✅ What's Working</h2>
+              <div className="space-y-2">
+                {aiText.split('\n').filter(l => l.startsWith('- ') && aiText.indexOf(l) > aiText.indexOf('## What\'s Working')).slice(0,6).map((line,i) => (
+                  <div key={i} className="flex items-start gap-3 py-2" style={{borderBottom:'1px solid #f0eeeb'}}>
+                    <span className="font-bold mt-0.5 flex-shrink-0" style={{color:'#F6DC4E'}}>→</span>
+                    <span className="text-sm" style={{color:'#444'}}>{line.replace('- ','')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Benchmark Reference ── */}
+          <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+            <div className="px-8 py-5 border-b-2" style={{borderColor:'#B1AAA4'}}>
+              <h2 className="text-xl font-bold" style={{color:'#272828'}}>Benchmark Reference — {report.region}</h2>
+            </div>
+            <div className="p-6 grid grid-cols-3 gap-4">
+              {Object.entries(bench).map(([metric, vals]) => (
+                <div key={metric} className="rounded-lg p-4" style={{background:'#F4F3F0'}}>
+                  <div className="text-xs font-bold uppercase tracking-wide mb-3" style={{color:'#888',letterSpacing:'1px'}}>{metric}</div>
+                  {['low','median','high'].map(l => (
+                    <div key={l} className="flex justify-between items-center py-1" style={{borderBottom:'1px solid #e5e3de'}}>
+                      <span className="text-xs capitalize" style={{color:'#B1AAA4'}}>{l}</span>
+                      <span className="text-xs font-bold font-mono" style={{color:'#272828'}}>{fmtBenchV(metric,vals[l])}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="text-center py-5 text-xs border-t border-slate-200" style={{color:'#B1AAA4'}}>
+            <p>Report generated by Turn Left Media · {new Date().toLocaleDateString('en-ZA',{day:'numeric',month:'long',year:'numeric'})}</p>
+            <p className="mt-1">AI recommendations powered by Claude · LinkedIn Q4 2025 In-Depth Benchmarks</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
 export default function Dashboard() {
   const { data: session, status } = useSession();
+
+  const [activeMainTab, setActiveMainTab] = useState('dashboard');
 
   const [accounts, setAccounts] = useState([]);
   const [selectedAccounts, setSelectedAccounts] = useState([]);
@@ -878,6 +1680,7 @@ export default function Dashboard() {
   const [reportData, setReportData] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(18.5);
   const [manualBudget, setManualBudget] = useState('');
+  const [activeObjectiveTab, setActiveObjectiveTab] = useState('all');
   const [campaignStart, setCampaignStart] = useState('');
   const [campaignEnd, setCampaignEnd] = useState('');
 
@@ -1049,6 +1852,51 @@ export default function Dashboard() {
   const adNameMap = Object.fromEntries(ads.map(a => [String(a.id), a.name]));
   const primaryAccountId = selectedAccounts[0];
 
+  // Map campaign ID → objectiveType for tab filtering
+  const campaignObjectiveMap = Object.fromEntries(
+    campaigns.map(c => [String(c.id), (c.objectiveType || c.type || '').toUpperCase()])
+  );
+
+  const OBJECTIVE_TABS = [
+    { id: 'all',         label: 'All',              icon: BarChart2,   types: null,
+      metrics: ['impressions','clicks','ctr','spent','cpm','cpc','websiteVisits','leads','cpl','engagementRate','engagements'] },
+    { id: 'engagement',  label: 'Engagement',        icon: Zap,         types: ['ENGAGEMENT','BRAND_AWARENESS','SPONSORED_UPDATES'],
+      metrics: ['impressions','clicks','ctr','cpc','engagementRate','engagements'] },
+    { id: 'leads',       label: 'Lead Generation',   icon: Users,       types: ['LEAD_GENERATION','SPONSORED_INMAILS'],
+      metrics: ['impressions','clicks','ctr','spent','leads','cpl'] },
+    { id: 'video',       label: 'Video Views',       icon: Video,       types: ['VIDEO_VIEWS','SPONSORED_VIDEO'],
+      metrics: ['impressions','clicks','ctr','spent','cpm','cpc'] },
+    { id: 'website',     label: 'Website Visits',    icon: Globe,       types: ['WEBSITE_VISITS','WEBSITE_CONVERSIONS'],
+      metrics: ['impressions','clicks','ctr','spent','cpm','cpc','websiteVisits'] },
+  ];
+
+  const activeTabConfig = OBJECTIVE_TABS.find(t => t.id === activeObjectiveTab) || OBJECTIVE_TABS[0];
+
+  // Filter topCampaigns by objective type for the active tab
+  const filteredTopCampaigns = activeTabConfig.types === null
+    ? (reportData?.topCampaigns || [])
+    : (reportData?.topCampaigns || []).filter(c => {
+        const obj = campaignObjectiveMap[String(c.id)] || '';
+        return activeTabConfig.types.some(t => obj.includes(t));
+      });
+
+  // All metrics config (used to selectively show per tab)
+  const ALL_METRICS = [
+    { label: 'Impressions',     key: 'impressions',     format: 'number',  icon: Eye,          prefix: '' },
+    { label: 'Clicks',          key: 'clicks',          format: 'number',  icon: MousePointer, prefix: '' },
+    { label: 'CTR',             key: 'ctr',             format: 'percent', icon: TrendingUp,   prefix: '' },
+    { label: 'Spent (USD)',     key: 'spent',           format: 'decimal', icon: DollarSign,   prefix: '$' },
+    { label: 'CPM (USD)',       key: 'cpm',             format: 'decimal', icon: DollarSign,   prefix: '$' },
+    { label: 'CPC (USD)',       key: 'cpc',             format: 'decimal', icon: DollarSign,   prefix: '$' },
+    { label: 'Website Visits',  key: 'websiteVisits',   format: 'number',  icon: Target,       prefix: '' },
+    { label: 'Leads',           key: 'leads',           format: 'number',  icon: Users,        prefix: '' },
+    { label: 'CPL (USD)',       key: 'cpl',             format: 'decimal', icon: DollarSign,   prefix: '$' },
+    { label: 'Engagement Rate', key: 'engagementRate',  format: 'percent', icon: TrendingUp,   prefix: '' },
+    { label: 'Engagements',     key: 'engagements',     format: 'number',  icon: Users,        prefix: '' },
+  ];
+
+  const visibleMetrics = ALL_METRICS.filter(m => activeTabConfig.metrics.includes(m.key));
+
   const filteredAccounts = accounts.filter(a => !accountSearch || a.name.toLowerCase().includes(accountSearch.toLowerCase()) || String(a.id).includes(accountSearch));
   const filteredGroups = campaignGroups.filter(g => !campaignGroupSearch || g.name.toLowerCase().includes(campaignGroupSearch.toLowerCase()) || String(g.id).includes(campaignGroupSearch));
   const filteredCampaigns = campaigns.filter(c => !campaignSearch || c.name.toLowerCase().includes(campaignSearch.toLowerCase()) || String(c.id).includes(campaignSearch));
@@ -1065,39 +1913,91 @@ export default function Dashboard() {
     <>
       <style>{`@media print { .no-print { display: none !important; } body { background: #0f172a !important; } @page { margin: 1cm; } }`}</style>
       <div className="min-h-screen bg-slate-900">
-        <div className="bg-slate-800 border-b border-slate-700 shadow-lg">
-          <div className="max-w-screen-2xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-white">LinkedIn Campaign Manager</h1>
-              <p className="text-sm text-slate-400">{accounts.length} accounts • {selectedAccounts.length} selected</p>
+        {/* ── Top Bar ── */}
+        <div className="bg-slate-900 border-b border-slate-700 shadow-lg no-print sticky top-0 z-40">
+          <div className="max-w-screen-2xl mx-auto px-6">
+            <div className="flex justify-between items-center py-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <svg width="28" height="28" viewBox="0 0 400 400" fill="none">
+                  <rect width="400" height="400" fill="#272828"/>
+                  <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
+                  <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
+                  <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
+                </svg>
+                <div>
+                  <span className="text-white font-bold text-sm tracking-wide">Turn Left Media</span>
+                  <span className="ml-3 text-slate-500 text-xs">•</span>
+                  <span className="ml-3 text-slate-400 text-xs">LinkedIn Campaign Platform</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {session?.user?.name && (
+                  <span className="text-slate-400 text-xs border border-slate-700 rounded-full px-3 py-1">
+                    {session.user.name}
+                  </span>
+                )}
+                {activeMainTab === 'dashboard' && reportData && (
+                  <>
+                    <button onClick={generateReport} disabled={generatingReport}
+                      className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-xs flex items-center gap-1.5 disabled:opacity-50">
+                      {generatingReport ? <RefreshCw className="w-3 h-3 animate-spin" /> : <span>✦</span>}
+                      {generatingReport ? 'Generating...' : 'AI Report'}
+                    </button>
+                    <button onClick={exportToCSV}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-xs flex items-center gap-1.5">
+                      <span>📊</span> Sheets
+                    </button>
+                    <button onClick={() => window.print()}
+                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold text-xs">
+                      PDF
+                    </button>
+                  </>
+                )}
+                <button onClick={() => signOut()}
+                  className="px-3 py-1.5 bg-red-900/60 text-red-300 border border-red-800 rounded-lg hover:bg-red-800 font-semibold text-xs">
+                  Sign Out
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3 no-print">
-              {reportData && (
-                <>
-                  <button onClick={generateReport} disabled={generatingReport}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-sm flex items-center gap-2 disabled:opacity-50">
-                    {generatingReport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>✦</span>}
-                    {generatingReport ? 'Generating...' : 'AI Report'}
+            {/* ── Navigation Tabs ── */}
+            <div className="flex gap-1">
+              {[
+                { id: 'dashboard',   label: 'Campaign Manager', icon: BarChart2 },
+                { id: 'report',      label: 'Report Generator',  icon: FileText  },
+                { id: 'benchmarks',  label: 'Benchmarks',        icon: Settings  },
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeMainTab === tab.id;
+                return (
+                  <button key={tab.id} onClick={() => setActiveMainTab(tab.id)}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${isActive ? '' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+                    style={isActive ? {borderColor:'#F6DC4E',color:'#F6DC4E',background:'rgba(246,220,78,0.05)'} : {}}>
+                    <Icon className="w-4 h-4" />
+                    {tab.label}
                   </button>
-                  <button onClick={exportToCSV}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center gap-2">
-                    <span>📊</span> Google Sheets
-                  </button>
-                  <button onClick={() => window.print()}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold text-sm">
-                    Export PDF
-                  </button>
-                </>
-              )}
-              <button onClick={() => signOut()}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm">
-                Sign Out
-              </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <div className="max-w-screen-2xl mx-auto p-6">
+        {/* ── Report Generator Tab ── */}
+        {activeMainTab === 'report' && (
+          <TLMReportGenerator
+            session={session}
+            accounts={accounts}
+            campaigns={campaigns}
+            reportData={reportData}
+            currentRange={currentRange}
+            campaignNameMap={campaignNameMap}
+          />
+        )}
+
+        {/* ── Benchmarks Tab ── */}
+        {activeMainTab === 'benchmarks' && <BenchmarkManager />}
+
+        {/* ── Campaign Manager (original) ── */}
+        {activeMainTab === 'dashboard' && <div className="max-w-screen-2xl mx-auto p-6">
           <div className="grid grid-cols-12 gap-6">
             <div className="col-span-3 space-y-3 no-print">
               <div className="flex items-center gap-2 px-1">
@@ -1208,32 +2108,71 @@ export default function Dashboard() {
                     <p className="text-slate-400 text-sm">Period: {currentRange.start} to {currentRange.end} | Compare: {previousRange.start} to {previousRange.end}</p>
                   </div>
 
-                  <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-slate-700">
-                    <h3 className="text-lg font-bold text-white mb-6">Campaign Performance</h3>
-                    <div className="grid grid-cols-4 gap-4">
-                      {[
-                        { label: 'Impressions', key: 'impressions', format: 'number', icon: Eye, prefix: '' },
-                        { label: 'Clicks', key: 'clicks', format: 'number', icon: MousePointer, prefix: '' },
-                        { label: 'CTR', key: 'ctr', format: 'percent', icon: TrendingUp, prefix: '' },
-                        { label: 'Spent (USD)', key: 'spent', format: 'decimal', icon: DollarSign, prefix: '$' },
-                        { label: 'CPM (USD)', key: 'cpm', format: 'decimal', icon: DollarSign, prefix: '$' },
-                        { label: 'CPC (USD)', key: 'cpc', format: 'decimal', icon: DollarSign, prefix: '$' },
-                        { label: 'Website Visits', key: 'websiteVisits', format: 'number', icon: Target, prefix: '' },
-                        { label: 'Leads', key: 'leads', format: 'number', icon: Users, prefix: '' },
-                        { label: 'CPL (USD)', key: 'cpl', format: 'decimal', icon: DollarSign, prefix: '$' },
-                        { label: 'Engagement Rate', key: 'engagementRate', format: 'percent', icon: TrendingUp, prefix: '' },
-                        { label: 'Engagements', key: 'engagements', format: 'number', icon: Users, prefix: '' },
-                      ].map(metric => (
-                        <MetricCard key={metric.key} label={metric.label}
-                          current={reportData.current[metric.key]}
-                          previous={reportData.previous[metric.key]}
-                          format={metric.format} icon={metric.icon} prefix={metric.prefix} />
-                      ))}
+                  {/* ── Objective Tabs ── */}
+                  <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
+                    <div className="flex overflow-x-auto border-b border-slate-700">
+                      {OBJECTIVE_TABS.map(tab => {
+                        const Icon = tab.icon;
+                        const isActive = activeObjectiveTab === tab.id;
+                        // Count campaigns for this tab
+                        const count = tab.types === null
+                          ? (reportData?.topCampaigns?.length || 0)
+                          : (reportData?.topCampaigns || []).filter(c => {
+                              const obj = campaignObjectiveMap[String(c.id)] || '';
+                              return tab.types.some(t => obj.includes(t));
+                            }).length;
+
+                        const activeColors = {
+                          all:        'border-blue-500    text-blue-400    bg-blue-950/40',
+                          engagement: 'border-yellow-500  text-yellow-400  bg-yellow-950/40',
+                          leads:      'border-purple-500  text-purple-400  bg-purple-950/40',
+                          video:      'border-rose-500    text-rose-400    bg-rose-950/40',
+                          website:    'border-emerald-500 text-emerald-400 bg-emerald-950/40',
+                        };
+
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setActiveObjectiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${
+                              isActive
+                                ? `${activeColors[tab.id]} border-b-2`
+                                : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-700/50'
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                            {tab.label}
+                            {count > 0 && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                                isActive ? 'bg-slate-700 text-white' : 'bg-slate-700 text-slate-400'
+                              }`}>
+                                {count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Campaign Performance Metrics */}
+                    <div className="p-6">
+                      <h3 className="text-lg font-bold text-white mb-6">Campaign Performance</h3>
+                      <div className="grid grid-cols-4 gap-4">
+                        {visibleMetrics.map(metric => (
+                          <MetricCard key={metric.key} label={metric.label}
+                            current={reportData.current[metric.key]}
+                            previous={reportData.previous[metric.key]}
+                            format={metric.format} icon={metric.icon} prefix={metric.prefix} />
+                        ))}
+                      </div>
                     </div>
                   </div>
 
+                  {/* Top Campaigns — filtered by active tab */}
                   <div className="grid grid-cols-2 gap-6 mb-6">
-                    <TopPerformingBlock title="Top Campaigns" items={reportData.topCampaigns}
+                    <TopPerformingBlock
+                      title={activeObjectiveTab === 'all' ? 'Top Campaigns' : `Top ${activeTabConfig.label} Campaigns`}
+                      items={filteredTopCampaigns}
                       accountId={primaryAccountId} type="campaign" nameMap={campaignNameMap} />
                   </div>
                   {reportData.topAds && reportData.topAds.length > 0 && (
@@ -1265,6 +2204,8 @@ export default function Dashboard() {
           previousRange={previousRange}
           campaignNameMap={campaignNameMap}
         />
+        </div>
+        } {/* end activeMainTab === dashboard */}
       </div>
     </>
   );
@@ -1386,10 +2327,16 @@ function BudgetPacingCard({ pacing, manualBudget, onBudgetChange, campaignStart,
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{background:'#272828'}}>
       <div className="text-center">
-        <RefreshCw className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" />
-        <p className="text-xl font-semibold text-white">Loading...</p>
+        <svg width="48" height="48" viewBox="0 0 400 400" fill="none" className="mx-auto mb-6 animate-pulse">
+          <rect width="400" height="400" fill="#1a1a1a"/>
+          <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
+          <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
+          <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
+        </svg>
+        <p className="text-white font-bold text-lg tracking-wide">Turn Left Media</p>
+        <p className="text-slate-400 text-sm mt-1">Loading your campaigns...</p>
       </div>
     </div>
   );
@@ -1397,14 +2344,27 @@ function LoadingScreen() {
 
 function SignInScreen() {
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-      <div className="bg-slate-800 rounded-2xl shadow-2xl p-12 max-w-md border border-slate-700">
-        <h1 className="text-3xl font-bold mb-3 text-white">LinkedIn Campaign Manager</h1>
-        <p className="text-slate-400 mb-8">Sign in to view your campaign analytics</p>
-        <button onClick={() => signIn('linkedin')}
-          className="w-full bg-blue-600 text-white py-4 rounded-xl font-semibold hover:bg-blue-700">
-          Sign in with LinkedIn
-        </button>
+    <div className="min-h-screen flex items-center justify-center" style={{background:'#272828'}}>
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-10">
+          <svg width="56" height="56" viewBox="0 0 400 400" fill="none" className="mb-5">
+            <rect width="400" height="400" fill="#1a1a1a"/>
+            <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
+            <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
+            <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
+          </svg>
+          <h1 className="text-2xl font-bold text-white tracking-wide">Turn Left Media</h1>
+          <p className="text-slate-400 text-sm mt-1">LinkedIn Campaign Platform</p>
+        </div>
+        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8">
+          <h2 className="text-lg font-bold text-white mb-1">Sign in</h2>
+          <p className="text-slate-400 text-sm mb-6">Connect your LinkedIn account to continue</p>
+          <button onClick={() => signIn('linkedin')}
+            className="w-full bg-yellow-400 text-slate-900 py-3 rounded-xl font-bold hover:bg-yellow-300 transition-colors flex items-center justify-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+            Sign in with LinkedIn
+          </button>
+        </div>
       </div>
     </div>
   );
