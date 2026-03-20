@@ -2192,20 +2192,19 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-        </div>
 
-        <AIReportModal
-          show={showReport}
-          onClose={() => setShowReport(false)}
-          generatingReport={generatingReport}
-          reportData={reportData}
-          reportResult={reportResult}
-          currentRange={currentRange}
-          previousRange={previousRange}
-          campaignNameMap={campaignNameMap}
-        />
+          <AIReportModal
+            show={showReport}
+            onClose={() => setShowReport(false)}
+            generatingReport={generatingReport}
+            reportData={reportData}
+            reportResult={reportResult}
+            currentRange={currentRange}
+            previousRange={previousRange}
+            campaignNameMap={campaignNameMap}
+          />
         </div>
-        } {/* end activeMainTab === dashboard */}
+        }
       </div>
     </>
   );
