@@ -1904,54 +1904,6 @@ ${aiSection}
             ))}
           </div>
 
-          {/* ── Performance vs Benchmarks ── */}
-          <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-8 py-5 border-b-2 flex items-center justify-between" style={{borderColor:'#F6DC4E'}}>
-              <h2 className="text-xl font-bold" style={{color:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Performance vs {report.region} Benchmarks</h2>
-              <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{background:'#272828',color:'#F6DC4E',letterSpacing:'1px',textTransform:'uppercase'}}>Q4 2025 Data</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr style={{background:'#272828'}}>
-                    {['Metric','Your Result','Benchmark Low','Benchmark Median','Benchmark High','Rating'].map(h => (
-                      <th key={h} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wide" style={{color:'white',letterSpacing:'1px'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { label:'Sponsored Content CTR', val:agg.ctr,     fmt:fmtPct, metric:'Sponsored Content CTR' },
-                    { label:'Engagement Rate',        val:agg.engRate, fmt:fmtPct, metric:'Sponsored Engagement Rate' },
-                    { label:'Form Fill Rate',          val:agg.ffr,    fmt:fmtPct, metric:'Lead Gen Form Fill Rate' },
-                    { label:'Cost Per Lead',           val:agg.cpl,    fmt:fmtCur, metric:'Cost Per Lead ($)' },
-                    { label:'CPM',                     val:agg.cpm,    fmt:fmtCur, metric:'CPM ($)' },
-                    { label:'CPC',                     val:agg.cpc,    fmt:fmtCur, metric:'CPC ($)' },
-                  ].map(({ label, val, fmt, metric }, i) => {
-                    const bv = bench[metric];
-                    const r  = bv ? calcRating(metric, val, report.region) : null;
-                    return (
-                      <tr key={label} className={i%2===0?'bg-white':'bg-slate-50'} style={{transition:'background .15s'}}>
-                        <td className="px-5 py-3 font-semibold" style={{color:'#272828',borderBottom:'1px solid #e5e3de'}}>{label}</td>
-                        <td className="px-5 py-3 font-bold text-lg" style={{color:'#272828',borderBottom:'1px solid #e5e3de'}}>{fmt(val)}</td>
-                        <td className="px-5 py-3" style={{color:'#888',borderBottom:'1px solid #e5e3de'}}>{bv ? fmtBenchV(metric,bv.low) : '—'}</td>
-                        <td className="px-5 py-3" style={{color:'#888',borderBottom:'1px solid #e5e3de'}}>{bv ? fmtBenchV(metric,bv.median) : '—'}</td>
-                        <td className="px-5 py-3" style={{color:'#888',borderBottom:'1px solid #e5e3de'}}>{bv ? fmtBenchV(metric,bv.high) : '—'}</td>
-                        <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}><RatingPill rating={r} /></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-5 py-3 text-xs flex gap-5 flex-wrap" style={{background:'#F4F3F0',color:'#888'}}>
-              <span>🟢 Exceptional (+50% vs benchmark)</span>
-              <span>🔵 Above Benchmark (0–50%)</span>
-              <span>🟡 Near Benchmark (–25–0%)</span>
-              <span>🔴 Below Benchmark (&lt;–25%)</span>
-            </div>
-          </div>
-
           {/* ── AI Insights ── */}
           {(aiLoading || aiText || aiError) && (
             <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#272828'}}>
@@ -2121,6 +2073,104 @@ ${aiSection}
                   })}
                 </div>
 
+                {/* ── Key Insights Per Campaign ── */}
+                <div style={{background:'white',borderRadius:'12px',overflow:'hidden',border:'1px solid #e8e6df',boxShadow:'0 1px 4px rgba(0,0,0,0.05)'}}>
+                  <div style={{display:'flex',alignItems:'baseline',gap:'16px',padding:'20px 32px',borderBottom:'2px solid #272828'}}>
+                    <h2 style={{fontFamily:'Georgia,serif',fontSize:'22px',fontWeight:400,color:'#272828'}}>Key Insights Per Campaign</h2>
+                    <span style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880'}}>Data-driven analysis</span>
+                  </div>
+                  <div style={{padding:'24px',display:'flex',flexDirection:'column',gap:'20px'}}>
+                    {displayCampaigns.map((c,idx)=>{
+                      const name  = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+                      const ctr   = c.impressions>0 ? c.clicks/c.impressions : 0;
+                      const engR  = c.impressions>0 ? ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions : 0;
+                      const cpc   = c.clicks>0 ? c.spent/c.clicks : 0;
+                      const cpl   = c.leads>0  ? c.spent/c.leads  : 0;
+                      const isPaused = !c.impressions||c.impressions===0;
+                      const ctrR  = calcRating('Sponsored Content CTR',ctr,report.region);
+                      const engR2 = calcRating('Sponsored Engagement Rate',engR,report.region);
+                      const cpcR  = calcRating('CPC ($)',cpc,report.region);
+                      const cplR  = c.leads>0 ? calcRating('Cost Per Lead ($)',cpl,report.region) : null;
+                      const bCTR2 = bench['Sponsored Content CTR'];
+                      const bEng2 = bench['Sponsored Engagement Rate'];
+                      const bCPC2 = bench['CPC ($)'];
+                      const bCPL2 = bench['Cost Per Lead ($)'];
+
+                      const insights = [];
+                      const flags    = [];
+
+                      if (isPaused) {
+                        flags.push({color:'#d97706', label:'Paused', text:'Campaign is paused with zero delivery. Review creative approvals, bid strategy, and targeting before reactivating.'});
+                      } else {
+                        // CTR
+                        if (ctrR==='exc')        insights.push({color:'#059669', label:'Exceptional CTR', text:`CTR of ${fmtPct(ctr)} far exceeds the benchmark high of ${bCTR2?fmtPct(bCTR2.high):'—'}. Creative-audience fit is outstanding.`});
+                        else if (ctrR==='above') insights.push({color:'#2563eb', label:'Strong CTR',      text:`CTR of ${fmtPct(ctr)} beats the benchmark median (${bCTR2?fmtPct(bCTR2.median):'—'}). Audience targeting is well-aligned.`});
+                        else                     flags.push(   {color:'#dc2626', label:'Low CTR',         text:`CTR of ${fmtPct(ctr)} is below the benchmark low of ${bCTR2?fmtPct(bCTR2.low):'—'}. Immediate creative review recommended.`});
+
+                        // Engagement
+                        if (engR2==='exc')        insights.push({color:'#059669', label:'Exceptional Engagement', text:`Engagement rate of ${fmtPct(engR)} is exceptional — far exceeding the ${bEng2?fmtPct(bEng2.high):'—'} benchmark high. Strong content-audience resonance.`});
+                        else if (engR2==='above') insights.push({color:'#2563eb', label:'Good Engagement',        text:`Engagement rate of ${fmtPct(engR)} exceeds the benchmark median (${bEng2?fmtPct(bEng2.median):'—'}).`});
+                        else                     flags.push(   {color:'#dc2626', label:'Low Engagement',        text:`Engagement rate of ${fmtPct(engR)} is below the benchmark low (${bEng2?fmtPct(bEng2.low):'—'}). Audience or creative may need a full refresh.`});
+
+                        // CPC
+                        if (cpcR==='exc')        insights.push({color:'#059669', label:'Efficient CPC',   text:`CPC of ${fmtCur(cpc)} is well below the benchmark (${bCPC2?fmtCur(bCPC2.median):'—'} median). Budget is being deployed efficiently.`});
+                        else if (cpcR==='above') insights.push({color:'#2563eb', label:'Good CPC',        text:`CPC of ${fmtCur(cpc)} is competitive against the ${bCPC2?fmtCur(bCPC2.median):'—'} benchmark median.`});
+                        else                     flags.push(   {color:'#dc2626', label:'High CPC',        text:`CPC of ${fmtCur(cpc)} significantly exceeds the ${bCPC2?fmtCur(bCPC2.high):'—'} benchmark high. Bid strategy review is urgent.`});
+
+                        // CPL
+                        if (c.leads>0) {
+                          if (cplR==='exc')        insights.push({color:'#059669', label:'Excellent CPL',  text:`Cost per lead of ${fmtCur(cpl)} is well within benchmark — efficient lead generation at scale.`});
+                          else if (cplR==='above') insights.push({color:'#2563eb', label:'Good CPL',       text:`CPL of ${fmtCur(cpl)} is competitive against the ${bCPL2?fmtCur(bCPL2.median):'—'} benchmark median.`});
+                          else                     flags.push(   {color:'#dc2626', label:'High CPL',       text:`CPL of ${fmtCur(cpl)} is above the benchmark high of ${bCPL2?fmtCur(bCPL2.high):'—'}. Lead form optimisation is a priority.`});
+                        } else {
+                          insights.push({color:'#8a8880', label:'No Leads Tracked', text:'No lead conversions recorded in this period. Verify lead form configuration or consider adding a lead gen objective.'});
+                        }
+
+                        // Volume note
+                        if (c.impressions < 5000)  flags.push({color:'#d97706', label:'Low Reach', text:`Only ${fmtNum(c.impressions)} impressions. Audience may be too narrow or budget too low to achieve statistical significance.`});
+                        if (c.impressions > 50000) insights.push({color:'#059669', label:'Strong Reach', text:`${fmtNum(c.impressions)} impressions delivered — sufficient volume for meaningful optimisation decisions.`});
+                      }
+
+                      return (
+                        <div key={c.id} style={{border:'1px solid #e8e6df',borderRadius:'8px',overflow:'hidden'}}>
+                          {/* Campaign name bar */}
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',background:'#f7f6f2',borderBottom:'1px solid #e8e6df'}}>
+                            <div>
+                              <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',marginBottom:'2px'}}>CAMPAIGN {String(idx+1).padStart(2,'0')}</div>
+                              <div style={{fontWeight:600,fontSize:'14px',color:'#272828',fontFamily:'monospace'}}>{name}</div>
+                            </div>
+                            <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+                              <span style={{fontFamily:'monospace',fontSize:'10px',color:'#8a8880'}}>ID: {c.id}</span>
+                              {!isPaused && (
+                                <>
+                                  <span style={{padding:'3px 10px',borderRadius:'2px',fontSize:'10px',fontFamily:'monospace',background:ratingColor(ctrR)==='#059669'?'rgba(5,150,105,0.1)':ratingColor(ctrR)==='#2563eb'?'rgba(37,99,235,0.1)':'rgba(220,38,38,0.1)',color:ratingColor(ctrR),border:`1px solid ${ratingColor(ctrR)}30`}}>CTR {fmtPct(ctr)}</span>
+                                  <span style={{padding:'3px 10px',borderRadius:'2px',fontSize:'10px',fontFamily:'monospace',background:ratingColor(engR2)==='#059669'?'rgba(5,150,105,0.1)':ratingColor(engR2)==='#2563eb'?'rgba(37,99,235,0.1)':'rgba(220,38,38,0.1)',color:ratingColor(engR2),border:`1px solid ${ratingColor(engR2)}30`}}>ENG {fmtPct(engR)}</span>
+                                  <span style={{padding:'3px 10px',borderRadius:'2px',fontSize:'10px',fontFamily:'monospace',background:'rgba(39,40,40,0.07)',color:'#272828',border:'1px solid #e8e6df'}}>CPC {fmtCur(cpc)}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {/* Insights list */}
+                          <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:'10px'}}>
+                            {[...insights,...flags].map((item,i)=>(
+                              <div key={i} style={{display:'flex',gap:'12px',alignItems:'flex-start'}}>
+                                <div style={{width:'3px',flexShrink:0,borderRadius:'2px',background:item.color,marginTop:'3px',alignSelf:'stretch',minHeight:'16px'}} />
+                                <div style={{flex:1}}>
+                                  <span style={{fontFamily:'monospace',fontSize:'10px',fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:item.color,marginRight:'8px'}}>{item.label}</span>
+                                  <span style={{fontSize:'13px',color:'#2a2c3a',lineHeight:1.6}}>{item.text}</span>
+                                </div>
+                              </div>
+                            ))}
+                            {insights.length===0 && flags.length===0 && (
+                              <p style={{fontSize:'13px',color:'#8a8880'}}>No significant insights for this campaign in the selected period.</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Optimisation 4-quadrant */}
                 {aiText && (
                   <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
@@ -2214,26 +2264,6 @@ ${aiSection}
               </div>
             </div>
           )}
-
-          {/* ── Benchmark Reference ── */}
-          <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-8 py-5 border-b-2" style={{borderColor:'#B1AAA4'}}>
-              <h2 className="text-xl font-bold" style={{color:'#272828'}}>Benchmark Reference — {report.region}</h2>
-            </div>
-            <div className="p-6 grid grid-cols-3 gap-4">
-              {Object.entries(bench).map(([metric, vals]) => (
-                <div key={metric} className="rounded-lg p-4" style={{background:'#F4F3F0'}}>
-                  <div className="text-xs font-bold uppercase tracking-wide mb-3" style={{color:'#888',letterSpacing:'1px'}}>{metric}</div>
-                  {['low','median','high'].map(l => (
-                    <div key={l} className="flex justify-between items-center py-1" style={{borderBottom:'1px solid #e5e3de'}}>
-                      <span className="text-xs capitalize" style={{color:'#B1AAA4'}}>{l}</span>
-                      <span className="text-xs font-bold font-mono" style={{color:'#272828'}}>{fmtBenchV(metric,vals[l])}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
 
           {/* ── Footer ── */}
           <div className="text-center py-5 text-xs border-t border-slate-200" style={{color:'#B1AAA4'}}>
