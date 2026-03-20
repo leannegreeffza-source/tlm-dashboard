@@ -1088,14 +1088,19 @@ function BenchmarkManager() {
 // TLM REPORT GENERATOR — full branded report matching template
 // ─────────────────────────────────────────────────────────────
 function TLMReportGenerator({ session, accounts, campaigns, reportData: liveData, currentRange, campaignNameMap }) {
-  const [region,      setRegion]      = useState('ZA');
-  const [campIds,     setCampIds]     = useState([]);
-  const [dateStart,   setDateStart]   = useState(currentRange?.start || '');
-  const [dateEnd,     setDateEnd]     = useState(currentRange?.end   || '');
-  const [report,      setReport]      = useState(null);
-  const [aiText,      setAiText]      = useState(null);
-  const [aiLoading,   setAiLoading]   = useState(false);
-  const [aiError,     setAiError]     = useState(null);
+  const [region,        setRegion]        = useState('ZA');
+  const [campIds,       setCampIds]       = useState([]);
+  const [dateStart,     setDateStart]     = useState(currentRange?.start || '');
+  const [dateEnd,       setDateEnd]       = useState(currentRange?.end   || '');
+  const [report,        setReport]        = useState(null);
+  const [aiText,        setAiText]        = useState(null);
+  const [aiLoading,     setAiLoading]     = useState(false);
+  const [aiError,       setAiError]       = useState(null);
+  const [acctSearch,    setAcctSearch]    = useState('');
+  const [campSearch,    setCampSearch]    = useState('');
+  const [idImport,      setIdImport]      = useState('');
+  const [idImportErr,   setIdImportErr]   = useState('');
+  const [showIdImport,  setShowIdImport]  = useState(false);
   const printRef = useRef(null);
 
   useEffect(() => {
@@ -1104,9 +1109,43 @@ function TLMReportGenerator({ session, accounts, campaigns, reportData: liveData
   }, [currentRange]);
 
   const allCampaigns  = campaigns || [];
-  const accountName   = accounts?.[0]?.name || session?.user?.name || 'Client';
 
-  // ── Build aggregated metrics from live LinkedIn data ──
+  // ── Account search filter ──
+  const filteredAccounts = (accounts || []).filter(a =>
+    !acctSearch ||
+    a.name?.toLowerCase().includes(acctSearch.toLowerCase()) ||
+    String(a.id).includes(acctSearch)
+  );
+  const [selectedAcctId, setSelectedAcctId] = useState(null);
+  const selectedAccount = selectedAcctId
+    ? (accounts || []).find(a => String(a.id) === String(selectedAcctId))
+    : (accounts || [])[0];
+  const accountName = selectedAccount?.name || session?.user?.name || 'Client';
+
+  // ── Campaign search filter ──
+  const filteredCampaigns = allCampaigns.filter(c =>
+    !campSearch ||
+    c.name?.toLowerCase().includes(campSearch.toLowerCase()) ||
+    String(c.id).includes(campSearch)
+  );
+
+  // ── Import campaign IDs from pasted text / CSV ──
+  function handleIdImport() {
+    setIdImportErr('');
+    const raw = idImport.trim();
+    if (!raw) return;
+    const parsed = raw.split(/[\s,;\n]+/).map(s => s.trim()).filter(Boolean);
+    const invalid = parsed.filter(s => !/^\d+$/.test(s));
+    if (invalid.length > 0) {
+      setIdImportErr('Invalid IDs (numbers only): ' + invalid.join(', '));
+      return;
+    }
+    setCampIds(prev => [...new Set([...prev, ...parsed])]);
+    setIdImport('');
+    setShowIdImport(false);
+  }
+
+    // ── Build aggregated metrics from live LinkedIn data ──
   function buildAgg() {
     if (!liveData) return null;
     const { current, topCampaigns } = liveData;
@@ -1352,56 +1391,185 @@ ${aiSection}
       <div className="rounded-xl border border-slate-700 p-6" style={{background:'#1a1a1a'}}>
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5"
           style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Report Configuration</h2>
+
+        {/* Row 1: Account search + Region + Dates */}
         <div className="grid grid-cols-4 gap-4 mb-5">
+
+          {/* Account — searchable */}
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Account</label>
-            <div className="px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white font-medium truncate">
-              {accountName}
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search accounts..."
+                value={acctSearch}
+                onChange={e => setAcctSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500"
+              />
+            </div>
+            <div className="max-h-32 overflow-y-auto space-y-1">
+              {(filteredAccounts.length > 0 ? filteredAccounts : (accounts||[])).map(a => {
+                const sid = String(a.id);
+                const sel = String(selectedAcctId || (accounts||[])[0]?.id) === sid;
+                return (
+                  <button key={sid} onClick={() => setSelectedAcctId(sid)}
+                    className="w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors"
+                    style={sel
+                      ? {background:'rgba(246,220,78,0.12)',borderColor:'#F6DC4E',color:'white'}
+                      : {background:'transparent',borderColor:'#475569',color:'#94a3b8'}}>
+                    <div className="font-semibold truncate">{a.name}</div>
+                    <div className="font-mono text-xs mt-0.5" style={{color: sel ? '#F6DC4E' : '#64748b'}}>ID: {sid}</div>
+                  </button>
+                );
+              })}
+              {filteredAccounts.length === 0 && acctSearch && (
+                <p className="text-xs text-slate-500 px-2 py-2">No accounts match "{acctSearch}"</p>
+              )}
             </div>
           </div>
+
+          {/* Region */}
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Benchmark Region</label>
             <select value={region} onChange={e => setRegion(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none"
-              style={{'--tw-ring-color':'#F6DC4E'}}>
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500">
               {Object.keys(getBenchmarks()).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
+
+          {/* Start Date */}
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Start Date</label>
             <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none" />
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
           </div>
+
+          {/* End Date */}
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">End Date</label>
             <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none" />
+              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
           </div>
         </div>
 
-        {allCampaigns.length > 0 && (
-          <div className="mb-5">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">
-              Campaigns <span className="text-slate-500 font-normal normal-case">(leave empty to use all loaded data)</span>
+        {/* Row 2: Campaign selection */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+              Campaigns
+              {campIds.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold" style={{background:'#F6DC4E',color:'#272828'}}>
+                  {campIds.length} selected
+                </span>
+              )}
+              <span className="ml-2 text-slate-500 font-normal normal-case">(leave empty = all loaded data)</span>
             </label>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-              {allCampaigns.map(c => {
-                const sid = String(c.id);
-                const sel = campIds.includes(sid);
-                return (
-                  <label key={c.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer text-xs transition-colors ${
-                    sel ? 'border-yellow-500 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700'
-                  }`} style={sel ? {background:'rgba(246,220,78,0.1)'} : {}}>
-                    <input type="checkbox" checked={sel}
-                      onChange={() => setCampIds(prev => sel ? prev.filter(x=>x!==sid) : [...prev,sid])}
-                      className="w-3.5 h-3.5 flex-shrink-0" style={{accentColor:'#F6DC4E'}} />
-                    <span className="truncate font-medium">{c.name}</span>
-                  </label>
-                );
-              })}
+            <div className="flex items-center gap-2">
+              {campIds.length > 0 && (
+                <button onClick={() => setCampIds([])}
+                  className="text-xs text-slate-400 hover:text-red-400 transition-colors px-2 py-1 rounded border border-slate-700 hover:border-red-800">
+                  Clear all
+                </button>
+              )}
+              <button onClick={() => setShowIdImport(v => !v)}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+                style={showIdImport
+                  ? {background:'rgba(246,220,78,0.15)',borderColor:'#F6DC4E',color:'#F6DC4E'}
+                  : {background:'transparent',borderColor:'#475569',color:'#94a3b8'}}>
+                <Layers className="w-3.5 h-3.5" />
+                Import IDs
+              </button>
             </div>
           </div>
-        )}
+
+          {/* Campaign ID import panel */}
+          {showIdImport && (
+            <div className="mb-3 p-4 rounded-lg border border-slate-600" style={{background:'#272828'}}>
+              <p className="text-xs text-slate-400 mb-2">
+                Paste Campaign IDs separated by comma, space, or new line. IDs are shown in the Campaign Manager sidebar.
+              </p>
+              <textarea
+                value={idImport}
+                onChange={e => { setIdImport(e.target.value); setIdImportErr(''); }}
+                placeholder="e.g. 123456789, 987654321, 111222333"
+                rows={3}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500 font-mono resize-none mb-2"
+              />
+              {idImportErr && <p className="text-xs text-red-400 mb-2">{idImportErr}</p>}
+              <div className="flex gap-2">
+                <button onClick={handleIdImport}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                  style={{background:'#F6DC4E',color:'#272828'}}>
+                  Import IDs
+                </button>
+                <button onClick={() => { setShowIdImport(false); setIdImport(''); setIdImportErr(''); }}
+                  className="px-4 py-1.5 rounded-lg text-xs border border-slate-600 text-slate-400 hover:text-white transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Imported IDs shown as chips when no matching campaign names */}
+          {campIds.filter(id => !allCampaigns.find(c => String(c.id) === id)).length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs text-slate-500 mb-1.5">Imported IDs (no name loaded yet — will match on generate):</p>
+              <div className="flex flex-wrap gap-1.5">
+                {campIds.filter(id => !allCampaigns.find(c => String(c.id) === id)).map(id => (
+                  <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold"
+                    style={{background:'rgba(177,170,164,0.15)',border:'1px solid #475569',color:'#B1AAA4'}}>
+                    {id}
+                    <button onClick={() => setCampIds(prev => prev.filter(x => x !== id))}
+                      className="hover:text-red-400 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Campaign list with search */}
+          {allCampaigns.length > 0 ? (
+            <>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search campaigns by name or ID..."
+                  value={campSearch}
+                  onChange={e => setCampSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {filteredCampaigns.map(c => {
+                  const sid = String(c.id);
+                  const sel = campIds.includes(sid);
+                  return (
+                    <label key={c.id}
+                      className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer text-xs transition-colors"
+                      style={sel
+                        ? {background:'rgba(246,220,78,0.1)',borderColor:'#F6DC4E',color:'white'}
+                        : {background:'transparent',borderColor:'#475569',color:'#94a3b8'}}>
+                      <input type="checkbox" checked={sel}
+                        onChange={() => setCampIds(prev => sel ? prev.filter(x=>x!==sid) : [...prev,sid])}
+                        className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{accentColor:'#F6DC4E'}} />
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{c.name}</div>
+                        <div className="font-mono mt-0.5" style={{color: sel ? '#F6DC4E' : '#64748b',fontSize:'10px'}}>ID: {sid}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+                {filteredCampaigns.length === 0 && (
+                  <p className="col-span-2 text-xs text-slate-500 px-2 py-3">No campaigns match "{campSearch}"</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-slate-500 py-2">No campaigns loaded — select an account in Campaign Manager first, or import IDs above.</p>
+          )}
+        </div>
 
         {!liveData && (
           <div className="mb-4 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(246,220,78,0.08)',borderColor:'rgba(246,220,78,0.3)',color:'#F6DC4E'}}>
