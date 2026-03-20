@@ -1441,10 +1441,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     return { functions, industries: [], countries: [] };
   }
 
-  const selectedNames = campIds.length > 0
-    ? campIds.map(id => campaignNameMap?.[id] || `Campaign ${id}`)
-    : ['All Campaigns'];
-
   function generateReport() {
     const agg = buildAgg();
     if (!agg) return;
