@@ -1980,56 +1980,232 @@ ${aiSection}
             </div>
           )}
 
-          {/* ── Campaign Performance Table ── */}
-          {liveData?.topCampaigns?.length > 0 && (
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
-              <div className="px-8 py-5 border-b-2" style={{borderColor:'#272828'}}>
-                <h2 className="text-xl font-bold" style={{color:'#272828'}}>Campaign Performance</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{background:'#272828'}}>
-                      {['Campaign','Impressions','Clicks','CTR','Spend','Leads','CPL'].map(h => (
-                        <th key={h} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wide" style={{color:'white'}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(campIds.length > 0
-                      ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id)))
-                      : liveData.topCampaigns
-                    ).map((c, i) => {
-                      const name = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
-                      const ctr  = c.impressions > 0 ? (c.clicks/c.impressions*100).toFixed(3)+'%' : '0.000%';
-                      const cpl  = c.leads > 0 ? fmtCur(c.spent/c.leads) : '—';
-                      return (
-                        <tr key={c.id} className={i%2===0?'bg-white':'bg-slate-50'}>
-                          <td className="px-5 py-3 font-semibold" style={{borderBottom:'1px solid #e5e3de',color:'#272828'}}>
-                            {name}
-                            <div className="text-xs font-mono" style={{color:'#B1AAA4'}}>ID: {c.id}</div>
-                          </td>
-                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{fmtNum(c.impressions)}</td>
-                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{fmtNum(c.clicks)}</td>
-                          <td className="px-5 py-3 font-semibold" style={{borderBottom:'1px solid #e5e3de',color:'#272828'}}>{ctr}</td>
-                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{fmtCur(c.spent)}</td>
-                          <td className="px-5 py-3 font-bold" style={{borderBottom:'1px solid #e5e3de'}}>{c.leads||0}</td>
-                          <td className="px-5 py-3" style={{borderBottom:'1px solid #e5e3de'}}>{cpl}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          {/* ══════════════════════════════════════════
+               CAMPAIGN BREAKDOWN (Thought Leader style)
+             ══════════════════════════════════════════ */}
+          {liveData?.topCampaigns?.length > 0 && (() => {
+            const displayCampaigns = campIds.length > 0
+              ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id)))
+              : liveData.topCampaigns;
+            const totalImpr = displayCampaigns.reduce((s,c)=>s+(c.impressions||0),0);
+            const totalClk  = displayCampaigns.reduce((s,c)=>s+(c.clicks||0),0);
+            const totalSpd  = displayCampaigns.reduce((s,c)=>s+(c.spent||0),0);
+            const totalLds  = displayCampaigns.reduce((s,c)=>s+(c.leads||0),0);
+            const groupCTR  = totalImpr>0 ? (totalClk/totalImpr*100).toFixed(2)+'%' : '—';
+            const groupEng  = fmtPct(agg.engRate);
+            const bCTR = bench['Sponsored Content CTR'];
+            const bEng = bench['Sponsored Engagement Rate'];
+            function ratingColor(r) { return r==='exc'?'#059669':r==='above'?'#2563eb':r==='near'?'#d97706':'#dc2626'; }
+            function statusLabel(r) { return r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below'; }
+            return (
+              <>
+                {/* Group Summary */}
+                <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+                  <div className="px-8 py-5 flex items-center justify-between" style={{background:'#272828'}}>
+                    <div>
+                      <div className="text-xs font-bold mb-1" style={{color:'#B1AAA4',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase'}}>Campaign Group Performance Report</div>
+                      <h2 className="text-xl font-bold text-white">Group Summary</h2>
+                    </div>
+                    <span className="text-xs px-3 py-1.5 rounded" style={{background:'rgba(246,220,78,0.15)',color:'#F6DC4E',fontFamily:'monospace',letterSpacing:'1px'}}>ALL CAMPAIGNS COMBINED</span>
+                  </div>
+                  <div className="p-6 grid grid-cols-3 gap-4">
+                    {[
+                      {label:'Total Group Spend',    val:fmtCur(totalSpd),   sub:`${displayCampaigns.length} campaign${displayCampaigns.length!==1?'s':''} · period`,  accent:'#2563eb'},
+                      {label:'Total Impressions',    val:fmtNum(totalImpr),  sub:`${fmtNum(totalClk)} total clicks`,                                                    accent:'#059669'},
+                      {label:'Group Avg CTR',        val:groupCTR,           sub:bCTR?<span style={{color:parseFloat(groupCTR)>=(bCTR.low*100)?'#059669':'#dc2626',fontSize:'11px',fontFamily:'monospace'}}>{parseFloat(groupCTR)>=(bCTR.low*100)?'↑ ABOVE':'↓ BELOW'} {fmtPct(bCTR.low)} BENCHMARK</span>:null, accent:'#059669'},
+                      {label:'Group Avg Engagement', val:groupEng,           sub:bEng?<span style={{color:agg.engRate>=(bEng.low)?'#059669':'#dc2626',fontSize:'11px',fontFamily:'monospace'}}>{agg.engRate>=(bEng.low)?'↑ ABOVE':'↓ BELOW'} {fmtPct(bEng.low)} BENCHMARK</span>:null, accent:'#059669'},
+                      {label:'Cost Per Click',       val:fmtCur(agg.cpc),    sub:`Total leads: ${totalLds}`,                                                             accent:'#272828'},
+                      {label:'Active Campaigns',     val:`${displayCampaigns.filter(c=>c.impressions>0).length} / ${displayCampaigns.length}`, sub:`${displayCampaigns.filter(c=>!c.impressions||c.impressions===0).length} paused`, accent:'#272828'},
+                    ].map(({label,val,sub,accent})=>(
+                      <div key={label} className="rounded-lg p-5" style={{borderLeft:`4px solid ${accent}`,background:'#fafaf9',border:'1px solid #e8e6df',borderLeftWidth:'4px',borderLeftColor:accent}}>
+                        <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#888',marginBottom:'8px'}}>{label}</div>
+                        <div style={{fontFamily:'Georgia,serif',fontSize:'28px',fontWeight:400,color:'#272828',lineHeight:1,marginBottom:'4px'}}>{val}</div>
+                        <div style={{fontSize:'12px',color:'#8a8880'}}>{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-          {/* ── What's Working section (mirrors template) ── */}
-          {aiText && (
+                {/* Per-Campaign Blocks */}
+                <div className="space-y-5">
+                  <div className="flex items-baseline gap-4 pb-3 border-b-2" style={{borderColor:'#272828'}}>
+                    <h2 style={{fontFamily:'Georgia,serif',fontSize:'22px',fontWeight:400,color:'#272828'}}>Campaign Analysis</h2>
+                    <span style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'#888'}}>Individual Campaign Breakdown</span>
+                  </div>
+                  {displayCampaigns.map((c,idx)=>{
+                    const name    = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+                    const ctr     = c.impressions>0 ? c.clicks/c.impressions : 0;
+                    const engR    = c.impressions>0 ? ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions : 0;
+                    const cpc     = c.clicks>0 ? c.spent/c.clicks : 0;
+                    const cpl     = c.leads>0  ? c.spent/c.leads  : 0;
+                    const isPaused= !c.impressions||c.impressions===0;
+                    const ctrR    = calcRating('Sponsored Content CTR',ctr,report.region);
+                    const engR2   = calcRating('Sponsored Engagement Rate',engR,report.region);
+                    const cpcR    = calcRating('CPC ($)',cpc,report.region);
+                    return (
+                      <div key={c.id} style={{background:'white',border:'1px solid #e8e6df',borderRadius:'8px',overflow:'hidden'}}>
+                        {/* Header */}
+                        <div style={{background:'#272828',padding:'24px 28px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'20px',flexWrap:'wrap'}}>
+                          <div>
+                            <div style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'rgba(255,255,255,0.45)',marginBottom:'4px'}}>CAMPAIGN {String(idx+1).padStart(2,'0')}</div>
+                            <div style={{fontFamily:'monospace',fontSize:'14px',fontWeight:600,color:'white',marginBottom:'4px'}}>{name}</div>
+                            <div style={{fontSize:'12px',color:'rgba(255,255,255,0.5)'}}>ID: {c.id} · {isPaused?'Paused':'Active'}</div>
+                          </div>
+                          <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                            {['ENGAGEMENT','CPC',isPaused?'PAUSED':'ACTIVE'].map(tag=>(
+                              <span key={tag} style={{padding:'4px 12px',border:'1px solid rgba(255,255,255,0.2)',borderRadius:'2px',fontFamily:'monospace',fontSize:'10px',letterSpacing:'1px',color:tag==='PAUSED'?'rgba(196,106,0,0.9)':'rgba(255,255,255,0.7)'}}>{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+                        {isPaused ? (
+                          <div style={{padding:'24px'}}>
+                            <div style={{background:'#faf9f5',border:'1px solid #e8e6df',borderRadius:'4px',padding:'20px',display:'flex',alignItems:'center',gap:'16px'}}>
+                              <div style={{fontSize:'32px'}}>⏸</div>
+                              <div>
+                                <div style={{fontWeight:600,marginBottom:'4px',color:'#272828'}}>Campaign Paused — No Active Data</div>
+                                <div style={{fontSize:'13px',color:'#8a8880',lineHeight:1.6}}>Zero impressions and zero spend recorded. Review targeting, bid strategy, or creative approvals before reactivating.</div>
+                              </div>
+                            </div>
+                          </div>
+                        ):(
+                          <>
+                            {/* Benchmark bar */}
+                            <div style={{margin:'20px 24px 16px',background:'rgba(16,185,129,0.06)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:'4px',padding:'12px 18px',display:'flex',gap:'28px',flexWrap:'wrap'}}>
+                              {[[' CTR Benchmark',bCTR?`≥ ${fmtPct(bCTR.low)}`:'—'],['Eng Rate Benchmark',bEng?`≥ ${fmtPct(bEng.low)}`:'—'],['CPC Benchmark',bench['CPC ($)']?`≤ ${fmtCur(bench['CPC ($)'].median)}`:'—']].map(([l,v])=>(
+                                <div key={l} style={{display:'flex',flexDirection:'column',gap:'2px'}}>
+                                  <span style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#059669'}}>{l}</span>
+                                  <span style={{fontFamily:'monospace',fontSize:'11px',fontWeight:600,color:'#059669'}}>{v}</span>
+                                </div>
+                              ))}
+                            </div>
+                            {/* Stat cards */}
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',padding:'0 24px 20px'}}>
+                              {[
+                                {label:'Total Spend',     val:fmtCur(c.spent),      sub:`Period spend`,                           color:'#2563eb'},
+                                {label:'CTR',             val:fmtPct(ctr),           sub:statusLabel(ctrR),                        color:ratingColor(ctrR)},
+                                {label:'Avg CPC',         val:fmtCur(cpc),           sub:`${fmtNum(c.clicks)} clicks`,             color:ratingColor(cpcR)},
+                                {label:'Engagement Rate', val:fmtPct(engR),          sub:statusLabel(engR2),                       color:ratingColor(engR2)},
+                                {label:'Leads',           val:String(c.leads||0),   sub:`CPL: ${c.leads>0?fmtCur(cpl):'—'}`,     color:'#272828'},
+                                {label:'Impressions',     val:fmtNum(c.impressions), sub:`${fmtNum(c.clicks)} clicks`,             color:'#272828'},
+                              ].map(({label,val,sub,color})=>(
+                                <div key={label} style={{borderLeft:`3px solid ${color}`,background:'#fafaf9',border:'1px solid #e8e6df',borderLeftWidth:'3px',borderLeftColor:color,borderRadius:'4px',padding:'16px'}}>
+                                  <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',marginBottom:'6px'}}>{label}</div>
+                                  <div style={{fontFamily:'Georgia,serif',fontSize:'24px',fontWeight:400,color:'#272828',lineHeight:1,marginBottom:'4px'}}>{val}</div>
+                                  <div style={{fontSize:'11px',color:color==='#272828'?'#8a8880':color}}>{sub}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {/* Detail table */}
+                            <div style={{margin:'0 24px 24px',overflowX:'auto'}}>
+                              <div style={{background:'#f2f1ec',padding:'8px 12px',fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',borderRadius:'4px 4px 0 0'}}>Campaign Performance Summary</div>
+                              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                                <thead><tr style={{background:'#f2f1ec'}}>{['Impressions','Clicks','CTR','Eng Rate','CPC','Spend','Leads','CPL','CTR Status','Eng Status'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+                                <tbody><tr style={{borderBottom:'1px solid #e8e6df'}}>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px'}}>{fmtNum(c.impressions)}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px'}}>{fmtNum(c.clicks)}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px',fontWeight:600,color:ratingColor(ctrR)}}>{fmtPct(ctr)}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px',fontWeight:600,color:ratingColor(engR2)}}>{fmtPct(engR)}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px'}}>{fmtCur(cpc)}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px'}}>{fmtCur(c.spent)}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px',fontWeight:600}}>{c.leads||0}</td>
+                                  <td style={{padding:'10px 12px',fontFamily:'monospace',fontSize:'12px'}}>{c.leads>0?fmtCur(cpl):'—'}</td>
+                                  <td style={{padding:'10px 12px',fontSize:'12px',color:ratingColor(ctrR)}}>{statusLabel(ctrR)}</td>
+                                  <td style={{padding:'10px 12px',fontSize:'12px',color:ratingColor(engR2)}}>{statusLabel(engR2)}</td>
+                                </tr></tbody>
+                              </table>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Optimisation 4-quadrant */}
+                {aiText && (
+                  <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+                    <div style={{display:'flex',alignItems:'baseline',gap:'16px',padding:'20px 32px',borderBottom:'2px solid #272828'}}>
+                      <h2 style={{fontFamily:'Georgia,serif',fontSize:'22px',fontWeight:400,color:'#272828'}}>Optimisation Summary</h2>
+                      <span style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'#888'}}>Actionable Recommendations</span>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'20px',padding:'24px'}}>
+                      {[
+                        {head:"✓ What's Working Well",       color:'#059669', section:"## What's Working"},
+                        {head:"⚠ Issues to Address",         color:'#dc2626', section:"## Optimization Opportunities"},
+                        {head:"→ Immediate Actions",         color:'#2563eb', section:"## Next 30-Day Action Plan"},
+                        {head:"→ Strategic Recommendations", color:'#d97706', section:"## Audience & Targeting Strategy"},
+                      ].map(({head,color,section})=>{
+                        const sIdx=aiText.indexOf(section);
+                        const nIdx=aiText.indexOf('\n## ',sIdx+4);
+                        const chunk=sIdx>=0?aiText.slice(sIdx,nIdx>sIdx?nIdx:undefined):'';
+                        const bullets=chunk.split('\n').filter(l=>l.startsWith('- ')).slice(0,4);
+                        return (
+                          <div key={head} style={{background:'white',border:'1px solid #e8e6df',borderRadius:'4px',padding:'20px'}}>
+                            <div style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color,marginBottom:'14px'}}>{head}</div>
+                            <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:'10px'}}>
+                              {bullets.map((line,i)=><li key={i} style={{fontSize:'13px',lineHeight:1.5,paddingLeft:'14px',position:'relative',color:'#2a2c3a'}}><span style={{position:'absolute',left:0,color:'#8a8880',fontSize:'11px'}}>→</span>{line.replace('- ','')}</li>)}
+                              {bullets.length===0 && <li style={{fontSize:'12px',color:'#8a8880'}}>Generate AI Recommendations to populate.</li>}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Benchmark Performance Table */}
+                <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+                  <div style={{display:'flex',alignItems:'baseline',gap:'16px',padding:'20px 32px',borderBottom:'2px solid #272828'}}>
+                    <h2 style={{fontFamily:'Georgia,serif',fontSize:'22px',fontWeight:400,color:'#272828'}}>Benchmark Performance Summary</h2>
+                    <span style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'#888'}}>{fmtDate(report.dateStart)} – {fmtDate(report.dateEnd)}</span>
+                  </div>
+                  <div style={{overflowX:'auto'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse'}}>
+                      <thead><tr style={{background:'#f2f1ec'}}>{['Campaign','Metric','Benchmark','Your Result','vs Benchmark','Status'].map(h=><th key={h} style={{textAlign:'left',padding:'10px 14px',fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#8a8880',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {displayCampaigns.map((c,ci)=>{
+                          const cname = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+                          const ctr   = c.impressions>0?c.clicks/c.impressions:0;
+                          const engR  = c.impressions>0?((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions:0;
+                          const cpc   = c.clicks>0?c.spent/c.clicks:0;
+                          const paused= !c.impressions||c.impressions===0;
+                          const rows  = [
+                            {kpi:'CTR',             actual:ctr,  bval:bCTR?.median||0,                  fmt:fmtPct, metric:'Sponsored Content CTR'},
+                            {kpi:'Engagement Rate', actual:engR, bval:bEng?.median||0,                  fmt:fmtPct, metric:'Sponsored Engagement Rate'},
+                            {kpi:'CPC',             actual:cpc,  bval:bench['CPC ($)']?.median||0,      fmt:fmtCur, metric:'CPC ($)'},
+                          ];
+                          return rows.map(({kpi,actual,bval,fmt,metric},ri)=>{
+                            const isCost = metric.includes('CPC')||metric.includes('Cost');
+                            const diff   = isCost ? bval-actual : actual-bval;
+                            const pct    = bval>0?((diff/bval)*100).toFixed(1):'0';
+                            const ok     = diff>=0;
+                            const r      = paused ? null : calcRating(metric, actual, report.region);
+                            return (
+                              <tr key={`${c.id}-${ri}`} style={{borderBottom:'1px solid #e8e6df',background:ci%2===0?'white':'#fafaf9'}}>
+                                {ri===0 && <td rowSpan={3} style={{padding:'10px 14px',fontWeight:600,color:'#272828',verticalAlign:'top',paddingTop:'14px'}}>{cname}<div style={{fontFamily:'monospace',fontSize:'11px',color:'#B1AAA4',marginTop:'2px'}}>ID: {c.id}</div></td>}
+                                <td style={{padding:'10px 14px',fontSize:'13px'}}>{kpi}</td>
+                                <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:'12px',color:'#8a8880'}}>{fmt(bval)}</td>
+                                <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:'12px',fontWeight:600,color:'#272828'}}>{paused?'—':fmt(actual)}</td>
+                                <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:'12px',color:paused?'#8a8880':ok?'#059669':'#dc2626'}}>{paused?'—':(ok?'+':'')+pct+'pp'}</td>
+                                <td style={{padding:'10px 14px',fontSize:'12px',color:paused?'#8a8880':ratingColor(r)}}>{paused?'⏸ Paused':statusLabel(r)}</td>
+                              </tr>
+                            );
+                          });
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Fallback What's Working if no campaign data */}
+          {aiText && !liveData?.topCampaigns?.length && (
             <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-100">
-              <h2 className="text-xl font-bold mb-5 pb-3 border-b-2" style={{color:'#272828',borderColor:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>✅ What's Working</h2>
+              <h2 className="text-xl font-bold mb-5 pb-3 border-b-2" style={{color:'#272828',borderColor:'#272828'}}>✅ What's Working</h2>
               <div className="space-y-2">
-                {aiText.split('\n').filter(l => l.startsWith('- ') && aiText.indexOf(l) > aiText.indexOf('## What\'s Working')).slice(0,6).map((line,i) => (
+                {aiText.split('\n').filter(l => l.startsWith('- ')).slice(0,6).map((line,i) => (
                   <div key={i} className="flex items-start gap-3 py-2" style={{borderBottom:'1px solid #f0eeeb'}}>
                     <span className="font-bold mt-0.5 flex-shrink-0" style={{color:'#F6DC4E'}}>→</span>
                     <span className="text-sm" style={{color:'#444'}}>{line.replace('- ','')}</span>
@@ -2037,6 +2213,7 @@ ${aiSection}
                 ))}
               </div>
             </div>
+          )}
           )}
 
           {/* ── Benchmark Reference ── */}
