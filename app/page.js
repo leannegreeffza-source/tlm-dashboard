@@ -1603,22 +1603,22 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     const lds = current.leads  || 0;
     const eng = current.engagements || 0;
 
-    // CTR from API is already a decimal ratio (0.0827) OR a percentage (8.27) — normalise to ratio
-    const rawCtr = current.ctr || (imp>0 ? clk/imp : 0);
-    const ctr    = rawCtr > 1 ? rawCtr/100 : rawCtr;
+    // API returns CTR and engagementRate as PERCENTAGE numbers (e.g. 8.27 = 8.27%)
+    // fmtPct() multiplies by 100, so we store as ratio (0.0827) internally
+    const rawCtr = current.ctr != null ? current.ctr : (imp>0 ? clk/imp*100 : 0);
+    const ctr    = rawCtr / 100;  // percentage → ratio
 
-    // engagementRate: same normalisation
-    const rawEng    = current.engagementRate || (imp>0 ? eng/imp : 0);
-    const engRate   = rawEng > 1 ? rawEng/100 : rawEng;
+    const rawEng = current.engagementRate != null ? current.engagementRate : (imp>0 ? eng/imp*100 : 0);
+    const engRate = rawEng / 100; // percentage → ratio
 
-    // Previous period for MoM change
+    // Previous period for MoM change (also percentage → ratio)
     const prev = liveData?.previous || {};
-    const prevImp = prev.impressions || 0;
-    const prevClk = prev.clicks || 0;
-    const prevSpd = prev.spent  || 0;
-    const prevLds = prev.leads  || 0;
-    const prevEngR = prev.engagementRate ? (prev.engagementRate>1?prev.engagementRate/100:prev.engagementRate) : (prevImp>0?(prev.engagements||0)/prevImp:0);
-    const prevCtr  = prev.ctr ? (prev.ctr>1?prev.ctr/100:prev.ctr) : (prevImp>0?prevClk/prevImp:0);
+    const prevImp  = prev.impressions || 0;
+    const prevClk  = prev.clicks      || 0;
+    const prevSpd  = prev.spent       || 0;
+    const prevLds  = prev.leads       || 0;
+    const prevCtr  = prev.ctr != null ? prev.ctr/100 : (prevImp>0 ? prevClk/prevImp : 0);
+    const prevEngR = prev.engagementRate != null ? prev.engagementRate/100 : (prevImp>0 ? (prev.engagements||0)/prevImp : 0);
 
     return {
       impressions: imp, clicks: clk, spend: spd, leads: lds,
