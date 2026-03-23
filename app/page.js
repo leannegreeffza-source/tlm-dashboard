@@ -958,7 +958,8 @@ function RatingPill({ rating }) {
   return <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-bold ${c.cls}`}>{c.label}</span>;
 }
 
-function fmtPct(v)  { return `${(v * 100).toFixed(2)}%`; }
+function fmtPct(v)  { return `${(v * 100).toFixed(2)}%`; }  // for ratios (0.0827 → 8.27%)
+function fmtPctN(v) { return `${Number(v).toFixed(2)}%`; }   // for API % numbers (8.27 → 8.27%)
 function fmtCur(v)  { return `$${Number(v).toFixed(2)}`; }
 function fmtNum(v)  { return Number(v).toLocaleString(); }
 function fmtBenchV(metric, v) {
@@ -1577,6 +1578,22 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     if (!liveData) return null;
     const { current, topCampaigns } = liveData;
 
+    // Previous period base — API gives ctr/engagementRate as % numbers (8.27), store as ratio
+    const prevRaw  = liveData?.previous || {};
+    const prevImp  = prevRaw.impressions || 0;
+    const prevClk  = prevRaw.clicks      || 0;
+    const prevSpd  = prevRaw.spent       || 0;
+    const prevLds  = prevRaw.leads       || 0;
+    const prevCtr  = prevRaw.ctr != null ? prevRaw.ctr / 100 : (prevImp > 0 ? prevClk / prevImp : 0);
+    const prevEngR = prevRaw.engagementRate != null ? prevRaw.engagementRate / 100 : (prevImp > 0 ? (prevRaw.engagements || 0) / prevImp : 0);
+    const prevObj  = {
+      impressions: prevImp, clicks: prevClk, spend: prevSpd, leads: prevLds,
+      ctr: prevCtr, engRate: prevEngR,
+      cpl: prevLds > 0 ? prevSpd / prevLds : 0,
+      reach: prevRaw.reach || Math.round(prevImp * 0.82),
+    };
+
+    // Filtered path: specific campaigns selected — compute from topCampaigns
     if (campIds.length > 0 && topCampaigns?.length) {
       const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
       if (filtered.length > 0) {
@@ -1585,32 +1602,39 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         const spd = filtered.reduce((s,c) => s + (c.spent||0), 0);
         const lds = filtered.reduce((s,c) => s + (c.leads||0), 0);
         const eng = filtered.reduce((s,c) => s + ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0)), 0);
-        return { impressions:imp, clicks:clk, spend:spd, leads:lds,
-          ctr: imp>0 ? clk/imp : 0,
-          cpl: lds>0 ? spd/lds : 0,
-          ffr: clk>0 ? lds/clk : 0,
-          engRate: imp>0 ? eng/imp : 0,
-          reach: Math.round(imp * 0.82),
-          cpm: imp>0 ? (spd/imp)*1000 : 0,
-          cpc: clk>0 ? spd/clk : 0,
+        return {
+          impressions: imp, clicks: clk, spend: spd, leads: lds,
+          ctr:     imp > 0 ? clk / imp : 0,
+          cpl:     lds > 0 ? spd / lds : 0,
+          ffr:     clk > 0 ? lds / clk : 0,
+          engRate: imp > 0 ? eng / imp : 0,
+          reach:   Math.round(imp * 0.82),
+          cpm:     imp > 0 ? (spd / imp) * 1000 : 0,
+          cpc:     clk > 0 ? spd / clk : 0,
+          prev:    prevObj,
         };
       }
     }
 
+    // All campaigns: use aggregated API totals
     const imp = current.impressions || 0;
-    const clk = current.clicks || 0;
-    const spd = current.spent  || 0;
-    const lds = current.leads  || 0;
-    const eng = current.engagements || Math.round(clk * 1.4);
+    const clk = current.clicks      || 0;
+    const spd = current.spent       || 0;
+    const lds = current.leads       || 0;
+    const eng = current.engagements || 0;
+    const ctr     = current.ctr != null            ? current.ctr / 100            : (imp > 0 ? clk / imp : 0);
+    const engRate = current.engagementRate != null  ? current.engagementRate / 100  : (imp > 0 ? eng / imp : 0);
+
     return {
       impressions: imp, clicks: clk, spend: spd, leads: lds,
-      ctr:     current.ctr     ? current.ctr/100  : (imp>0 ? clk/imp : 0),
-      cpl:     current.cpl     || (lds>0 ? spd/lds : 0),
-      ffr:     clk>0 ? lds/clk : 0,
-      engRate: current.engagementRate ? current.engagementRate/100 : (imp>0 ? eng/imp : 0),
-      reach:   Math.round(imp * 0.82),
-      cpm:     current.cpm || (imp>0 ? (spd/imp)*1000 : 0),
-      cpc:     current.cpc || (clk>0 ? spd/clk : 0),
+      ctr,
+      cpl:     lds > 0 ? spd / lds : (current.cpl || 0),
+      ffr:     clk > 0 ? lds / clk : 0,
+      engRate,
+      reach:   current.reach || current.totalReach || Math.round(imp * 0.82),
+      cpm:     current.cpm   || (imp > 0 ? (spd / imp) * 1000 : 0),
+      cpc:     current.cpc   || (clk > 0 ? spd / clk : 0),
+      prev:    prevObj,
     };
   }
 
@@ -1640,14 +1664,39 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     const { agg, region, bench } = report;
     const b = bench || {};
 
-    const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this LinkedIn campaign performance report and provide concise, professional, actionable recommendations.
+    // Build per-campaign breakdown for the prompt
+    const campaignBreakdown = (() => {
+      const tc = liveData?.topCampaigns || [];
+      const display = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
+      if (!display.length) return '';
+      return display.map((c, i) => {
+        const name   = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+        const ctr    = c.impressions > 0 ? (c.clicks / c.impressions * 100).toFixed(2) : '0';
+        const engR   = c.impressions > 0 ? (((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0)) / c.impressions * 100).toFixed(2) : '0';
+        const cpc    = c.clicks > 0 ? (c.spent / c.clicks).toFixed(2) : '0';
+        const cpl    = c.leads > 0 ? (c.spent / c.leads).toFixed(2) : 'N/A';
+        const paused = !c.impressions || c.impressions === 0;
+        return `Campaign ${i+1}: ${name} (ID: ${c.id})
+  - Status: ${paused ? 'PAUSED' : 'Active'}
+  - Impressions: ${fmtNum(c.impressions)} | Clicks: ${fmtNum(c.clicks)} | Leads: ${c.leads || 0}
+  - CTR: ${ctr}% (benchmark median: ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : 'N/A'})
+  - Engagement Rate: ${engR}% (benchmark median: ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : 'N/A'})
+  - CPC: $${cpc} | CPL: ${cpl !== 'N/A' ? '$'+cpl : 'N/A'}
+  - Spend: ${fmtCur(c.spent)}`;
+      }).join('
+
+');
+    })();
+
+    const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this LinkedIn campaign performance report and provide specific, data-driven, actionable recommendations.
 
 CLIENT: ${accountName}
 CAMPAIGNS: ${selectedNames.join(', ')}
 PERIOD: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}
 BENCHMARK REGION: ${region} (LinkedIn Q4 2025)
+REPORT LEVEL: ${reportLevel.toUpperCase()}
 
-CAMPAIGN PERFORMANCE:
+OVERALL PERFORMANCE:
 - Impressions: ${fmtNum(agg.impressions)}
 - Clicks: ${fmtNum(agg.clicks)}
 - Leads: ${agg.leads}
@@ -1658,12 +1707,23 @@ CAMPAIGN PERFORMANCE:
 - Cost Per Lead: ${fmtCur(agg.cpl)} | Benchmark median: ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].median) : 'N/A'}
 - CPM: ${fmtCur(agg.cpm)} | CPC: ${fmtCur(agg.cpc)}
 
-Respond with exactly these five sections. Use "## " to start each header. Use "- " for bullet points. Be specific and data-driven.
+PER-CAMPAIGN BREAKDOWN:
+${campaignBreakdown || 'No individual campaign data available.'}
+
+BENCHMARKS (${region} Q4 2025):
+- Sponsored CTR: Low ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].low) : '—'} | Median ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : '—'} | High ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].high) : '—'}
+- Engagement Rate: Low ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].low) : '—'} | Median ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : '—'} | High ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].high) : '—'}
+- Cost Per Lead: Low ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].low) : '—'} | Median ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].median) : '—'} | High ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].high) : '—'}
+- CPC: ${b['CPC ($)'] ? fmtCur(b['CPC ($)'].median) : '—'} | CPM: ${b['CPM ($)'] ? fmtCur(b['CPM ($)'].median) : '—'}
+
+Respond with EXACTLY these seven sections. Use "## " to start each header. Use "- " for bullet points. Be specific, reference the benchmark numbers, and name individual campaigns where relevant.
 
 ## Executive Summary
 ## What's Working
+## Issues to Address
 ## Optimization Opportunities
 ## Audience & Targeting Strategy
+## Budget Recommendations
 ## Next 30-Day Action Plan`;
 
     try {
@@ -2072,32 +2132,125 @@ ${aiSection}
             </div>
           </div>
 
-          {/* ── Summary KPI Cards (3-col like template) ── */}
-          <div className="grid grid-cols-3 gap-5">
-            {[
-              { label:'Total Impressions', val: fmtNum(agg.impressions), sub:`Across all campaigns` },
-              { label:'Total Clicks',      val: fmtNum(agg.clicks),      sub:`CTR: ${fmtPct(agg.ctr)}` },
-              { label:'Total Leads',       val: agg.leads,               sub:`Form Fill Rate: ${fmtPct(agg.ffr)}` },
-              { label:'Engagement Rate',   val: fmtPct(agg.engRate),     sub:<RatingPill rating={calcRating('Sponsored Engagement Rate',agg.engRate,report.region)} /> },
-              { label:'Reach',             val: fmtNum(agg.reach),       sub:'Unique members' },
-              { label:'Cost Per Lead',     val: fmtCur(agg.cpl),         sub:`Total spend: ${fmtCur(agg.spend)}` },
-            ].map(({ label, val, sub }) => (
-              <div key={label} className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:-translate-y-0.5 transition-transform">
-                <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{color:'#888',letterSpacing:'1px'}}>{label}</div>
-                <div className="text-3xl font-bold mb-2" style={{color:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>{val}</div>
-                <div className="text-sm" style={{color:'#999'}}>{sub}</div>
+          {/* ── Summary KPI Cards ── */}
+          {(() => {
+            const p    = agg.prev || {};
+            const rgn  = report.region;
+            const bm   = getBenchmarks()[rgn] || {};
+
+            // MoM % change — null if no previous data
+            const mom = (cur, prv) => (!prv || prv === 0) ? null : ((cur - prv) / prv * 100);
+
+            // vs-benchmark badge — compares agg value (ratio) against benchmark (ratio)
+            const vsBench = (metricKey, val) => {
+              const b = bm[metricKey];
+              if (!b || val == null) return null;
+              const isCost = metricKey.includes('Cost') || metricKey.includes('CPM') || metricKey.includes('CPC');
+              const pct = isCost
+                ? ((b.median - val) / b.median * 100)
+                : ((val - b.median) / b.median * 100);
+              const good = pct >= 0;
+              const col  = good ? '#059669' : '#dc2626';
+              const bg   = good ? 'rgba(5,150,105,0.1)' : 'rgba(220,38,38,0.1)';
+              return (
+                <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'4px',
+                  fontSize:'11px',fontWeight:700,background:bg,color:col,fontFamily:'monospace',gap:'2px'}}>
+                  {pct >= 0 ? '↑' : '↓'}{Math.abs(pct).toFixed(1)}% vs benchmark
+                </span>
+              );
+            };
+
+            // MoM badge
+            const momBadge = (pct, invertGood) => {
+              if (pct === null || pct === undefined) return null;
+              const good = invertGood ? pct < 0 : pct > 0;
+              const col  = good ? '#059669' : '#dc2626';
+              const bg   = good ? 'rgba(5,150,105,0.1)' : 'rgba(220,38,38,0.1)';
+              return (
+                <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'4px',
+                  fontSize:'11px',fontWeight:700,background:bg,color:col,fontFamily:'monospace',gap:'2px'}}>
+                  {pct > 0 ? '↑' : '↓'}{Math.abs(pct).toFixed(1)}% MoM
+                </span>
+              );
+            };
+
+            const cards = [
+              {
+                label: 'Total Impressions',
+                val:   fmtNum(agg.impressions),
+                sub:   `${fmtNum(agg.clicks)} clicks`,
+                bench: null,
+                mom:   momBadge(mom(agg.impressions, p.impressions), false),
+              },
+              {
+                label: 'Total Clicks',
+                val:   fmtNum(agg.clicks),
+                sub:   `CTR: ${fmtPct(agg.ctr)}`,
+                bench: vsBench('Sponsored Content CTR', agg.ctr),
+                mom:   momBadge(mom(agg.clicks, p.clicks), false),
+              },
+              {
+                label: 'Total Leads',
+                val:   String(agg.leads),
+                sub:   `Form Fill Rate: ${fmtPct(agg.ffr)}`,
+                bench: agg.leads > 0 ? vsBench('Lead Gen Form Fill Rate', agg.ffr) : null,
+                mom:   momBadge(mom(agg.leads, p.leads), false),
+              },
+              {
+                label: 'Engagement Rate',
+                val:   fmtPct(agg.engRate),
+                sub:   null,
+                bench: vsBench('Sponsored Engagement Rate', agg.engRate),
+                rating: <RatingPill rating={calcRating('Sponsored Engagement Rate', agg.engRate, rgn)} />,
+                mom:   momBadge(mom(agg.engRate, p.engRate), false),
+              },
+              {
+                label: 'Cost Per Lead',
+                val:   agg.leads > 0 ? fmtCur(agg.cpl) : '—',
+                sub:   `Total spend: ${fmtCur(agg.spend || agg.spent || 0)}`,
+                bench: agg.leads > 0 ? vsBench('Cost Per Lead ($)', agg.cpl) : null,
+                mom:   momBadge(agg.leads > 0 && p.cpl > 0 ? mom(agg.cpl, p.cpl) : null, true),
+              },
+              {
+                label: 'Reach',
+                val:   fmtNum(agg.reach),
+                sub:   `Unique members · CPC ${fmtCur(agg.cpc)}`,
+                bench: vsBench('CPC ($)', agg.cpc),
+                mom:   momBadge(mom(agg.reach, p.reach), false),
+              },
+            ];
+
+            return (
+              <div className="grid grid-cols-3 gap-5">
+                {cards.map(card => (
+                  <div key={card.label} className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+                    <div className="text-xs font-bold uppercase tracking-wide mb-2"
+                      style={{color:'#888',letterSpacing:'1px'}}>{card.label}</div>
+                    <div className="text-3xl font-bold mb-3"
+                      style={{color:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>{card.val}</div>
+                    <div className="flex flex-wrap gap-2 items-center mb-2">
+                      {card.rating || null}
+                      {card.bench  || null}
+                      {card.mom    || null}
+                    </div>
+                    {card.sub && (
+                      <div className="text-xs mt-1" style={{color:'#B1AAA4'}}>{card.sub}</div>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* ── AI Insights ── */}
           {(aiLoading || aiText || aiError) && (
             <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#272828'}}>
+              {/* Header */}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-700">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0" style={{background:'#F6DC4E',color:'#272828'}}>AI</div>
                 <div>
                   <div className="font-bold text-white text-sm">Claude AI Recommendations</div>
-                  <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.region} Q4 2025 Benchmarks</div>
+                  <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.region} Q4 2025 · {selectedNames.length} campaign{selectedNames.length!==1?'s':''}</div>
                 </div>
                 {aiText && !aiLoading && (
                   <button onClick={getAIInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
@@ -2105,16 +2258,145 @@ ${aiSection}
                   </button>
                 )}
               </div>
-              <div className="px-6 py-5">
-                {aiLoading && (
-                  <div className="flex items-center gap-3 text-slate-400 text-sm">
-                    <RefreshCw className="w-4 h-4 animate-spin" style={{color:'#F6DC4E'}} />
-                    Analysing campaign data against {report.region} benchmarks...
+
+              {/* Loading */}
+              {aiLoading && (
+                <div className="flex items-center gap-3 px-6 py-8 text-slate-400 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin" style={{color:'#F6DC4E'}} />
+                  Analysing {selectedNames.length} campaign{selectedNames.length!==1?'s':''} against {report.region} benchmarks...
+                </div>
+              )}
+
+              {/* Error */}
+              {aiError && <p className="px-6 py-4 text-red-400 text-sm">{aiError}</p>}
+
+              {/* Structured output */}
+              {aiText && !aiLoading && (() => {
+                // Parse sections from AI text
+                const getSection = (text, header) => {
+                  const sIdx = text.indexOf(header);
+                  if (sIdx === -1) return [];
+                  const after = text.slice(sIdx + header.length);
+                  const nIdx  = after.indexOf('
+## ');
+                  const chunk = nIdx > 0 ? after.slice(0, nIdx) : after;
+                  return chunk.split('
+').filter(l => l.startsWith('- ')).map(l => l.replace('- ', '').trim()).filter(Boolean);
+                }
+                const getTextSection = (text, header) => {
+                  const sIdx = text.indexOf(header);
+                  if (sIdx === -1) return '';
+                  const after = text.slice(sIdx + header.length);
+                  const nIdx  = after.indexOf('
+## ');
+                  return (nIdx > 0 ? after.slice(0, nIdx) : after).trim();
+                }
+
+                const execSummary   = getTextSection(aiText, '## Executive Summary');
+                const working       = getSection(aiText, "## What's Working");
+                const issues        = getSection(aiText, '## Issues to Address');
+                const optimise      = getSection(aiText, '## Optimization Opportunities');
+                const audience      = getSection(aiText, '## Audience & Targeting Strategy');
+                const budget        = getSection(aiText, '## Budget Recommendations');
+                const actions       = getSection(aiText, '## Next 30-Day Action Plan');
+
+                return (
+                  <div>
+                    {/* Executive Summary — full width */}
+                    {execSummary && (
+                      <div className="px-6 py-5 border-b border-slate-700">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'#F6DC4E',fontFamily:'monospace',letterSpacing:'2px'}}>Executive Summary</div>
+                        <p className="text-sm leading-relaxed" style={{color:'#d1cbc3'}}>{execSummary.split('
+').filter(l=>!l.startsWith('##')).join(' ').replace(/^-\s/,'')}</p>
+                      </div>
+                    )}
+
+                    {/* 2-col grid: What's Working + Issues */}
+                    <div className="grid grid-cols-2 gap-0 border-b border-slate-700">
+                      <div className="px-6 py-5 border-r border-slate-700">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#4ade80',fontFamily:'monospace',letterSpacing:'2px'}}>✓ What's Working</div>
+                        <ul className="space-y-3">
+                          {working.map((item,i) => (
+                            <li key={i} className="flex gap-3 text-sm" style={{color:'#d1cbc3',lineHeight:1.6}}>
+                              <span className="flex-shrink-0 mt-1 w-1.5 h-1.5 rounded-full" style={{background:'#4ade80',marginTop:'7px'}} />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                          {!working.length && <li className="text-xs" style={{color:'#555'}}>—</li>}
+                        </ul>
+                      </div>
+                      <div className="px-6 py-5">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#f87171',fontFamily:'monospace',letterSpacing:'2px'}}>⚠ Issues to Address</div>
+                        <ul className="space-y-3">
+                          {issues.map((item,i) => (
+                            <li key={i} className="flex gap-3 text-sm" style={{color:'#d1cbc3',lineHeight:1.6}}>
+                              <span className="flex-shrink-0 mt-1 w-1.5 h-1.5 rounded-full" style={{background:'#f87171',marginTop:'7px'}} />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                          {!issues.length && <li className="text-xs" style={{color:'#555'}}>—</li>}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* 2-col grid: Optimisation + Audience */}
+                    <div className="grid grid-cols-2 gap-0 border-b border-slate-700">
+                      <div className="px-6 py-5 border-r border-slate-700">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#60a5fa',fontFamily:'monospace',letterSpacing:'2px'}}>→ Optimization Opportunities</div>
+                        <ul className="space-y-3">
+                          {optimise.map((item,i) => (
+                            <li key={i} className="flex gap-3 text-sm" style={{color:'#d1cbc3',lineHeight:1.6}}>
+                              <span className="flex-shrink-0" style={{color:'#60a5fa',fontSize:'11px',marginTop:'3px'}}>→</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                          {!optimise.length && <li className="text-xs" style={{color:'#555'}}>—</li>}
+                        </ul>
+                      </div>
+                      <div className="px-6 py-5">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#a78bfa',fontFamily:'monospace',letterSpacing:'2px'}}>◎ Audience & Targeting</div>
+                        <ul className="space-y-3">
+                          {audience.map((item,i) => (
+                            <li key={i} className="flex gap-3 text-sm" style={{color:'#d1cbc3',lineHeight:1.6}}>
+                              <span className="flex-shrink-0" style={{color:'#a78bfa',fontSize:'11px',marginTop:'3px'}}>◎</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                          {!audience.length && <li className="text-xs" style={{color:'#555'}}>—</li>}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* 2-col grid: Budget + Next Actions */}
+                    <div className="grid grid-cols-2 gap-0">
+                      <div className="px-6 py-5 border-r border-slate-700">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#F6DC4E',fontFamily:'monospace',letterSpacing:'2px'}}>$ Budget Recommendations</div>
+                        <ul className="space-y-3">
+                          {budget.map((item,i) => (
+                            <li key={i} className="flex gap-3 text-sm" style={{color:'#d1cbc3',lineHeight:1.6}}>
+                              <span className="flex-shrink-0" style={{color:'#F6DC4E',fontSize:'11px',marginTop:'3px'}}>$</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                          {!budget.length && <li className="text-xs" style={{color:'#555'}}>—</li>}
+                        </ul>
+                      </div>
+                      <div className="px-6 py-5">
+                        <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#fb923c',fontFamily:'monospace',letterSpacing:'2px'}}>⚡ Next 30-Day Action Plan</div>
+                        <ul className="space-y-3">
+                          {actions.map((item,i) => (
+                            <li key={i} className="flex gap-3 text-sm" style={{color:'#d1cbc3',lineHeight:1.6}}>
+                              <span className="text-xs font-bold flex-shrink-0 w-5 h-5 rounded flex items-center justify-center" style={{background:'rgba(251,146,60,0.2)',color:'#fb923c'}}>{i+1}</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                          {!actions.length && <li className="text-xs" style={{color:'#555'}}>—</li>}
+                        </ul>
+                      </div>
+                    </div>
                   </div>
-                )}
-                {aiError  && <p className="text-red-400 text-sm">{aiError}</p>}
-                {aiText   && <ul className="list-none">{renderAI(aiText)}</ul>}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2133,8 +2415,8 @@ ${aiSection}
             const groupEng  = fmtPct(agg.engRate);
             const bCTR = bench['Sponsored Content CTR'];
             const bEng = bench['Sponsored Engagement Rate'];
-            function ratingColor(r) { return r==='exc'?'#059669':r==='above'?'#2563eb':r==='near'?'#d97706':'#dc2626'; }
-            function statusLabel(r) { return r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below'; }
+            const ratingColor = (r) => r==='exc'?'#059669':r==='above'?'#2563eb':r==='near'?'#d97706':'#dc2626';
+            const statusLabel = (r) => r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below';
             return (
               <>
                 {/* Group Summary */}
