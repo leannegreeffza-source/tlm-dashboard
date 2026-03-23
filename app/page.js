@@ -2136,11 +2136,11 @@ ${aiSection}
           {(() => {
             const prev = agg.prev || {};
 
-            function momChange(current, previous) {
+            const momChange = (cur, previous) => {
               if (!previous || previous === 0) return null;
-              return ((current - previous) / previous * 100);
-            }
-            function momBadge(pct, invertPositive) {
+              return ((cur - previous) / previous * 100);
+            };
+            const momBadge = (pct, invertPositive) => {
               if (pct === null) return null;
               const isGood = invertPositive ? pct < 0 : pct > 0;
               const sign   = pct > 0 ? '↑' : '↓';
@@ -2151,8 +2151,8 @@ ${aiSection}
                   {sign}{Math.abs(pct).toFixed(1)}% MoM
                 </span>
               );
-            }
-            function benchBadge(metric, value) {
+            };
+            const benchBadge = (metric, value) => {
               const r = calcRating(metric, value, report.region);
               const b = getBenchmarks()[report.region]?.[metric];
               if (!b) return null;
@@ -2169,7 +2169,7 @@ ${aiSection}
                   {sign}{Math.abs(vs).toFixed(1)}% vs benchmark
                 </span>
               );
-            }
+            };
 
             const cards = [
               {
@@ -2272,7 +2272,7 @@ ${aiSection}
               {/* Structured output */}
               {aiText && !aiLoading && (() => {
                 // Parse sections from AI text
-                function getSection(text, header) {
+                const getSection = (text, header) => {
                   const sIdx = text.indexOf(header);
                   if (sIdx === -1) return [];
                   const after = text.slice(sIdx + header.length);
@@ -2282,7 +2282,7 @@ ${aiSection}
                   return chunk.split('
 ').filter(l => l.startsWith('- ')).map(l => l.replace('- ', '').trim()).filter(Boolean);
                 }
-                function getTextSection(text, header) {
+                const getTextSection = (text, header) => {
                   const sIdx = text.indexOf(header);
                   if (sIdx === -1) return '';
                   const after = text.slice(sIdx + header.length);
@@ -2414,8 +2414,8 @@ ${aiSection}
             const groupEng  = fmtPct(agg.engRate);
             const bCTR = bench['Sponsored Content CTR'];
             const bEng = bench['Sponsored Engagement Rate'];
-            function ratingColor(r) { return r==='exc'?'#059669':r==='above'?'#2563eb':r==='near'?'#d97706':'#dc2626'; }
-            function statusLabel(r) { return r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below'; }
+            const ratingColor = (r) => r==='exc'?'#059669':r==='above'?'#2563eb':r==='near'?'#d97706':'#dc2626';
+            const statusLabel = (r) => r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below';
             return (
               <>
                 {/* Group Summary */}
