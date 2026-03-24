@@ -1684,9 +1684,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   - Engagement Rate: ${engR}% (benchmark median: ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : 'N/A'})
   - CPC: $${cpc} | CPL: ${cpl !== 'N/A' ? '$'+cpl : 'N/A'}
   - Spend: ${fmtCur(c.spent)}`;
-      }).join('
-
-');
+      }).join('\n\n');
     })();
 
     const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this LinkedIn campaign performance report and provide specific, data-driven, actionable recommendations.
