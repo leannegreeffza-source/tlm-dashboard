@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { Search, TrendingUp, TrendingDown, DollarSign, MousePointer, Eye, Target, Users, RefreshCw, ChevronDown, Calendar, ExternalLink, Layers, Video, Globe, Zap, BarChart2, FileText, Settings, Sparkles } from 'lucide-react';
 import ObjectiveTabs from '../components/ObjectiveTabs';
+import CampaignAIReport from '../components/CampaignAIReport';
 
 function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -2452,6 +2453,18 @@ ${aiSection}
             </div>
           )}
 
+          {/* ── Per-Campaign AI Recommendations ── */}
+          {liveData?.topCampaigns?.length > 0 && (
+            <CampaignAIReport
+              topCampaigns={campIds.length > 0 ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id))) : liveData.topCampaigns}
+              campaignNameMap={campaignNameMap}
+              benchmarks={bench}
+              region={region}
+              accountName={accountName}
+              currentRange={{ start: dateStart, end: dateEnd }}
+            />
+          )}
+
           {/* ══════════════════════════════════════════
                CAMPAIGN BREAKDOWN (Thought Leader style)
              ══════════════════════════════════════════ */}
@@ -3121,7 +3134,7 @@ export default function Dashboard() {
               {[
                 { id: 'report',     label: 'Report Generator', icon: FileText },
                 { id: 'benchmarks', label: 'Benchmarks',       icon: Settings },
-                { id: 'objective',  label: 'Performance per Campaign', icon: Layers },
+                { id: 'objective',  label: 'Performance by Objective', icon: Layers },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeMainTab === tab.id;
