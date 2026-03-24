@@ -1402,6 +1402,11 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState(null);
 
+  // ─── AI Report Modal (same as LinkedIn dashboard app) ───
+  const [showAIReport,      setShowAIReport]      = useState(false);
+  const [aiReportResult,    setAiReportResult]    = useState(null);
+  const [generatingAIReport, setGeneratingAIReport] = useState(false);
+
   // ─── Search + import ───
   const [acctSearch,   setAcctSearch]   = useState('');
   const [groupSearch,  setGroupSearch]  = useState('');
@@ -1657,6 +1662,37 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     if (!agg) return;
     setAiText(null); setAiError(null);
     setReport({ agg, region, bench: getBenchmarks()[region], dateStart, dateEnd, selectedNames, accountName });
+  }
+
+  // ─── AI Report via /api/report (same flow as LinkedIn dashboard app) ───
+  async function generateAIReport() {
+    if (!liveData) return;
+    setGeneratingAIReport(true);
+    setShowAIReport(true);
+    setAiReportResult(null);
+    try {
+      const payload = getAnalyticsPayload();
+      const res = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current: liveData.current,
+          previous: liveData.previous,
+          topCampaigns: liveData.topCampaigns,
+          topAds: liveData.topAds,
+          budgetPacing: liveData.budgetPacing,
+          currentRange: { start: dateStart, end: dateEnd },
+          previousRange: payload.previousRange,
+          selectedCampaigns: selectedCampIds,
+          exchangeRate: 18.5
+        })
+      });
+      if (res.ok) setAiReportResult(await res.json());
+      else setAiReportResult({ error: 'Failed to generate AI report.' });
+    } catch (err) {
+      setAiReportResult({ error: 'Failed to generate AI report.' });
+    }
+    setGeneratingAIReport(false);
   }
 
   async function getAIInsights() {
@@ -2343,6 +2379,14 @@ ${buildChartScript(display, campaignNameMap)}
             style={{background:'#F6DC4E',color:'#272828'}}>
             {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {aiLoading ? 'Analysing...' : 'AI Recommendations'}
+          </button>
+
+          {/* AI Report (same as LinkedIn dashboard) */}
+          <button onClick={generateAIReport} disabled={!liveData || generatingAIReport}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            style={{background:'#7c3aed',color:'white',border:'1px solid #6d28d9'}}>
+            {generatingAIReport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>✦</span>}
+            {generatingAIReport ? 'Generating...' : 'AI Report'}
           </button>
 
           {report && (
@@ -3066,6 +3110,18 @@ ${buildChartScript(display, campaignNameMap)}
           </div>
         </>
       )}
+
+      {/* AI Report Modal (same as LinkedIn dashboard app) */}
+      <AIReportModal
+        show={showAIReport}
+        onClose={() => setShowAIReport(false)}
+        generatingReport={generatingAIReport}
+        reportData={liveData}
+        reportResult={aiReportResult}
+        currentRange={{ start: dateStart, end: dateEnd }}
+        previousRange={getAnalyticsPayload().previousRange}
+        campaignNameMap={campaignNameMap}
+      />
     </div>
   );
 }
