@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { Search, TrendingUp, TrendingDown, DollarSign, MousePointer, Eye, Target, Users, RefreshCw, ChevronDown, Calendar, ExternalLink, Layers, Video, Globe, Zap, BarChart2, FileText, Settings, Sparkles } from 'lucide-react';
+import ObjectiveTabs from '../components/ObjectiveTabs';
 
 function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -3069,6 +3070,7 @@ export default function Dashboard() {
               {[
                 { id: 'report',     label: 'Report Generator', icon: FileText },
                 { id: 'benchmarks', label: 'Benchmarks',       icon: Settings },
+                { id: 'objective',  label: 'Performance by Objective', icon: Layers },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeMainTab === tab.id;
@@ -3125,6 +3127,13 @@ export default function Dashboard() {
 
         {/* ── Benchmarks Tab ── */}
         {activeMainTab === 'benchmarks' && <BenchmarkManager />}
+
+        {/* ── Performance by Objective Tab ── */}
+        {activeMainTab === 'objective' && (
+          <div className="max-w-screen-2xl mx-auto p-6">
+            <ObjectiveTabs />
+          </div>
+        )}
 
         {/* ── Campaign Manager (developer only) ── */}
         {activeMainTab === 'dashboard' && devUnlocked && <div className="max-w-screen-2xl mx-auto p-6">
