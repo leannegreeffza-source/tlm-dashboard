@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { Search, TrendingUp, TrendingDown, DollarSign, MousePointer, Eye, Target, Users, RefreshCw, ChevronDown, Calendar, ExternalLink, Layers, Video, Globe, Zap, BarChart2, FileText, Settings, Sparkles } from 'lucide-react';
 import ObjectiveTabs from '../components/ObjectiveTabs';
-import CampaignAIReport from '../components/CampaignAIReport';
 
 function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -1849,8 +1848,268 @@ ${aiSection}
     URL.revokeObjectURL(url);
   }
 
-  // ── Render AI text into sections ──
-  function renderAI(text) {
+  // ── Export combined full AI report (TLM report + campaign breakdown + AI) ──
+  function exportCombinedReport() {
+    if (!report) return;
+    const { agg, region, bench, dateStart, dateEnd, selectedNames, accountName } = report;
+    const b    = bench || {};
+    const now  = new Date().toLocaleDateString('en-ZA', { day:'numeric', month:'long', year:'numeric' });
+    const tc   = liveData?.topCampaigns || [];
+    const display = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
+
+    function ratingIndicator(metric, val) {
+      const r = calcRating(metric, val, region);
+      if (r === 'exc')   return '🟢';
+      if (r === 'above') return '🔵';
+      if (r === 'near')  return '🟡';
+      if (r === 'below') return '🔴';
+      return '';
+    }
+
+    const benchRows = [
+      ['Impressions',       fmtNum(agg.impressions),  null],
+      ['Clicks',            fmtNum(agg.clicks),        null],
+      ['CTR',               fmtPct(agg.ctr),           'Sponsored Content CTR'],
+      ['Spent',             fmtCur(agg.spend),         null],
+      ['CPM',               fmtCur(agg.cpm),           'CPM ($)'],
+      ['CPC',               fmtCur(agg.cpc),           'CPC ($)'],
+      ['Landing Page CTR',  fmtPct(agg.ctr),           'Sponsored Content CTR'],
+      ['Website Visits',    fmtNum(agg.reach),         null],
+      ['Leads',             agg.leads,                 null],
+      ['CPL',               fmtCur(agg.cpl),           'Cost Per Lead ($)'],
+      ['Engagement Rate',   fmtPct(agg.engRate),       'Sponsored Engagement Rate'],
+      ['Engagements',       fmtNum(agg.engagements||0), null],
+      ['Video View Rate',   agg.videoViewRate > 0 ? fmtPct(agg.videoViewRate) : '0.00%', null],
+      ['CPV',               agg.cpv > 0 ? fmtCur(agg.cpv) : '$0.00', null],
+    ].map(([label, val, metric]) => {
+      const bv  = metric ? b[metric] : null;
+      const ind = metric ? ratingIndicator(metric, metric.includes('Cost')||metric.includes('CPM')||metric.includes('CPC') ? parseFloat((val||'').replace('$','')) : parseFloat((val||''))/100) : '';
+      return `<tr>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e3de;font-weight:600;font-size:13px">${label}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e3de;font-size:14px;font-weight:700;color:#272828">${val}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e3de;color:#888;font-size:12px">${bv ? fmtBenchV(metric, bv.low) : '—'}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e3de;color:#888;font-size:12px">${bv ? fmtBenchV(metric, bv.median) : '—'}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e3de;color:#888;font-size:12px">${bv ? fmtBenchV(metric, bv.high) : '—'}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e3de;font-size:1.1em">${ind}</td>
+      </tr>`;
+    }).join('');
+
+    // Per-campaign rows
+    const campaignRows = display.map((c, i) => {
+      const name  = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+      const ctr   = c.impressions > 0 ? (c.clicks / c.impressions * 100).toFixed(2) : '0.00';
+      const engR  = c.impressions > 0 ? (((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0)) / c.impressions * 100).toFixed(2) : '0.00';
+      const cpc   = c.clicks > 0 ? (c.spent / c.clicks).toFixed(2) : '0.00';
+      const cpl   = c.leads > 0 ? (c.spent / c.leads).toFixed(2) : '—';
+      const paused = !c.impressions || c.impressions === 0;
+      const ctrRating = calcRating('Sponsored Content CTR', c.impressions > 0 ? c.clicks/c.impressions : 0, region);
+      const engRating = calcRating('Sponsored Engagement Rate', c.impressions > 0 ? ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0))/c.impressions : 0, region);
+      const ratingCol = (r) => r==='exc'||r==='above' ? '#059669' : r==='near' ? '#d97706' : '#dc2626';
+      const ratingLbl = (r) => r==='exc'?'✓ Exceptional':r==='above'?'✓ Above':r==='near'?'~ Near':'✗ Below';
+
+      // Weekly rows if available
+      const weekRows = (c.weeklyData||[]).map((w,wi) => {
+        const wCtr = w.impressions > 0 ? (w.clicks/w.impressions*100).toFixed(2) : '0.00';
+        const wEng = w.impressions > 0 ? (w.eng*100).toFixed(2) : '0.00';
+        const wCpc = w.clicks > 0 ? (w.spend/w.clicks).toFixed(2) : '0.00';
+        return `<tr style="background:${wi%2===0?'#fafaf9':'white'};font-size:12px">
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb;color:#888;padding-left:28px">${w.label||'Week '+(wi+1)}</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">${(w.impressions||0).toLocaleString()}</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">${(w.clicks||0).toLocaleString()}</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">${wCtr}%</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">$${wCpc}</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">${wEng}%</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">${w.leads||0}</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb">$${w.spend?.toFixed(2)||'0.00'}</td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb"></td>
+          <td style="padding:7px 14px;border-bottom:1px solid #f0eeeb"></td>
+        </tr>`;
+      }).join('');
+
+      return `<tr style="background:${i%2===0?'white':'#fafaf9'}">
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-weight:600;font-size:13px">
+          ${name}<br/><span style="font-family:monospace;font-size:10px;color:#B1AAA4">ID: ${c.id}</span>
+        </td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px">${(c.impressions||0).toLocaleString()}</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px">${(c.clicks||0).toLocaleString()}</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px;font-weight:600;color:${ratingCol(ctrRating)}">${ctr}%</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px">$${cpc}</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px;font-weight:600;color:${ratingCol(engRating)}">${engR}%</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px">${c.leads||0}</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px">${cpl !== '—' ? '$'+cpl : '—'}</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:12px;color:${ratingCol(ctrRating)}">${paused ? '⏸ Paused' : ratingLbl(ctrRating)}</td>
+        <td style="padding:12px 14px;border-bottom:1px solid #e8e6df;font-size:13px">$${c.spent?.toFixed(2)||'0.00'}</td>
+      </tr>${weekRows}`;
+    }).join('');
+
+    // AI section
+    const aiSection = aiText ? `
+    <div style="background:#272828;border-radius:10px;padding:32px;margin-bottom:28px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <div style="width:38px;height:38px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#272828;flex-shrink:0">AI</div>
+        <div>
+          <div style="color:white;font-weight:700;font-size:16px">Claude AI Recommendations</div>
+          <div style="color:#888;font-size:12px">Powered by Claude Sonnet · ${region} Q4 2025 Benchmarks</div>
+        </div>
+      </div>
+      <div style="color:#d1cbc3;font-size:14px;line-height:1.9">${
+        aiText
+          .replace(/## (.+)/g,'<h4 style="color:#F6DC4E;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:24px 0 10px;font-family:monospace">$1</h4>')
+          .replace(/^- (.+)$/gm,'<div style="display:flex;gap:10px;margin-bottom:8px"><span style="color:#F6DC4E;flex-shrink:0">→</span><span>$1</span></div>')
+          .replace(/\n\n/g,'<br/>')
+      }</div>
+    </div>` : '';
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${accountName} — Full Campaign Report ${fmtDate(dateStart)}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#F4F3F0;color:#272828;line-height:1.6}
+  .container{max-width:1280px;margin:0 auto;padding:28px}
+  h2{font-size:1.5em;font-weight:700;color:#272828;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #F6DC4E}
+  section{background:white;padding:28px 32px;border-radius:10px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;padding:10px 14px;background:#272828;color:white;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  [contenteditable]:focus{outline:2px solid #F6DC4E;border-radius:2px}
+  @media print{body{background:white}.no-print{display:none!important}@page{margin:1.5cm}}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div style="background:#272828;color:white;padding:40px;border-radius:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <svg width="38" height="38" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#1a1a1a"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
+        <span style="color:#B1AAA4;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Turn Left Media</span>
+      </div>
+      <h1 style="font-size:2em;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px" contenteditable>${accountName}</h1>
+      <p style="color:#B1AAA4;font-size:13px" contenteditable>${selectedNames.join(' · ')}</p>
+    </div>
+    <div style="text-align:right">
+      <div style="color:#F6DC4E;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">LinkedIn Performance Report</div>
+      <div style="color:#B1AAA4;font-size:13px">Period: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}</div>
+      <div style="color:#B1AAA4;font-size:12px">Benchmark Region: ${region}</div>
+      <div style="color:#555;font-size:11px;margin-top:6px">Generated: ${now}</div>
+    </div>
+  </div>
+
+  <!-- 14 KPI CARDS -->
+  <section>
+    <h2>Campaign Performance Summary</h2>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-bottom:8px">
+      ${[
+        ['Impressions',      fmtNum(agg.impressions),  ''],
+        ['Clicks',           fmtNum(agg.clicks),        ''],
+        ['CTR',              fmtPct(agg.ctr),           ''],
+        ['Spent',            fmtCur(agg.spend),         ''],
+        ['CPM',              fmtCur(agg.cpm),           ''],
+        ['CPC',              fmtCur(agg.cpc),           ''],
+        ['Landing Page CTR', fmtPct(agg.ctr),           ''],
+        ['Website Visits',   fmtNum(agg.reach),         ''],
+        ['Leads',            String(agg.leads),         ''],
+        ['CPL',              fmtCur(agg.cpl),           ''],
+        ['Eng Rate',         fmtPct(agg.engRate),       ''],
+        ['Engagements',      fmtNum(agg.engagements||0),''],
+        ['Video View Rate',  agg.videoViewRate>0?fmtPct(agg.videoViewRate):'0.00%', ''],
+        ['CPV',              agg.cpv>0?fmtCur(agg.cpv):'$0.00', ''],
+      ].map(([t,v]) => `<div style="background:#f7f6f2;border-radius:8px;padding:16px 14px;border:1px solid #e8e6df">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#8a8880;font-family:monospace;margin-bottom:6px">${t}</div>
+        <div style="font-size:1.4em;font-weight:700;color:#272828" contenteditable>${v}</div>
+      </div>`).join('')}
+    </div>
+  </section>
+
+  <!-- BENCHMARK TABLE -->
+  <section>
+    <h2>Performance vs ${region} Benchmarks</h2>
+    <table>
+      <thead><tr>
+        <th>Metric</th><th>Your Result</th><th>Low</th><th>Median</th><th>High</th><th>Rating</th>
+      </tr></thead>
+      <tbody>${benchRows}</tbody>
+    </table>
+    <div style="margin-top:14px;padding:10px 14px;background:#f7f6f2;border-radius:6px;font-size:11px;color:#888">
+      🟢 Exceptional &nbsp;|&nbsp; 🔵 Above Benchmark &nbsp;|&nbsp; 🟡 Near Benchmark &nbsp;|&nbsp; 🔴 Below Benchmark
+    </div>
+  </section>
+
+  <!-- AI RECOMMENDATIONS -->
+  ${aiSection || `<div style="background:#272828;border-radius:10px;padding:24px;margin-bottom:24px;color:#888;font-size:13px;text-align:center">
+    No AI recommendations generated yet. Click "AI Recommendations" in the app first, then re-export.
+  </div>`}
+
+  <!-- PER-CAMPAIGN BREAKDOWN -->
+  ${display.length > 0 ? `<section>
+    <h2>Per-Campaign Week-by-Week Breakdown</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Campaign</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>CPC</th>
+          <th>Eng Rate</th><th>Leads</th><th>CPL</th><th>CTR Status</th><th>Spend</th>
+        </tr></thead>
+        <tbody>${campaignRows}</tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#8a8880;margin-top:10px;font-family:monospace">
+      ✓ Exceptional / ✓ Above = meeting or exceeding ${region} benchmark &nbsp;|&nbsp; ~ Near = within 20% &nbsp;|&nbsp; ✗ Below = below benchmark
+    </p>
+  </section>` : ''}
+
+  <!-- FOOTER -->
+  <div style="text-align:center;padding:20px;color:#888;font-size:12px;border-top:1px solid #e5e3de;margin-top:8px">
+    <p>Report generated by Turn Left Media · ${now}</p>
+    <p style="margin-top:4px">LinkedIn Campaign Manager · AI powered by Claude · ${region} Q4 2025 Benchmarks</p>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Render per-campaign CTR & Spend sparklines if weekly data present
+const campaigns = ${JSON.stringify(display.map(c => ({
+  id: c.id,
+  name: campaignNameMap?.[String(c.id)] || 'Campaign '+c.id,
+  weeklyData: c.weeklyData || [],
+})))};
+
+campaigns.forEach(c => {
+  if (!c.weeklyData.length) return;
+  const weeks = c.weeklyData.map(w => w.label || 'Wk');
+  const ctrs  = c.weeklyData.map(w => +(w.ctr*100).toFixed(2));
+  const spends = c.weeklyData.map(w => +(w.spend||0).toFixed(2));
+  const cId = String(c.id).slice(-6).replace(/[^a-z0-9]/gi,'');
+
+  const ctrEl = document.getElementById('wk-ctr-'+cId);
+  if (ctrEl) new Chart(ctrEl, {
+    type:'line', data:{labels:weeks,datasets:[{label:'CTR %',data:ctrs,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,0.08)',tension:0.4,fill:true,pointRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:9}}}}}
+  });
+  const spEl = document.getElementById('wk-sp-'+cId);
+  if (spEl) new Chart(spEl, {
+    type:'bar', data:{labels:weeks,datasets:[{label:'Spend $',data:spends,backgroundColor:'#272828',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:9}}}}}
+  });
+});
+</script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `TLM-Full-Report-${accountName.replace(/\s+/g,'-')}-${dateStart}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+
     if (!text) return null;
     return text.split('\n').map((line, i) => {
       if (line.startsWith('## '))
@@ -2090,6 +2349,13 @@ ${aiSection}
             <button onClick={exportHTML}
               className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
               <ExternalLink className="w-4 h-4" /> Export HTML
+            </button>
+          )}
+          {report && (
+            <button onClick={exportCombinedReport}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all hover:opacity-90"
+              style={{background:'#F6DC4E',color:'#272828',border:'1px solid #e0c800'}}>
+              <ExternalLink className="w-4 h-4" /> Export Full AI Report
             </button>
           )}
           {report && (
@@ -2451,18 +2717,6 @@ ${aiSection}
                 );
               })()}
             </div>
-          )}
-
-          {/* ── Per-Campaign AI Recommendations ── */}
-          {liveData?.topCampaigns?.length > 0 && (
-            <CampaignAIReport
-              topCampaigns={campIds.length > 0 ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id))) : liveData.topCampaigns}
-              campaignNameMap={campaignNameMap}
-              benchmarks={bench}
-              region={region}
-              accountName={accountName}
-              currentRange={{ start: dateStart, end: dateEnd }}
-            />
           )}
 
           {/* ══════════════════════════════════════════
@@ -3192,19 +3446,10 @@ export default function Dashboard() {
         {/* ── Benchmarks Tab ── */}
         {activeMainTab === 'benchmarks' && <BenchmarkManager />}
 
-        {/* ── Performance per Campaign Tab ── */}
+        {/* ── Performance by Objective Tab ── */}
         {activeMainTab === 'objective' && (
           <div className="max-w-screen-2xl mx-auto p-6">
-            <ObjectiveTabs
-              reportData={reportData}
-              campaigns={campaigns}
-              campaignNameMap={campaignNameMap}
-              campaignObjectiveMap={campaignObjectiveMap}
-              currentRange={currentRange}
-              accounts={accounts}
-              selectedAccounts={selectedAccounts}
-              loading={loading}
-            />
+            <ObjectiveTabs />
           </div>
         )}
 
