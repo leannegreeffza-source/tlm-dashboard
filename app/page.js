@@ -1848,6 +1848,30 @@ ${aiSection}
     URL.revokeObjectURL(url);
   }
 
+  // ── Helper: build chart script string without regex literals in template ──
+  function buildChartScript(campaigns, nameMap) {
+    const data = campaigns.map(c => ({
+      id: c.id,
+      name: (nameMap && nameMap[String(c.id)]) || ('Campaign ' + c.id),
+      weeklyData: c.weeklyData || [],
+    }));
+    const dataJson = JSON.stringify(data);
+    return [
+      'var _campaigns = ' + dataJson + ';',
+      '_campaigns.forEach(function(c) {',
+      '  if (!c.weeklyData.length) return;',
+      '  var weeks = c.weeklyData.map(function(w){ return w.label || "Wk"; });',
+      '  var ctrs  = c.weeklyData.map(function(w){ return +(w.ctr*100).toFixed(2); });',
+      '  var spends = c.weeklyData.map(function(w){ return +(w.spend||0).toFixed(2); });',
+      '  var cId = String(c.id).slice(-6).split("").filter(function(ch){ return /[a-z0-9]/i.test(ch); }).join("");',
+      '  var ctrEl = document.getElementById("wk-ctr-"+cId);',
+      '  if (ctrEl) new Chart(ctrEl, { type:"line", data:{labels:weeks,datasets:[{label:"CTR %",data:ctrs,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,0.08)",tension:0.4,fill:true,pointRadius:3}]}, options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{grid:{display:false}}}} });',
+      '  var spEl = document.getElementById("wk-sp-"+cId);',
+      '  if (spEl) new Chart(spEl, { type:"bar", data:{labels:weeks,datasets:[{label:"Spend $",data:spends,backgroundColor:"#272828",borderRadius:3}]}, options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{grid:{display:false}}}} });',
+      '});',
+    ].join('\n');
+  }
+
   // ── Export combined full AI report (TLM report + campaign breakdown + AI) ──
   function exportCombinedReport() {
     if (!report) return;
@@ -2071,31 +2095,7 @@ ${aiSection}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// Render per-campaign CTR & Spend sparklines if weekly data present
-const campaigns = ${JSON.stringify(display.map(c => ({
-  id: c.id,
-  name: campaignNameMap?.[String(c.id)] || 'Campaign '+c.id,
-  weeklyData: c.weeklyData || [],
-})))};
-
-campaigns.forEach(c => {
-  if (!c.weeklyData.length) return;
-  const weeks = c.weeklyData.map(w => w.label || 'Wk');
-  const ctrs  = c.weeklyData.map(w => +(w.ctr*100).toFixed(2));
-  const spends = c.weeklyData.map(w => +(w.spend||0).toFixed(2));
-  const cId = String(c.id).slice(-6).replace(/[^a-z0-9]/gi,'');
-
-  const ctrEl = document.getElementById('wk-ctr-'+cId);
-  if (ctrEl) new Chart(ctrEl, {
-    type:'line', data:{labels:weeks,datasets:[{label:'CTR %',data:ctrs,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,0.08)',tension:0.4,fill:true,pointRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:9}}}}}
-  });
-  const spEl = document.getElementById('wk-sp-'+cId);
-  if (spEl) new Chart(spEl, {
-    type:'bar', data:{labels:weeks,datasets:[{label:'Spend $',data:spends,backgroundColor:'#272828',borderRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:9}}}}}
-  });
-});
+${buildChartScript(display, campaignNameMap)}
 </script>
 </body>
 </html>`;
