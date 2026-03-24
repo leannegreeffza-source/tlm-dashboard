@@ -2175,25 +2175,75 @@ ${aiSection}
 
             const cards = [
               {
-                label: 'Total Impressions',
+                label: 'Impressions',
                 val:   fmtNum(agg.impressions),
                 sub:   `${fmtNum(agg.clicks)} clicks`,
                 bench: null,
                 mom:   momBadge(mom(agg.impressions, p.impressions), false),
               },
               {
-                label: 'Total Clicks',
+                label: 'Clicks',
                 val:   fmtNum(agg.clicks),
                 sub:   `CTR: ${fmtPct(agg.ctr)}`,
                 bench: vsBench('Sponsored Content CTR', agg.ctr),
                 mom:   momBadge(mom(agg.clicks, p.clicks), false),
               },
               {
-                label: 'Total Leads',
+                label: 'CTR',
+                val:   fmtPct(agg.ctr),
+                sub:   null,
+                bench: vsBench('Sponsored Content CTR', agg.ctr),
+                rating: <RatingPill rating={calcRating('Sponsored Content CTR', agg.ctr, rgn)} />,
+                mom:   momBadge(mom(agg.ctr, p.ctr), false),
+              },
+              {
+                label: 'Spent (USD)',
+                val:   fmtCur(agg.spend || agg.spent || 0),
+                sub:   null,
+                bench: null,
+                mom:   momBadge(mom(agg.spend || agg.spent || 0, p.spend || p.spent || 0), true),
+              },
+              {
+                label: 'CPM (USD)',
+                val:   fmtCur(agg.cpm),
+                sub:   null,
+                bench: vsBench('CPM ($)', agg.cpm),
+                mom:   momBadge(mom(agg.cpm, p.cpm), true),
+              },
+              {
+                label: 'CPC (USD)',
+                val:   fmtCur(agg.cpc),
+                sub:   null,
+                bench: vsBench('CPC ($)', agg.cpc),
+                mom:   momBadge(mom(agg.cpc, p.cpc), true),
+              },
+              {
+                label: 'Landing Page CTR',
+                val:   fmtPct(agg.ctr),
+                sub:   null,
+                bench: vsBench('Sponsored Content CTR', agg.ctr),
+                mom:   momBadge(mom(agg.ctr, p.ctr), false),
+              },
+              {
+                label: 'Website Visits',
+                val:   fmtNum(agg.reach),
+                sub:   `Unique members reached`,
+                bench: null,
+                mom:   momBadge(mom(agg.reach, p.reach), false),
+              },
+              {
+                label: 'Leads',
                 val:   String(agg.leads),
                 sub:   `Form Fill Rate: ${fmtPct(agg.ffr)}`,
                 bench: agg.leads > 0 ? vsBench('Lead Gen Form Fill Rate', agg.ffr) : null,
                 mom:   momBadge(mom(agg.leads, p.leads), false),
+              },
+              {
+                label: 'CPL (USD)',
+                val:   agg.leads > 0 ? fmtCur(agg.cpl) : '—',
+                sub:   `Total spend: ${fmtCur(agg.spend || agg.spent || 0)}`,
+                bench: agg.leads > 0 ? vsBench('Cost Per Lead ($)', agg.cpl) : null,
+                mom:   momBadge(agg.leads > 0 && p.cpl > 0 ? mom(agg.cpl, p.cpl) : null, true),
               },
               {
                 label: 'Engagement Rate',
@@ -2204,23 +2254,30 @@ ${aiSection}
                 mom:   momBadge(mom(agg.engRate, p.engRate), false),
               },
               {
-                label: 'Cost Per Lead',
-                val:   agg.leads > 0 ? fmtCur(agg.cpl) : '—',
-                sub:   `Total spend: ${fmtCur(agg.spend || agg.spent || 0)}`,
-                bench: agg.leads > 0 ? vsBench('Cost Per Lead ($)', agg.cpl) : null,
-                mom:   momBadge(agg.leads > 0 && p.cpl > 0 ? mom(agg.cpl, p.cpl) : null, true),
+                label: 'Engagements',
+                val:   fmtNum(agg.engagements || 0),
+                sub:   `Eng Rate: ${fmtPct(agg.engRate)}`,
+                bench: vsBench('Sponsored Engagement Rate', agg.engRate),
+                mom:   momBadge(mom(agg.engagements || 0, p.engagements || 0), false),
               },
               {
-                label: 'Reach',
-                val:   fmtNum(agg.reach),
-                sub:   `Unique members · CPC ${fmtCur(agg.cpc)}`,
-                bench: vsBench('CPC ($)', agg.cpc),
-                mom:   momBadge(mom(agg.reach, p.reach), false),
+                label: 'Video View Rate',
+                val:   agg.videoViewRate != null && agg.videoViewRate > 0 ? fmtPct(agg.videoViewRate) : '0.00%',
+                sub:   null,
+                bench: null,
+                mom:   momBadge(mom(agg.videoViewRate || 0, p.videoViewRate || 0), false),
+              },
+              {
+                label: 'CPV (USD)',
+                val:   agg.cpv != null && agg.cpv > 0 ? fmtCur(agg.cpv) : '$0.00',
+                sub:   null,
+                bench: null,
+                mom:   momBadge(mom(agg.cpv || 0, p.cpv || 0), true),
               },
             ];
 
             return (
-              <div className="grid grid-cols-3 gap-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                 {cards.map(card => (
                   <div key={card.label} className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
                     <div className="text-xs font-bold uppercase tracking-wide mb-2"
