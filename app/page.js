@@ -2276,18 +2276,15 @@ ${aiSection}
                   const sIdx = text.indexOf(header);
                   if (sIdx === -1) return [];
                   const after = text.slice(sIdx + header.length);
-                  const nIdx  = after.indexOf('
-## ');
+                  const nIdx  = after.indexOf('\n## ');
                   const chunk = nIdx > 0 ? after.slice(0, nIdx) : after;
-                  return chunk.split('
-').filter(l => l.startsWith('- ')).map(l => l.replace('- ', '').trim()).filter(Boolean);
+                  return chunk.split('\n').filter(l => l.startsWith('- ')).map(l => l.replace('- ', '').trim()).filter(Boolean);
                 }
                 const getTextSection = (text, header) => {
                   const sIdx = text.indexOf(header);
                   if (sIdx === -1) return '';
                   const after = text.slice(sIdx + header.length);
-                  const nIdx  = after.indexOf('
-## ');
+                  const nIdx  = after.indexOf('\n## ');
                   return (nIdx > 0 ? after.slice(0, nIdx) : after).trim();
                 }
 
@@ -2305,8 +2302,7 @@ ${aiSection}
                     {execSummary && (
                       <div className="px-6 py-5 border-b border-slate-700">
                         <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'#F6DC4E',fontFamily:'monospace',letterSpacing:'2px'}}>Executive Summary</div>
-                        <p className="text-sm leading-relaxed" style={{color:'#d1cbc3'}}>{execSummary.split('
-').filter(l=>!l.startsWith('##')).join(' ').replace(/^-\s/,'')}</p>
+                        <p className="text-sm leading-relaxed" style={{color:'#d1cbc3'}}>{execSummary.split('\n').filter(l=>!l.startsWith('##')).join(' ').replace(/^-\s/,'')}</p>
                       </div>
                     )}
 
