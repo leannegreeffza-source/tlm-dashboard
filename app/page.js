@@ -745,7 +745,7 @@ function generateFullHTML(reportResult, reportData, currentRange, previousRange,
 <head>
 <meta charset="UTF-8">
 <title>Campaign Optimization Summary</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></` + `script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f4fbff;padding:20px;line-height:1.6}
@@ -849,7 +849,7 @@ mc('spendChart',${JSON.stringify(campaigns.map(c=>c.spent))},'Spend','#2196F3');
 mc('ctrChart',${JSON.stringify(campaigns.map(c=>parseFloat(c.ctr)))},'CTR %','#4caf50');
 mc('clicksChart',${JSON.stringify(campaigns.map(c=>c.clicks))},'Clicks','#ff9800');
 mc('impressionsChart',${JSON.stringify(campaigns.map(c=>c.impressions))},'Impressions','#9c27b0');
-<\/script>
+</` + `script>
 </body></html>`;
 }
 
@@ -2109,7 +2109,7 @@ ${buildChartScript(display, campaignNameMap)}
     URL.revokeObjectURL(url);
   }
 
-
+  function renderAIText(text) {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
       if (line.startsWith('## '))
