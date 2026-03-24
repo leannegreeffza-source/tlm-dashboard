@@ -395,7 +395,7 @@ function EngagementTab() {
   return (
     <div>
       <CampaignBanner objective="Engagement" campaign="Ben v Cornell | Boosted User Post | ICP 1 | ABM | Mgmt | C02877" budget="$13.85/day" period="Dec 01 2025 - Jan 05 2026" color="indigo" />
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         <KpiCard label="Impressions"      value="12,421"  sub="6 weeks total"     icon={Eye} />
         <KpiCard label="Clicks"           value="955"     sub="6 weeks total"     icon={MousePointer} />
         <KpiCard label="CTR"              value="7.69%"   sub="Avg weekly"        icon={TrendingUp}  benchmark={7.69} benchmarkValue={BENCHMARKS.ctr} />
@@ -439,7 +439,7 @@ function LeadsTab() {
   return (
     <div>
       <CampaignBanner objective="Lead Generation" campaign="cTrader | Message | AWARE: Brokers | All Custom Audiences | C03510" budget="EUR 27.85/day" period="Dec 04 2025 - Jan 06 2026" color="blue" />
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         <KpiCard label="Impressions"      value="N/A"      sub="Not in source data" icon={Eye} />
         <KpiCard label="Clicks"           value="N/A"      sub="Not in source data" icon={MousePointer} />
         <KpiCard label="CTR"              value="N/A"      sub="Not in source data" icon={TrendingUp} />
@@ -484,7 +484,7 @@ function VideoTab() {
   return (
     <div>
       <CampaignBanner objective="Video Views" campaign="Cold Unaware | ICP 1.1: Brokers-Ops, F,P | Video Ad" budget="EUR 30.00/day" period="Dec 01 2025 - Jan 06 2026" color="violet" />
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         <KpiCard label="Impressions"      value="36,765"     sub="Total plays"        icon={Eye} />
         <KpiCard label="Clicks"           value="N/A"        sub="Not tracked"        icon={MousePointer} />
         <KpiCard label="CTR"              value="N/A"        sub="Not tracked"        icon={TrendingUp} />
@@ -530,7 +530,7 @@ function WebsiteTab() {
   return (
     <div>
       <CampaignBanner objective="Website Visits" campaign="Pain Points | Single Image | ICP 1.1: Brokers-Ops, F,P | Manual | C03482" budget="EUR 33.87/day" period="Dec 01 2025 - Jan 06 2026" color="emerald" />
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         <KpiCard label="Impressions"      value="67,526"     sub="6 weeks total"     icon={Eye} />
         <KpiCard label="Clicks"           value="762"        sub="6 weeks total"     icon={MousePointer} />
         <KpiCard label="CTR"              value="1.74%"      sub="Avg weekly"        icon={TrendingUp}  benchmark={1.74} benchmarkValue={BENCHMARKS.ctr} />
