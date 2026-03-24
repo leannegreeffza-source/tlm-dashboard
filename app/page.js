@@ -3121,7 +3121,7 @@ export default function Dashboard() {
               {[
                 { id: 'report',     label: 'Report Generator', icon: FileText },
                 { id: 'benchmarks', label: 'Benchmarks',       icon: Settings },
-                { id: 'objective',  label: 'Performance by Objective', icon: Layers },
+                { id: 'objective',  label: 'Performance per Campaign', icon: Layers },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeMainTab === tab.id;
