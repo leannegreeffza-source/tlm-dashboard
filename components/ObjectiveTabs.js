@@ -568,7 +568,6 @@ function WebsiteTab() {
 
 // ─── MISSING ICON FIX ────────────────────────────────────────
 function Activity(props) { return <TrendingUp {...props} />; }
-function Globe(props) { return <MousePointer {...props} />; }
 function CheckSquare(props) { return <Target {...props} />; }
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────
