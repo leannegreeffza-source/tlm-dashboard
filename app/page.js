@@ -3179,10 +3179,19 @@ export default function Dashboard() {
         {/* ── Benchmarks Tab ── */}
         {activeMainTab === 'benchmarks' && <BenchmarkManager />}
 
-        {/* ── Performance by Objective Tab ── */}
+        {/* ── Performance per Campaign Tab ── */}
         {activeMainTab === 'objective' && (
           <div className="max-w-screen-2xl mx-auto p-6">
-            <ObjectiveTabs />
+            <ObjectiveTabs
+              reportData={reportData}
+              campaigns={campaigns}
+              campaignNameMap={campaignNameMap}
+              campaignObjectiveMap={campaignObjectiveMap}
+              currentRange={currentRange}
+              accounts={accounts}
+              selectedAccounts={selectedAccounts}
+              loading={loading}
+            />
           </div>
         )}
 
