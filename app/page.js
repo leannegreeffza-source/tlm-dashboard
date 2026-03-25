@@ -607,10 +607,10 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                               <strong>{name}</strong><br/>
                               <span style={{fontSize: '11px', color: '#999', fontFamily: 'monospace'}}>ID: {c.id}</span>
                             </td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.impressions.toLocaleString()}</td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.clicks.toLocaleString()}</td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.ctr}%</td>
-                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>${c.spent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{(c.impressions||0).toLocaleString()}</td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{(c.clicks||0).toLocaleString()}</td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{parseFloat(c.ctr||0).toFixed(2)}%</td>
+                            <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>${(c.spent||0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                             <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.leads || 0}</td>
                             <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.leads > 0 ? `$${(c.spent / c.leads).toFixed(2)}` : '-'}</td>
                             <td style={{padding: '12px', borderBottom: '1px solid #e0e0e0', color: statusColor(analysis?.status)}} contentEditable suppressContentEditableWarning>{perfBadge(analysis?.performance)}</td>
@@ -699,18 +699,17 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
 
 function ChartRenderer({ campaigns, campaignNameMap }) {
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-    script.onload = () => {
+    if (typeof window === 'undefined' || !campaigns?.length) return;
+
+    function drawCharts() {
       const labels = campaigns.map(c => {
         const n = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
         return n.length > 25 ? n.substring(0, 25) + '...' : n;
       });
       const makeChart = (id, data, label, color) => {
         const el = document.getElementById(id);
-        if (!el) return;
-        if (el._chart) el._chart.destroy();
+        if (!el || !window.Chart) return;
+        if (el._chart) { try { el._chart.destroy(); } catch(e) {} }
         el._chart = new window.Chart(el, {
           type: 'bar',
           data: { labels, datasets: [{ label, data, backgroundColor: color }] },
@@ -721,14 +720,23 @@ function ChartRenderer({ campaigns, campaignNameMap }) {
           }
         });
       };
-      makeChart('spendChart', campaigns.map(c => c.spent), 'Spend', '#2196F3');
-      makeChart('ctrChart', campaigns.map(c => parseFloat(c.ctr)), 'CTR %', '#4caf50');
-      makeChart('clicksChart', campaigns.map(c => c.clicks), 'Clicks', '#ff9800');
-      makeChart('impressionsChart', campaigns.map(c => c.impressions), 'Impressions', '#9c27b0');
-    };
-    document.head.appendChild(script);
-    return () => { try { document.head.removeChild(script); } catch(e) {} };
-  }, [campaigns]);
+      makeChart('spendChart',       campaigns.map(c => parseFloat(c.spent)    || 0), 'Spend',       '#2196F3');
+      makeChart('ctrChart',         campaigns.map(c => parseFloat(c.ctr)      || 0), 'CTR %',       '#4caf50');
+      makeChart('clicksChart',      campaigns.map(c => parseInt(c.clicks)     || 0), 'Clicks',      '#ff9800');
+      makeChart('impressionsChart', campaigns.map(c => parseInt(c.impressions)|| 0), 'Impressions', '#9c27b0');
+    }
+
+    if (window.Chart) {
+      // Chart.js already loaded — draw immediately
+      drawCharts();
+    } else {
+      // Load Chart.js then draw
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+      script.onload = drawCharts;
+      document.head.appendChild(script);
+    }
+  }, [campaigns, campaignNameMap]);
   return null;
 }
 
@@ -800,8 +808,8 @@ ${campaigns.map((c,i)=>{
   const name=campaignNameMap?.[String(c.id)]||`Campaign ${c.id}`;
   return `<tr style="background:${i%2===0?'white':'#fafafa'}">
 <td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${c.id}</span></td>
-<td>${c.impressions.toLocaleString()}</td><td>${c.clicks.toLocaleString()}</td><td>${c.ctr}%</td>
-<td>$${c.spent.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+<td>${(c.impressions||0).toLocaleString()}</td><td>${(c.clicks||0).toLocaleString()}</td><td>${parseFloat(c.ctr||0).toFixed(2)}%</td>
+<td>$${(c.spent||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
 <td>${c.leads||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
 <td style="color:${statusColor(a?.status)}">${perfBadge(a?.performance)}</td>
 <td>${trendArrow(a?.trend)}</td></tr>`;
@@ -843,12 +851,18 @@ ${report?.budgetRecommendation?`<div class="rec" style="border-left:4px solid #4
 </section>
 </div>
 <script>
-const labels=${JSON.stringify(campaigns.map(c=>{const n=campaignNameMap?.[String(c.id)]||`Campaign ${c.id}`;return n.length>25?n.substring(0,25)+'...':n;}))};
-function mc(id,data,label,color){new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{label,data,backgroundColor:color}]},options:{responsive:true,maintainAspectRatio:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}})}
-mc('spendChart',${JSON.stringify(campaigns.map(c=>c.spent))},'Spend','#2196F3');
-mc('ctrChart',${JSON.stringify(campaigns.map(c=>parseFloat(c.ctr)))},'CTR %','#4caf50');
-mc('clicksChart',${JSON.stringify(campaigns.map(c=>c.clicks))},'Clicks','#ff9800');
-mc('impressionsChart',${JSON.stringify(campaigns.map(c=>c.impressions))},'Impressions','#9c27b0');
+window.addEventListener('load', function() {
+  var labels=${JSON.stringify(campaigns.map(c=>{const n=campaignNameMap?.[String(c.id)]||`Campaign ${c.id}`;return n.length>25?n.substring(0,25)+'...':n;}))};
+  function mc(id,data,label,color){
+    var el=document.getElementById(id);
+    if(!el||!window.Chart)return;
+    new Chart(el,{type:'bar',data:{labels:labels,datasets:[{label:label,data:data,backgroundColor:color}]},options:{responsive:true,maintainAspectRatio:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+  }
+  mc('spendChart',${JSON.stringify(campaigns.map(c=>parseFloat(c.spent)||0))},'Spend','#2196F3');
+  mc('ctrChart',${JSON.stringify(campaigns.map(c=>parseFloat(c.ctr)||0))},'CTR %','#4caf50');
+  mc('clicksChart',${JSON.stringify(campaigns.map(c=>parseInt(c.clicks)||0))},'Clicks','#ff9800');
+  mc('impressionsChart',${JSON.stringify(campaigns.map(c=>parseInt(c.impressions)||0))},'Impressions','#9c27b0');
+});
 </` + `script>
 </body></html>`;
 }
