@@ -17,7 +17,8 @@ export async function GET(request) {
     let hasMore = true;
 
     while (hasMore) {
-      const url = `https://api.linkedin.com/v2/adAccountsV2?q=search&search.type.values[0]=BUSINESS&search.status.values[0]=ACTIVE&count=${count}&start=${start}`;
+      // Use q=search without any filter fields that require extra permissions
+      const url = `https://api.linkedin.com/v2/adAccountsV2?q=search&count=${count}&start=${start}`;
 
       const res = await fetch(url, {
         headers: {
@@ -30,7 +31,7 @@ export async function GET(request) {
       if (!res.ok) {
         const err = await res.text();
         console.error('LinkedIn accounts error:', err);
-        // Return what we have so far rather than failing completely
+        // Return whatever we have accumulated so far
         break;
       }
 
@@ -47,17 +48,22 @@ export async function GET(request) {
 
       allAccounts.push(...mapped);
 
-      // Check if there are more pages
-      const total  = data.paging?.total  ?? elements.length;
+      // LinkedIn paging: stop when we get fewer results than requested
+      // or when paging.total tells us we have everything
+      const total  = data.paging?.total ?? null;
       const loaded = start + elements.length;
 
-      if (elements.length < count || loaded >= total) {
+      if (elements.length < count) {
+        // Fewer results than page size = last page
+        hasMore = false;
+      } else if (total !== null && loaded >= total) {
+        // Reached declared total
         hasMore = false;
       } else {
         start += count;
       }
 
-      // Safety cap at 5000 accounts (50 pages) to avoid infinite loops
+      // Safety cap: never fetch more than 5000 accounts
       if (allAccounts.length >= 5000) {
         hasMore = false;
       }
