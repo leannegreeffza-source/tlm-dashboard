@@ -1411,6 +1411,20 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [dateEnd,   setDateEnd]   = useState(parentRange?.end   || '');
   const [fxRate,    setFxRate]    = useState('18.50');
 
+  // ─── Previous period (auto-calculated, user can override) ───
+  const [prevStart, setPrevStart] = useState('');
+  const [prevEnd,   setPrevEnd]   = useState('');
+
+  // Auto-calculate previous period when current dates change
+  useEffect(() => {
+    if (!dateStart || !dateEnd) return;
+    const s    = new Date(dateStart + 'T00:00:00').getTime();
+    const e    = new Date(dateEnd   + 'T00:00:00').getTime();
+    const span = Math.max(e - s, 86400000);
+    setPrevEnd(  new Date(s - 86400000).toISOString().split('T')[0]);
+    setPrevStart(new Date(s - span - 86400000).toISOString().split('T')[0]);
+  }, [dateStart, dateEnd]);
+
   // ─── Report + AI ───
   const [report,    setReport]    = useState(null);
   const [aiText,    setAiText]    = useState(null);
@@ -1518,15 +1532,17 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       accountIds:  [selectedAcctId],
       currentRange: { start: dateStart, end: dateEnd },
       previousRange: (() => {
-        const s = new Date(dateStart + 'T00:00:00').getTime();
-        const e = new Date(dateEnd   + 'T00:00:00').getTime();
+        // Use manual override if set, otherwise auto-calculate
+        if (prevStart && prevEnd) return { start: prevStart, end: prevEnd };
+        const s    = new Date(dateStart + 'T00:00:00').getTime();
+        const e    = new Date(dateEnd   + 'T00:00:00').getTime();
         const span = Math.max(e - s, 86400000);
         return {
           start: new Date(s - span - 86400000).toISOString().split('T')[0],
           end:   new Date(s - 86400000).toISOString().split('T')[0],
         };
       })(),
-      exchangeRate: 18.5,
+      exchangeRate: parseFloat(fxRate) || 18.5,
     };
     if (reportLevel === 'groups')    return { ...base, campaignGroupIds: selectedGroupIds.length > 0 ? selectedGroupIds : null };
     if (reportLevel === 'campaigns') return { ...base, campaignIds: selectedCampIds.length  > 0 ? selectedCampIds  : null };
@@ -2185,8 +2201,8 @@ ${buildChartScript(display, campaignNameMap)}
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5"
           style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Report Configuration</h2>
 
-        {/* Row 1: Account + Region + Dates */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        {/* Row 1: Account + Region + Current Dates + Previous Dates + FX */}
+        <div className="grid grid-cols-4 gap-4 mb-4">
 
           {/* Account */}
           <div>
@@ -2226,37 +2242,62 @@ ${buildChartScript(display, campaignNameMap)}
             </select>
           </div>
 
-          {/* Dates */}
+          {/* Current period */}
           <div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Start Date</div>
-            <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Current Period</div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <div className="text-xs text-slate-600 mb-1">Start</div>
+                <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
+                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs text-slate-600 mb-1">End</div>
+                <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)}
+                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+              </div>
+            </div>
           </div>
+
+          {/* Previous period */}
           <div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">End Date</div>
-            <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Compare Period</div>
+              <span className="text-xs text-slate-600">Auto-calculated · editable</span>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <div className="text-xs text-slate-600 mb-1">Start</div>
+                <input type="date" value={prevStart} onChange={e => setPrevStart(e.target.value)}
+                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs text-slate-600 mb-1">End</div>
+                <input type="date" value={prevEnd} onChange={e => setPrevEnd(e.target.value)}
+                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Row 2: FX Rate */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">USD → ZAR Exchange Rate</div>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-slate-700" style={{background:'#272828'}}>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap">USD → ZAR Rate</span>
             <div className="relative">
-              <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-mono">R</span>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                placeholder="e.g. 18.50"
-                value={fxRate}
+              <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">R</span>
+              <input type="number" min="1" step="0.01" placeholder="18.50" value={fxRate}
                 onChange={e => setFxRate(e.target.value)}
-                className="w-full pl-7 pr-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500"
-              />
+                className="w-28 pl-7 pr-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
             </div>
-            <p className="text-xs text-slate-600 mt-1">$1 USD = R{parseFloat(fxRate)||0} ZAR</p>
+            <span className="text-xs text-slate-500">$1 = R{parseFloat(fxRate)||0}</span>
           </div>
+          {prevStart && prevEnd && dateStart && dateEnd && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
+              Comparing <span className="text-slate-300">{dateStart} – {dateEnd}</span> vs <span className="text-slate-300">{prevStart} – {prevEnd}</span>
+            </div>
+          )}
         </div>
 
         {/* ── Report Level Tabs ── */}
@@ -2431,13 +2472,6 @@ ${buildChartScript(display, campaignNameMap)}
             </button>
           )}
           {report && (
-            <button onClick={exportCombinedReport}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all hover:opacity-90"
-              style={{background:'#F6DC4E',color:'#272828',border:'1px solid #e0c800'}}>
-              <ExternalLink className="w-4 h-4" /> Export Full AI Report
-            </button>
-          )}
-          {report && (
             <button onClick={() => window.print()}
               className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
               Export PDF
@@ -2546,6 +2580,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Spent (USD)',
                 val:   fmtCur(agg.spend || agg.spent || 0),
                 sub:   null,
+                zar:   parseFloat(fxRate) > 0 ? `R ${((agg.spend||agg.spent||0) * parseFloat(fxRate)).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}` : null,
                 bench: null,
                 mom:   momBadge(mom(agg.spend || agg.spent || 0, p.spend || p.spent || 0), true),
               },
@@ -2553,6 +2588,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPM (USD)',
                 val:   fmtCur(agg.cpm),
                 sub:   null,
+                zar:   parseFloat(fxRate) > 0 ? `R ${(agg.cpm * parseFloat(fxRate)).toFixed(2)}` : null,
                 bench: vsBench('CPM ($)', agg.cpm),
                 mom:   momBadge(mom(agg.cpm, p.cpm), true),
               },
@@ -2560,6 +2596,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPC (USD)',
                 val:   fmtCur(agg.cpc),
                 sub:   null,
+                zar:   parseFloat(fxRate) > 0 ? `R ${(agg.cpc * parseFloat(fxRate)).toFixed(2)}` : null,
                 bench: vsBench('CPC ($)', agg.cpc),
                 mom:   momBadge(mom(agg.cpc, p.cpc), true),
               },
@@ -2567,6 +2604,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Landing Page CTR',
                 val:   fmtPct(agg.ctr),
                 sub:   null,
+                zar:   null,
                 bench: vsBench('Sponsored Content CTR', agg.ctr),
                 mom:   momBadge(mom(agg.ctr, p.ctr), false),
               },
@@ -2574,6 +2612,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Website Visits',
                 val:   fmtNum(agg.reach),
                 sub:   `Unique members reached`,
+                zar:   null,
                 bench: null,
                 mom:   momBadge(mom(agg.reach, p.reach), false),
               },
@@ -2581,6 +2620,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Leads',
                 val:   String(agg.leads),
                 sub:   `Form Fill Rate: ${fmtPct(agg.ffr)}`,
+                zar:   null,
                 bench: agg.leads > 0 ? vsBench('Lead Gen Form Fill Rate', agg.ffr) : null,
                 mom:   momBadge(mom(agg.leads, p.leads), false),
               },
@@ -2588,6 +2628,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPL (USD)',
                 val:   agg.leads > 0 ? fmtCur(agg.cpl) : '—',
                 sub:   `Total spend: ${fmtCur(agg.spend || agg.spent || 0)}`,
+                zar:   agg.leads > 0 && parseFloat(fxRate) > 0 ? `R ${(agg.cpl * parseFloat(fxRate)).toFixed(2)} per lead` : null,
                 bench: agg.leads > 0 ? vsBench('Cost Per Lead ($)', agg.cpl) : null,
                 mom:   momBadge(agg.leads > 0 && p.cpl > 0 ? mom(agg.cpl, p.cpl) : null, true),
               },
@@ -2595,6 +2636,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Engagement Rate',
                 val:   fmtPct(agg.engRate),
                 sub:   null,
+                zar:   null,
                 bench: vsBench('Sponsored Engagement Rate', agg.engRate),
                 rating: <RatingPill rating={calcRating('Sponsored Engagement Rate', agg.engRate, rgn)} />,
                 mom:   momBadge(mom(agg.engRate, p.engRate), false),
@@ -2603,6 +2645,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Engagements',
                 val:   fmtNum(agg.engagements || 0),
                 sub:   `Eng Rate: ${fmtPct(agg.engRate)}`,
+                zar:   null,
                 bench: vsBench('Sponsored Engagement Rate', agg.engRate),
                 mom:   momBadge(mom(agg.engagements || 0, p.engagements || 0), false),
               },
@@ -2610,6 +2653,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Video View Rate',
                 val:   agg.videoViewRate != null && agg.videoViewRate > 0 ? fmtPct(agg.videoViewRate) : '0.00%',
                 sub:   null,
+                zar:   null,
                 bench: null,
                 mom:   momBadge(mom(agg.videoViewRate || 0, p.videoViewRate || 0), false),
               },
@@ -2617,6 +2661,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPV (USD)',
                 val:   agg.cpv != null && agg.cpv > 0 ? fmtCur(agg.cpv) : '$0.00',
                 sub:   null,
+                zar:   agg.cpv > 0 && parseFloat(fxRate) > 0 ? `R ${(agg.cpv * parseFloat(fxRate)).toFixed(3)}` : null,
                 bench: null,
                 mom:   momBadge(mom(agg.cpv || 0, p.cpv || 0), true),
               },
@@ -2628,8 +2673,13 @@ ${buildChartScript(display, campaignNameMap)}
                   <div key={card.label} className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
                     <div className="text-xs font-bold uppercase tracking-wide mb-2"
                       style={{color:'#888',letterSpacing:'1px'}}>{card.label}</div>
-                    <div className="text-3xl font-bold mb-3"
+                    <div className="text-3xl font-bold mb-1"
                       style={{color:'#272828',fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>{card.val}</div>
+                    {card.zar && (
+                      <div className="text-sm font-semibold mb-2" style={{color:'#059669'}}>
+                        {card.zar}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2 items-center mb-2">
                       {card.rating || null}
                       {card.bench  || null}
@@ -2644,74 +2694,6 @@ ${buildChartScript(display, campaignNameMap)}
             );
           })()}
 
-          {/* ── ZAR Summary Block ── */}
-          {(() => {
-            const fx  = parseFloat(fxRate) || 0;
-            if (!fx) return null;
-            const spend     = agg.spend || agg.spent || 0;
-            const cpc       = agg.cpc   || 0;
-            const cpm       = agg.cpm   || 0;
-            const cpl       = agg.cpl   || 0;
-            const cpv       = agg.cpv   || 0;
-            const zarSpend  = spend * fx;
-            const zarCpc    = cpc   * fx;
-            const zarCpm    = cpm   * fx;
-            const zarCpl    = cpl   * fx;
-            const zarCpv    = cpv   * fx;
-            const fmtZar = (v) => `R ${v.toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
-
-            const zarCards = [
-              { label: 'Total Spent (ZAR)',    val: fmtZar(zarSpend), sub: `$${spend.toFixed(2)} USD × R${fx}` },
-              { label: 'CPC (ZAR)',            val: fmtZar(zarCpc),   sub: `$${cpc.toFixed(2)} USD × R${fx}` },
-              { label: 'CPM (ZAR)',            val: fmtZar(zarCpm),   sub: `$${cpm.toFixed(2)} USD × R${fx}` },
-              ...(cpl  > 0 ? [{ label: 'CPL (ZAR)', val: fmtZar(zarCpl), sub: `$${cpl.toFixed(2)} USD × R${fx}` }] : []),
-              ...(cpv  > 0 ? [{ label: 'CPV (ZAR)', val: fmtZar(zarCpv), sub: `$${cpv.toFixed(2)} USD × R${fx}` }] : []),
-            ];
-
-            return (
-              <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#1a1a1a'}}>
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black"
-                      style={{background:'#F6DC4E',color:'#272828'}}>R</div>
-                    <div>
-                      <div className="font-bold text-white text-sm">ZAR Summary</div>
-                      <div className="text-xs" style={{color:'#888'}}>
-                        Exchange rate: $1 USD = R{fx.toFixed(2)} ZAR
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">Adjust rate:</span>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1.5 text-xs text-slate-400 font-mono">R</span>
-                      <input
-                        type="number" min="1" step="0.01" value={fxRate}
-                        onChange={e => setFxRate(e.target.value)}
-                        className="w-24 pl-6 pr-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-                {/* ZAR cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-6">
-                  {zarCards.map(card => (
-                    <div key={card.label} className="rounded-xl p-5 border border-slate-700" style={{background:'#272828'}}>
-                      <div className="text-xs font-bold uppercase tracking-wide mb-2"
-                        style={{color:'#888',letterSpacing:'1px'}}>{card.label}</div>
-                      <div className="text-2xl font-bold mb-2 text-white"
-                        style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>{card.val}</div>
-                      <div className="text-xs font-mono" style={{color:'#555'}}>{card.sub}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="px-6 pb-4 text-xs text-slate-600">
-                  All values converted from USD using exchange rate R{fx.toFixed(2)}. Update the rate above to recalculate instantly.
-                </div>
-              </div>
-            );
-          })()}
           {(aiLoading || aiText || aiError) && (
             <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#272828'}}>
               {/* Header */}
