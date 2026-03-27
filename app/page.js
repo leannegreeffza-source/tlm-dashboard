@@ -1807,6 +1807,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   }
 
   // ─── AI Report via /api/report ───
+  // Uses liveData which was already fetched with the exact same scope/selection
+  // as the Report Generator — no additional API calls needed.
   async function generateAIReport() {
     if (!liveData) return;
     setGeneratingAIReport(true);
@@ -1816,128 +1818,39 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // ── Step 1: Build exact analytics scope matching Report Generator selection ─
-      // Use exactly the same IDs that were used to load the report data.
-      const analyticsScope = (() => {
-        if (reportLevel === 'groups' && selectedGroupIds.length > 0)
-          return { campaignGroupIds: selectedGroupIds };
-        if (reportLevel === 'groups')
-          return { campaignGroupIds: ownGroups.map(g => String(g.id)).slice(0, 20) };
-        if ((reportLevel === 'campaigns' || reportLevel === 'ads') && selectedCampIds.length > 0)
-          return { campaignIds: selectedCampIds };
-        return { campaignIds: ownCampaigns.map(c => String(c.id)).slice(0, 50) };
-      })();
+      // liveData was fetched via fetchAnalytics() using getAnalyticsPayload()
+      // which already scopes to selectedGroupIds / selectedCampIds / selectedAdIds.
+      // So liveData.current and liveData.topCampaigns are already exactly right.
 
-      // ── Step 2: Get topCampaigns — scoped to selection only ─────
-      let topCampaigns = [];
-
-      // Use liveData if it already has scoped per-campaign data
-      const liveCamps = liveData.topCampaigns || [];
-      if (liveCamps.length > 0) {
-        if (selectedCampIds.length > 0 && (reportLevel === 'campaigns' || reportLevel === 'ads')) {
-          topCampaigns = liveCamps.filter(c => selectedCampIds.includes(String(c.id)));
-        } else {
-          topCampaigns = liveCamps;
-        }
+      // Filter topCampaigns to the specific ad-set selection if user chose at that level
+      let topCampaigns = liveData.topCampaigns || [];
+      if (selectedCampIds.length > 0 && (reportLevel === 'campaigns' || reportLevel === 'ads')) {
+        const filtered = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+        if (filtered.length > 0) topCampaigns = filtered;
       }
 
-      // ── Step 3: Fetch analytics scoped to selection ──────────────
+      // If topCampaigns is empty (API didn't return per-campaign breakdown),
+      // fetch using exactly the same payload that was used to load the report
       if (topCampaigns.length === 0) {
-        // First try a scoped analytics call — this returns topCampaigns for the group/selection
-        const scopeRes = await fetch('/api/analytics', {
+        const r = await fetch('/api/analytics', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountIds: [selectedAcctId],
-            ...analyticsScope,
-            currentRange: { start: dateStart, end: dateEnd },
-            previousRange: payload.previousRange,
-            exchangeRate: parseFloat(fxRate) || 18.5,
-          })
+          body: JSON.stringify(getAnalyticsPayload())
         });
-        if (scopeRes.ok) {
-          const sd = await scopeRes.json();
-          if (sd.topCampaigns && sd.topCampaigns.length > 0) {
-            topCampaigns = sd.topCampaigns;
-            // Apply campaign-level filter if needed
-            if (selectedCampIds.length > 0) {
-              const f = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
-              if (f.length > 0) topCampaigns = f;
-            }
+        if (r.ok) {
+          const d = await r.json();
+          topCampaigns = d.topCampaigns || [];
+          if (selectedCampIds.length > 0 && topCampaigns.length > 0) {
+            const filtered = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+            if (filtered.length > 0) topCampaigns = filtered;
           }
         }
-
-        // If scoped call returned nothing, fetch each selected ad set individually
-        if (topCampaigns.length === 0) {
-          // Only use ad sets that are explicitly in the selection
-          const adSetIds = selectedCampIds.length > 0
-            ? selectedCampIds
-            : ownCampaigns.map(c => String(c.id)).slice(0, 20);
-          const adSetMeta = ownCampaigns.filter(c => adSetIds.includes(String(c.id)));
-
-          const results = await Promise.all(
-            adSetMeta.map(async (camp) => {
-              try {
-                const r = await fetch('/api/analytics', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    accountIds:  [selectedAcctId],
-                    campaignIds: [String(camp.id)],
-                    currentRange: { start: dateStart, end: dateEnd },
-                    previousRange: payload.previousRange,
-                    exchangeRate: parseFloat(fxRate) || 18.5,
-                  })
-                });
-                if (!r.ok) return null;
-                const d = await r.json();
-                const cur = d.current || {};
-                return {
-                  id: camp.id, name: camp.name,
-                  impressions: cur.impressions || 0,
-                  clicks:      cur.clicks      || 0,
-                  ctr:         cur.ctr         || (cur.impressions > 0 ? cur.clicks / cur.impressions * 100 : 0),
-                  spent:       cur.spent       || 0,
-                  leads:       cur.leads       || 0,
-                  engagements: cur.engagements || 0,
-                  likes:       cur.likes       || 0,
-                  comments:    cur.comments    || 0,
-                  shares:      cur.shares      || 0,
-                };
-              } catch { return null; }
-            })
-          );
-          topCampaigns = results.filter(Boolean).filter(c => c.impressions > 0 || c.clicks > 0 || c.spent > 0);
-          if (topCampaigns.length === 0) topCampaigns = results.filter(Boolean);
-        }
       }
 
-      // ── Step 4: Build filtered aggregate metrics for selected items ──
-      // If specific campaigns/ad-sets selected, sum their metrics; else use liveData.current
-      const current = (() => {
-        if (topCampaigns.length > 0 && (selectedCampIds.length > 0 || selectedGroupIds.length > 0)) {
-          const imp  = topCampaigns.reduce((s,c) => s + (c.impressions||0), 0);
-          const clk  = topCampaigns.reduce((s,c) => s + (c.clicks||0), 0);
-          const spd  = topCampaigns.reduce((s,c) => s + (c.spent||0), 0);
-          const lds  = topCampaigns.reduce((s,c) => s + (c.leads||0), 0);
-          return {
-            ...liveData.current,
-            impressions: imp,
-            clicks:      clk,
-            spent:       spd,
-            leads:       lds,
-            ctr:         imp > 0 ? clk / imp * 100 : 0,
-            cpl:         lds > 0 ? spd / lds : 0,
-            cpm:         imp > 0 ? spd / imp * 1000 : 0,
-            cpc:         clk > 0 ? spd / clk : 0,
-          };
-        }
-        return liveData.current;
-      })();
-
-      // ── Step 5: Generate the AI report ───────────────────────
+      // Generate the AI report using liveData.current (already scoped)
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          current,
+          current:           liveData.current,
           previous:          liveData.previous,
           topCampaigns,
           topAds:            liveData.topAds,
