@@ -1645,7 +1645,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       accountIds:  [selectedAcctId],
       currentRange: { start: dateStart, end: dateEnd },
       previousRange: (() => {
-        // Use manual override if set, otherwise auto-calculate
         if (prevStart && prevEnd) return { start: prevStart, end: prevEnd };
         const s    = new Date(dateStart + 'T00:00:00').getTime();
         const e    = new Date(dateEnd   + 'T00:00:00').getTime();
@@ -1656,17 +1655,10 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         };
       })(),
       exchangeRate: parseFloat(fxRate) || 18.5,
-      // Always include campaignIds so the analytics API returns per-campaign topCampaigns breakdown
-      campaignIds: (() => {
-        if (reportLevel === 'campaigns' && selectedCampIds.length > 0) return selectedCampIds;
-        if (reportLevel === 'ads'       && selectedCampIds.length > 0) return selectedCampIds;
-        if (ownCampaigns.length > 0) return ownCampaigns.map(c => String(c.id)).slice(0, 50);
-        return null;
-      })(),
     };
     if (reportLevel === 'groups')    return { ...base, campaignGroupIds: selectedGroupIds.length > 0 ? selectedGroupIds : null };
-    if (reportLevel === 'campaigns') return { ...base };
-    if (reportLevel === 'ads')       return { ...base, adIds: selectedAdIds.length > 0 ? selectedAdIds : null };
+    if (reportLevel === 'campaigns') return { ...base, campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null };
+    if (reportLevel === 'ads')       return { ...base, campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null, adIds: selectedAdIds.length > 0 ? selectedAdIds : null };
     return base;
   }
 
@@ -1820,37 +1812,55 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     setGeneratingAIReport(true);
     setShowAIReport(true);
     setAiReportResult(null);
+
     try {
       const payload = getAnalyticsPayload();
 
-      // topCampaigns is now always in liveData because getAnalyticsPayload includes campaignIds
+      // ── Step 1: Get campaign IDs ──────────────────────────────
+      // Use selected IDs if user made a specific selection, otherwise fetch ALL campaigns for this account
+      let campaignIdList = campIds.length > 0 ? campIds : ownCampaigns.map(c => String(c.id));
+
+      // If ownCampaigns hasn't loaded yet, fetch directly from the campaigns API
+      if (campaignIdList.length === 0 && selectedAcctId) {
+        try {
+          const cr = await fetch('/api/campaigns', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountIds: [selectedAcctId] })
+          });
+          if (cr.ok) {
+            const camps = await cr.json();
+            campaignIdList = camps.map(c => String(c.id));
+          }
+        } catch(e) { console.warn('Campaign ID fetch failed', e); }
+      }
+
+      // Cap at 50 to keep the API request manageable
+      campaignIdList = campaignIdList.slice(0, 50);
+
+      // ── Step 2: Fetch analytics WITH explicit campaignIds ─────
+      // This guarantees topCampaigns is populated in the response
       let topCampaigns = liveData.topCampaigns || [];
 
-      // If somehow still empty, fall back to a second fetch with all ownCampaigns
-      if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
-        const ids = ownCampaigns.map(c => String(c.id)).slice(0, 50);
-        const r = await fetch('/api/analytics', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountIds:   [selectedAcctId],
-            campaignIds:  ids,
-            currentRange: { start: dateStart, end: dateEnd },
-            previousRange: payload.previousRange,
-            exchangeRate: parseFloat(fxRate) || 18.5,
-          })
-        });
-        if (r.ok) {
-          const d = await r.json();
-          topCampaigns = d.topCampaigns || [];
-        }
+      if (topCampaigns.length === 0 && campaignIdList.length > 0) {
+        try {
+          const ar = await fetch('/api/analytics', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accountIds:   [selectedAcctId],
+              campaignIds:  campaignIdList,
+              currentRange: { start: dateStart, end: dateEnd },
+              previousRange: payload.previousRange,
+              exchangeRate: parseFloat(fxRate) || 18.5,
+            })
+          });
+          if (ar.ok) {
+            const ad = await ar.json();
+            topCampaigns = ad.topCampaigns || [];
+          }
+        } catch(e) { console.warn('Analytics re-fetch failed', e); }
       }
 
-      // Filter to selected campaigns if the user picked specific ones
-      if (campIds.length > 0 && topCampaigns.length > 0) {
-        const f = topCampaigns.filter(c => campIds.includes(String(c.id)));
-        if (f.length > 0) topCampaigns = f;
-      }
-
+      // ── Step 3: Generate the AI report ───────────────────────
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1868,16 +1878,19 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
 
       if (res.ok) {
         const result = await res.json();
+        // Guarantee topCampaigns is on metrics — API echoes it but we force it to be safe
         if (!result.metrics) result.metrics = {};
         result.metrics.topCampaigns = topCampaigns;
         setAiReportResult(result);
       } else {
         setAiReportResult({ error: 'Failed to generate AI report.' });
       }
+
     } catch (err) {
       console.error('[generateAIReport]', err);
       setAiReportResult({ error: 'Failed to generate AI report.' });
     }
+
     setGeneratingAIReport(false);
   }
 
