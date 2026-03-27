@@ -2460,9 +2460,9 @@ ${buildChartScript(display, campaignNameMap)}
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Report Level</div>
           <div className="flex gap-2 mb-4">
             {[
-              { id:'groups',    label:'Campaign Groups', num: selectedGroupIds.length, loading: loadingGroups },
-              { id:'campaigns', label:'Campaigns',        num: selectedCampIds.length,  loading: loadingCampaigns },
-              { id:'ads',       label:'Ads',              num: selectedAdIds.length,    loading: loadingAds },
+              { id:'groups',    label:'Campaigns',  num: selectedGroupIds.length, loading: loadingGroups },
+              { id:'campaigns', label:'Ad Sets',     num: selectedCampIds.length,  loading: loadingCampaigns },
+              { id:'ads',       label:'Ads',          num: selectedAdIds.length,    loading: loadingAds },
             ].map(({ id, label, num, loading }) => {
               const active = reportLevel === id;
               return (
