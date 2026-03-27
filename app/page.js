@@ -1816,58 +1816,77 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // ── Step 1: Get the list of campaigns to report on ───────
-      let campaignIdList = campIds.length > 0
-        ? campIds
-        : ownCampaigns.map(c => String(c.id));
+      // ── Step 1: Determine exactly which campaigns to report on ─
+      // Mirror exactly what the Report Generator shows — respect the user's selection
+      let topCampaigns = liveData.topCampaigns || [];
 
-      // If ownCampaigns not loaded yet, fetch them
-      if (campaignIdList.length === 0 && selectedAcctId) {
-        const cr = await fetch('/api/campaigns', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accountIds: [selectedAcctId] })
-        });
-        if (cr.ok) {
-          const camps = await cr.json();
-          campaignIdList = camps.map(c => String(c.id));
+      // Filter to the user's selection if they've chosen specific campaigns/ad-sets
+      if (campIds.length > 0) {
+        const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
+        if (filtered.length > 0) topCampaigns = filtered;
+      }
+
+      // ── Step 2: If topCampaigns is still empty, re-fetch with the exact same payload ─
+      // The analytics API only returns topCampaigns when specific IDs are sent
+      if (topCampaigns.length === 0) {
+        // Build the targeted campaign ID list based on selection
+        let targetIds = campIds.length > 0
+          ? campIds
+          : selectedGroupIds.length > 0
+            // For groups level: get campaigns belonging to those groups
+            ? ownCampaigns.filter(c => selectedGroupIds.includes(String(c.campaignGroupId || c.groupId))).map(c => String(c.id))
+            // No selection: use all loaded campaigns
+            : ownCampaigns.map(c => String(c.id)).slice(0, 50);
+
+        // If still nothing, fetch campaigns fresh
+        if (targetIds.length === 0 && selectedAcctId) {
+          const cr = await fetch('/api/campaigns', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountIds: [selectedAcctId] })
+          });
+          if (cr.ok) {
+            const camps = await cr.json();
+            targetIds = camps.map(c => String(c.id)).slice(0, 50);
+          }
+        }
+
+        if (targetIds.length > 0) {
+          const ar = await fetch('/api/analytics', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accountIds:   [selectedAcctId],
+              campaignIds:  targetIds.slice(0, 50),
+              currentRange: { start: dateStart, end: dateEnd },
+              previousRange: payload.previousRange,
+              exchangeRate: parseFloat(fxRate) || 18.5,
+            })
+          });
+          if (ar.ok) {
+            const ad = await ar.json();
+            topCampaigns = ad.topCampaigns || [];
+            // Re-apply selection filter on the fresh data
+            if (campIds.length > 0) {
+              const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
+              if (filtered.length > 0) topCampaigns = filtered;
+            }
+          }
         }
       }
 
-      // ── Step 2: Build topCampaigns ────────────────────────────
-      // First try liveData (already populated for some configurations)
-      let topCampaigns = (liveData.topCampaigns || []).filter(c =>
-        campIds.length === 0 || campIds.includes(String(c.id))
-      );
+      // ── Step 3: Final fallback — build from ownCampaigns with selection applied ──
+      // Only reached if the API never returns per-campaign data for this account
+      if (topCampaigns.length === 0) {
+        const cur = liveData.current || {};
+        // Respect selection
+        const sourceCamps = campIds.length > 0
+          ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
+          : selectedGroupIds.length > 0
+            ? ownCampaigns.filter(c => selectedGroupIds.includes(String(c.campaignGroupId || c.groupId)))
+            : ownCampaigns.slice(0, 20);
 
-      // If still empty, fetch analytics once with all campaignIds in one call
-      if (topCampaigns.length === 0 && campaignIdList.length > 0) {
-        const batchIds = campaignIdList.slice(0, 50);
-        // Try batch fetch with all IDs at once
-        const ar = await fetch('/api/analytics', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountIds:   [selectedAcctId],
-            campaignIds:  batchIds,
-            currentRange: { start: dateStart, end: dateEnd },
-            previousRange: payload.previousRange,
-            exchangeRate: parseFloat(fxRate) || 18.5,
-          })
-        });
-        if (ar.ok) {
-          const ad = await ar.json();
-          topCampaigns = ad.topCampaigns || [];
-        }
-
-        // If batch returned nothing, synthesise from ownCampaigns + aggregate data
-        // (Analytics API doesn't break down by campaign for this account type)
-        if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
-          const cur = liveData.current || {};
-          const camps = campIds.length > 0
-            ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
-            : ownCampaigns;
-          const n = camps.length || 1;
-          // Distribute aggregate metrics evenly across campaigns as best estimate
-          topCampaigns = camps.slice(0, 20).map(c => ({
+        if (sourceCamps.length > 0) {
+          const n = sourceCamps.length;
+          topCampaigns = sourceCamps.map(c => ({
             id:          c.id,
             name:        c.name,
             impressions: Math.round((cur.impressions || 0) / n),
@@ -1880,7 +1899,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         }
       }
 
-      // ── Step 3: Generate the AI report ───────────────────────
+      // ── Step 4: Generate the AI report ───────────────────────
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1891,7 +1910,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           budgetPacing:      liveData.budgetPacing,
           currentRange:      { start: dateStart, end: dateEnd },
           previousRange:     payload.previousRange,
-          selectedCampaigns: selectedCampIds,
+          selectedCampaigns: campIds.length > 0 ? campIds : selectedCampIds,
           exchangeRate:      parseFloat(fxRate) || 18.5,
         })
       });
@@ -2649,7 +2668,13 @@ ${buildChartScript(display, campaignNameMap)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             style={{background:'#7c3aed',color:'white',border:'1px solid #6d28d9'}}>
             {generatingAIReport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>✦</span>}
-            {generatingAIReport ? 'Generating...' : 'AI Report'}
+            {generatingAIReport
+              ? 'Generating...'
+              : campIds.length > 0
+                ? `AI Report (${campIds.length} campaign${campIds.length !== 1 ? 's' : ''})`
+                : selectedGroupIds.length > 0
+                  ? `AI Report (${selectedGroupIds.length} group${selectedGroupIds.length !== 1 ? 's' : ''})`
+                  : 'AI Report'}
           </button>
 
           {report && (
