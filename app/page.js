@@ -1910,8 +1910,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         }
       }
 
-      }
-
       // ── Step 4: Build filtered aggregate metrics for selected items ──
       // If specific campaigns/ad-sets selected, sum their metrics; else use liveData.current
       const current = (() => {
