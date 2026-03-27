@@ -580,13 +580,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
 
   const report  = reportResult?.report;
   const rawMetrics = reportResult?.metrics;
-  // Fallback: if metrics.topCampaigns is empty, pull from reportData (liveData passed as prop)
-  const topCampaignsForModal = (rawMetrics?.topCampaigns?.length > 0)
-    ? rawMetrics.topCampaigns
-    : (reportData?.topCampaigns || []);
-  const metrics = rawMetrics
-    ? { ...rawMetrics, topCampaigns: topCampaignsForModal }
-    : { topCampaigns: topCampaignsForModal };
+  const metrics = rawMetrics || {};
   const fx      = parseFloat(fxRate) || 0;
   const fmtZar  = (v) => v > 0 ? `R ${(v * fx).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}` : null;
   const sfx     = chartSuffix.current;
@@ -640,7 +634,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
           <div className="flex flex-col items-center justify-center py-32 bg-white">
             <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
             <p className="text-gray-800 font-semibold text-xl">Analyzing your campaigns...</p>
-            <p className="text-gray-400 text-sm mt-2">This may take 15–30 seconds</p>
+            <p className="text-gray-400 text-sm mt-2">Fetching campaign data + generating AI insights — 20–40 seconds</p>
           </div>
         ) : report ? (
           <div ref={reportRef} style={{fontFamily:"'Segoe UI',Tahoma,Geneva,Verdana,sans-serif",background:'#f4fbff',padding:'20px'}}>
@@ -1814,7 +1808,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     setReport({ agg, region, bench: getBenchmarks()[region], dateStart, dateEnd, selectedNames, accountName });
   }
 
-  // ─── AI Report via /api/report (same flow as LinkedIn dashboard app) ───
+  // ─── AI Report via /api/report ───
   async function generateAIReport() {
     if (!liveData) return;
     setGeneratingAIReport(true);
@@ -1822,39 +1816,48 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     setAiReportResult(null);
     try {
       const payload = getAnalyticsPayload();
+      let topCampaigns = liveData.topCampaigns || [];
 
-      // Get topCampaigns — if analytics didn't return them, fetch with explicit campaignIds
-      let filteredTC = liveData.topCampaigns || [];
+      // If the analytics response has no per-campaign data, re-fetch with explicit campaignIds
+      if (topCampaigns.length === 0) {
+        const ids = campIds.length > 0
+          ? campIds
+          : ownCampaigns.map(c => String(c.id)).slice(0, 50);
 
-      if (filteredTC.length === 0 && ownCampaigns.length > 0) {
-        // Re-fetch analytics with explicit campaign IDs to get per-campaign breakdown
-        const campIdsToFetch = (campIds.length > 0 ? campIds : ownCampaigns.map(c => String(c.id))).slice(0, 50);
-        try {
-          const r2 = await fetch('/api/analytics', {
+        if (ids.length > 0) {
+          const r = await fetch('/api/analytics', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              ...payload,
-              campaignIds: campIdsToFetch,
+              accountIds:    [selectedAcctId],
+              campaignIds:   ids,
+              currentRange:  { start: dateStart, end: dateEnd },
+              previousRange: payload.previousRange,
+              exchangeRate:  parseFloat(fxRate) || 18.5,
             })
           });
-          if (r2.ok) {
-            const d2 = await r2.json();
-            filteredTC = d2.topCampaigns || [];
+          if (r.ok) {
+            const d = await r.json();
+            // API may return topCampaigns at root or inside a nested key
+            topCampaigns = d.topCampaigns || d.campaigns || d.data?.topCampaigns || [];
           }
-        } catch(e) { console.warn('Per-campaign fetch failed', e); }
-      } else if (campIds.length > 0) {
-        filteredTC = filteredTC.filter(c => campIds.includes(String(c.id)));
-        if (filteredTC.length === 0) filteredTC = liveData.topCampaigns || [];
+        }
       }
 
+      // Filter to selected campaigns if user has made a selection
+      if (campIds.length > 0 && topCampaigns.length > 0) {
+        const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
+        if (filtered.length > 0) topCampaigns = filtered;
+      }
+
+      // Generate the AI report
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           current:           liveData.current,
           previous:          liveData.previous,
-          topCampaigns:      filteredTC,
+          topCampaigns,
           topAds:            liveData.topAds,
           budgetPacing:      liveData.budgetPacing,
           currentRange:      { start: dateStart, end: dateEnd },
@@ -1863,10 +1866,12 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           exchangeRate:      parseFloat(fxRate) || 18.5,
         })
       });
+
       if (res.ok) {
         const result = await res.json();
+        // Force topCampaigns into metrics — the API echoes it back but let's be explicit
         if (!result.metrics) result.metrics = {};
-        result.metrics.topCampaigns = filteredTC;
+        result.metrics.topCampaigns = topCampaigns;
         setAiReportResult(result);
       } else {
         setAiReportResult({ error: 'Failed to generate AI report.' });
