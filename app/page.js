@@ -634,7 +634,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
           <div className="flex flex-col items-center justify-center py-32 bg-white">
             <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
             <p className="text-gray-800 font-semibold text-xl">Analyzing your campaigns...</p>
-            <p className="text-gray-400 text-sm mt-2">Fetching campaign data + generating AI insights — 20–40 seconds</p>
+            <p className="text-gray-400 text-sm mt-2">Fetching individual campaign data from LinkedIn — this may take 20–60 seconds</p>
           </div>
         ) : report ? (
           <div ref={reportRef} style={{fontFamily:"'Segoe UI',Tahoma,Geneva,Verdana,sans-serif",background:'#f4fbff',padding:'20px'}}>
@@ -1816,60 +1816,69 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // ── Determine which campaign IDs to use based on selection ──
-      // Priority: explicit campaign selection → group selection → all loaded campaigns
-      const targetIds = campIds.length > 0
-        ? campIds
-        : ownCampaigns.map(c => String(c.id)).slice(0, 50);
-
-      // ── Try to get topCampaigns from liveData first ──
+      // ── Step 1: Determine which campaigns to include ──────────
+      // Respect the user's selection in Report Generator exactly
       let topCampaigns = [];
-      if (liveData.topCampaigns && liveData.topCampaigns.length > 0) {
+
+      // If liveData already has real per-campaign data, use it directly
+      const liveCamps = liveData.topCampaigns || [];
+      if (liveCamps.length > 0) {
         topCampaigns = campIds.length > 0
-          ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id)))
-          : liveData.topCampaigns;
+          ? liveCamps.filter(c => campIds.includes(String(c.id)))
+          : liveCamps;
       }
 
-      // ── If not in liveData, re-fetch analytics with explicit campaignIds ──
-      if (topCampaigns.length === 0 && targetIds.length > 0) {
-        const ar = await fetch('/api/analytics', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountIds:   [selectedAcctId],
-            campaignIds:  targetIds,
-            currentRange: { start: dateStart, end: dateEnd },
-            previousRange: payload.previousRange,
-            exchangeRate: parseFloat(fxRate) || 18.5,
-          })
-        });
-        if (ar.ok) {
-          const ad = await ar.json();
-          topCampaigns = ad.topCampaigns || [];
-          if (campIds.length > 0) {
-            topCampaigns = topCampaigns.filter(c => campIds.includes(String(c.id)));
-          }
-        }
-      }
-
-      // ── If API never returns per-campaign data, build from ownCampaigns ──
-      // Distribute aggregate totals across selected/loaded campaigns
+      // ── Step 2: Fetch per-campaign analytics individually ─────
+      // This is the only reliable way — each campaign gets its own API call
       if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
-        const cur = liveData.current || {};
         const sourceCamps = campIds.length > 0
           ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
           : ownCampaigns.slice(0, 20);
-        const n = Math.max(sourceCamps.length, 1);
-        topCampaigns = sourceCamps.map((c, i) => ({
-          id:          c.id,
-          impressions: Math.round((cur.impressions || 0) / n),
-          clicks:      Math.round((cur.clicks || 0) / n),
-          ctr:         parseFloat(cur.ctr || 0),
-          spent:       parseFloat(((cur.spent || 0) / n).toFixed(2)),
-          leads:       Math.round((cur.leads || 0) / n),
-        }));
+
+        // Fetch all campaigns in parallel — each with its own campaignIds:[id]
+        const results = await Promise.all(
+          sourceCamps.map(async (camp) => {
+            try {
+              const r = await fetch('/api/analytics', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  accountIds:   [selectedAcctId],
+                  campaignIds:  [String(camp.id)],
+                  currentRange: { start: dateStart, end: dateEnd },
+                  previousRange: payload.previousRange,
+                  exchangeRate: parseFloat(fxRate) || 18.5,
+                })
+              });
+              if (!r.ok) return null;
+              const d = await r.json();
+              // Each single-campaign response returns aggregate for that campaign
+              const cur = d.current || d.topCampaigns?.[0] || {};
+              return {
+                id:          camp.id,
+                name:        camp.name,
+                impressions: cur.impressions || 0,
+                clicks:      cur.clicks      || 0,
+                ctr:         cur.ctr         || (cur.impressions > 0 ? cur.clicks / cur.impressions * 100 : 0),
+                spent:       cur.spent       || 0,
+                leads:       cur.leads       || 0,
+                engagements: cur.engagements || 0,
+                likes:       cur.likes       || 0,
+                comments:    cur.comments    || 0,
+                shares:      cur.shares      || 0,
+              };
+            } catch { return null; }
+          })
+        );
+
+        topCampaigns = results.filter(Boolean).filter(c => c.impressions > 0 || c.clicks > 0 || c.spent > 0);
+
+        // If individual fetches all returned zeros, keep all (some may be valid with 0 impressions)
+        if (topCampaigns.length === 0) {
+          topCampaigns = results.filter(Boolean);
+        }
       }
 
-      // ── Generate the AI report ──
+      // ── Step 3: Generate the AI report ───────────────────────
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
