@@ -502,7 +502,7 @@ function InlineCharts({ campaigns, campaignNameMap }) {
 
     function draw() {
       const labels = campaigns.map(c => {
-        const n = campaignNameMap?.[String(c.id)] || ('Campaign ' + c.id);
+        const n = campaignNameMap?.[String(c.id)] || c.name || ('Campaign ' + c.id);
         return n.length > 22 ? n.substring(0, 22) + '\u2026' : n;
       });
 
@@ -718,7 +718,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                       <tbody>
                         {metrics.topCampaigns.map((c,i) => {
                           const analysis = report.campaignAnalysis?.find(a => String(a.id) === String(c.id));
-                          const name = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+                          const name = campaignNameMap?.[String(c.id)] || c.name || `Campaign ${c.id}`;
                           return (
                             <tr key={c.id || i} style={{background:i%2===0?'white':'#fafafa'}}>
                               <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>
@@ -918,7 +918,7 @@ ${[
 <tbody>
 ${campaigns.map((c,i)=>{
   const a=report?.campaignAnalysis?.find(x=>String(x.id)===String(c.id));
-  const name=campaignNameMap?.[String(c.id)]||`Campaign ${c.id}`;
+  const name=campaignNameMap?.[String(c.id)] || c.name || `Campaign ${c.id}`;
   return `<tr style="background:${i%2===0?'white':'#fafafa'}">
 <td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${c.id}</span></td>
 <td>${(c.impressions||0).toLocaleString()}</td><td>${(c.clicks||0).toLocaleString()}</td><td>${parseFloat(c.ctr||0).toFixed(2)}%</td>
@@ -965,7 +965,7 @@ ${report?.budgetRecommendation?`<div class="rec" style="border-left:4px solid #4
 </div>
 <script>
 window.addEventListener('load', function() {
-  var labels=${JSON.stringify(campaigns.map(c=>{const n=campaignNameMap?.[String(c.id)]||`Campaign ${c.id}`;return n.length>25?n.substring(0,25)+'...':n;}))};
+  var labels=${JSON.stringify(campaigns.map(c=>{const n=campaignNameMap?.[String(c.id)]||c.name||`Campaign ${c.id}`;return n.length>25?n.substring(0,25)+'...':n;}))};
   function mc(id,data,label,color){
     var el=document.getElementById(id);
     if(!el||!window.Chart)return;
@@ -1816,90 +1816,60 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // ── Step 1: Determine exactly which campaigns to report on ─
-      // Mirror exactly what the Report Generator shows — respect the user's selection
-      let topCampaigns = liveData.topCampaigns || [];
+      // ── Determine which campaign IDs to use based on selection ──
+      // Priority: explicit campaign selection → group selection → all loaded campaigns
+      const targetIds = campIds.length > 0
+        ? campIds
+        : ownCampaigns.map(c => String(c.id)).slice(0, 50);
 
-      // Filter to the user's selection if they've chosen specific campaigns/ad-sets
-      if (campIds.length > 0) {
-        const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
-        if (filtered.length > 0) topCampaigns = filtered;
+      // ── Try to get topCampaigns from liveData first ──
+      let topCampaigns = [];
+      if (liveData.topCampaigns && liveData.topCampaigns.length > 0) {
+        topCampaigns = campIds.length > 0
+          ? liveData.topCampaigns.filter(c => campIds.includes(String(c.id)))
+          : liveData.topCampaigns;
       }
 
-      // ── Step 2: If topCampaigns is still empty, re-fetch with the exact same payload ─
-      // The analytics API only returns topCampaigns when specific IDs are sent
-      if (topCampaigns.length === 0) {
-        // Build the targeted campaign ID list based on selection
-        let targetIds = campIds.length > 0
-          ? campIds
-          : selectedGroupIds.length > 0
-            // For groups level: get campaigns belonging to those groups
-            ? ownCampaigns.filter(c => selectedGroupIds.includes(String(c.campaignGroupId || c.groupId))).map(c => String(c.id))
-            // No selection: use all loaded campaigns
-            : ownCampaigns.map(c => String(c.id)).slice(0, 50);
-
-        // If still nothing, fetch campaigns fresh
-        if (targetIds.length === 0 && selectedAcctId) {
-          const cr = await fetch('/api/campaigns', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accountIds: [selectedAcctId] })
-          });
-          if (cr.ok) {
-            const camps = await cr.json();
-            targetIds = camps.map(c => String(c.id)).slice(0, 50);
-          }
-        }
-
-        if (targetIds.length > 0) {
-          const ar = await fetch('/api/analytics', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              accountIds:   [selectedAcctId],
-              campaignIds:  targetIds.slice(0, 50),
-              currentRange: { start: dateStart, end: dateEnd },
-              previousRange: payload.previousRange,
-              exchangeRate: parseFloat(fxRate) || 18.5,
-            })
-          });
-          if (ar.ok) {
-            const ad = await ar.json();
-            topCampaigns = ad.topCampaigns || [];
-            // Re-apply selection filter on the fresh data
-            if (campIds.length > 0) {
-              const filtered = topCampaigns.filter(c => campIds.includes(String(c.id)));
-              if (filtered.length > 0) topCampaigns = filtered;
-            }
+      // ── If not in liveData, re-fetch analytics with explicit campaignIds ──
+      if (topCampaigns.length === 0 && targetIds.length > 0) {
+        const ar = await fetch('/api/analytics', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountIds:   [selectedAcctId],
+            campaignIds:  targetIds,
+            currentRange: { start: dateStart, end: dateEnd },
+            previousRange: payload.previousRange,
+            exchangeRate: parseFloat(fxRate) || 18.5,
+          })
+        });
+        if (ar.ok) {
+          const ad = await ar.json();
+          topCampaigns = ad.topCampaigns || [];
+          if (campIds.length > 0) {
+            topCampaigns = topCampaigns.filter(c => campIds.includes(String(c.id)));
           }
         }
       }
 
-      // ── Step 3: Final fallback — build from ownCampaigns with selection applied ──
-      // Only reached if the API never returns per-campaign data for this account
-      if (topCampaigns.length === 0) {
+      // ── If API never returns per-campaign data, build from ownCampaigns ──
+      // Distribute aggregate totals across selected/loaded campaigns
+      if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
         const cur = liveData.current || {};
-        // Respect selection
         const sourceCamps = campIds.length > 0
           ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
-          : selectedGroupIds.length > 0
-            ? ownCampaigns.filter(c => selectedGroupIds.includes(String(c.campaignGroupId || c.groupId)))
-            : ownCampaigns.slice(0, 20);
-
-        if (sourceCamps.length > 0) {
-          const n = sourceCamps.length;
-          topCampaigns = sourceCamps.map(c => ({
-            id:          c.id,
-            name:        c.name,
-            impressions: Math.round((cur.impressions || 0) / n),
-            clicks:      Math.round((cur.clicks || 0) / n),
-            ctr:         parseFloat(cur.ctr || 0),
-            spent:       parseFloat(((cur.spent || 0) / n).toFixed(2)),
-            leads:       Math.round((cur.leads || 0) / n),
-            status:      c.status || 'ACTIVE',
-          }));
-        }
+          : ownCampaigns.slice(0, 20);
+        const n = Math.max(sourceCamps.length, 1);
+        topCampaigns = sourceCamps.map((c, i) => ({
+          id:          c.id,
+          impressions: Math.round((cur.impressions || 0) / n),
+          clicks:      Math.round((cur.clicks || 0) / n),
+          ctr:         parseFloat(cur.ctr || 0),
+          spent:       parseFloat(((cur.spent || 0) / n).toFixed(2)),
+          leads:       Math.round((cur.leads || 0) / n),
+        }));
       }
 
-      // ── Step 4: Generate the AI report ───────────────────────
+      // ── Generate the AI report ──
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
