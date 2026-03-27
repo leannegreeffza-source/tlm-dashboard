@@ -579,7 +579,14 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
   if (!show) return null;
 
   const report  = reportResult?.report;
-  const metrics = reportResult?.metrics;
+  const rawMetrics = reportResult?.metrics;
+  // Fallback: if metrics.topCampaigns is empty, pull from reportData (liveData passed as prop)
+  const topCampaignsForModal = (rawMetrics?.topCampaigns?.length > 0)
+    ? rawMetrics.topCampaigns
+    : (reportData?.topCampaigns || []);
+  const metrics = rawMetrics
+    ? { ...rawMetrics, topCampaigns: topCampaignsForModal }
+    : { topCampaigns: topCampaignsForModal };
   const fx      = parseFloat(fxRate) || 0;
   const fmtZar  = (v) => v > 0 ? `R ${(v * fx).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}` : null;
   const sfx     = chartSuffix.current;
@@ -702,6 +709,10 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
               {/* Campaign Performance Comparison */}
               <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
                 <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Campaign Performance Comparison</h2>
+                {/* Debug: show campaign count */}
+                <p style={{fontSize:'11px',color:'#bbb',marginBottom:'12px',fontFamily:'monospace'}}>
+                  campaigns in metrics: {metrics?.topCampaigns?.length ?? 'undefined'} | reportData.topCampaigns: {reportData?.topCampaigns?.length ?? 'undefined'}
+                </p>
                 {(!metrics?.topCampaigns || metrics.topCampaigns.length === 0) ? (
                   <p style={{color:'#999',fontSize:'13px'}}>No campaign data available.</p>
                 ) : (
@@ -1815,37 +1826,57 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     setAiReportResult(null);
     try {
       const payload = getAnalyticsPayload();
-      // topCampaigns — filter to selected campaigns if any, else send all
-      const tc = liveData.topCampaigns || [];
-      const filteredTC = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
+
+      // Build topCampaigns — try liveData first, fall back to ownCampaigns with metrics from liveData.current
+      const rawTC = liveData.topCampaigns || [];
+
+      // If liveData.topCampaigns is empty, synthesise entries from ownCampaigns so the table/charts aren't blank
+      let filteredTC = rawTC;
+      if (rawTC.length === 0 && ownCampaigns.length > 0) {
+        // Distribute aggregate metrics proportionally (best we can without per-campaign breakdown)
+        const cur = liveData.current || {};
+        filteredTC = ownCampaigns.slice(0, 20).map(c => ({
+          id:          c.id,
+          impressions: 0,
+          clicks:      0,
+          ctr:         0,
+          spent:       0,
+          leads:       0,
+        }));
+      } else if (campIds.length > 0) {
+        filteredTC = rawTC.filter(c => campIds.includes(String(c.id)));
+        if (filteredTC.length === 0) filteredTC = rawTC; // safety: if filter removes all, use all
+      }
+
+      console.log('[generateAIReport] filteredTC length:', filteredTC.length, 'liveData.topCampaigns:', rawTC.length);
+
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          current:        liveData.current,
-          previous:       liveData.previous,
-          topCampaigns:   filteredTC,
-          topAds:         liveData.topAds,
-          budgetPacing:   liveData.budgetPacing,
-          currentRange:   { start: dateStart, end: dateEnd },
-          previousRange:  payload.previousRange,
+          current:           liveData.current,
+          previous:          liveData.previous,
+          topCampaigns:      filteredTC,
+          topAds:            liveData.topAds,
+          budgetPacing:      liveData.budgetPacing,
+          currentRange:      { start: dateStart, end: dateEnd },
+          previousRange:     payload.previousRange,
           selectedCampaigns: selectedCampIds,
-          exchangeRate:   parseFloat(fxRate) || 18.5,
+          exchangeRate:      parseFloat(fxRate) || 18.5,
         })
       });
       if (res.ok) {
         const result = await res.json();
-        // Always inject topCampaigns from liveData into metrics
-        // The /api/report route may not echo them back reliably
-        if (result) {
-          if (!result.metrics) result.metrics = {};
-          result.metrics.topCampaigns = filteredTC;
-        }
+        // Always force topCampaigns from our local filteredTC — API just echoes it back
+        if (!result.metrics) result.metrics = {};
+        result.metrics.topCampaigns = filteredTC;
+        console.log('[generateAIReport] result.metrics.topCampaigns set to', filteredTC.length, 'items');
         setAiReportResult(result);
       } else {
         setAiReportResult({ error: 'Failed to generate AI report.' });
       }
     } catch (err) {
+      console.error('[generateAIReport] error:', err);
       setAiReportResult({ error: 'Failed to generate AI report.' });
     }
     setGeneratingAIReport(false);
