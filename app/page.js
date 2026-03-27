@@ -495,57 +495,67 @@ function InlineCharts({ campaigns, campaignNameMap }) {
   const ctrRef    = useRef(null);
   const clicksRef = useRef(null);
   const imprRef   = useRef(null);
-  const charts    = useRef({});
-
-  const labels = campaigns.map(c => {
-    const n = campaignNameMap?.[String(c.id)] || ('Campaign ' + c.id);
-    return n.length > 22 ? n.substring(0, 22) + '…' : n;
-  });
-
-  function buildChart(ref, data, label, color) {
-    if (!ref.current || !window.Chart) return;
-    if (charts.current[label]) { try { charts.current[label].destroy(); } catch(e) {} }
-    charts.current[label] = new window.Chart(ref.current, {
-      type: 'bar',
-      data: { labels, datasets: [{ label, data, backgroundColor: color, borderRadius: 4 }] },
-      options: {
-        responsive: true,
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }, y: { grid: { display: false } } }
-      }
-    });
-  }
-
-  function drawAll() {
-    buildChart(spendRef,  campaigns.map(c => parseFloat(c.spent)     || 0), 'Spend',       '#2196F3');
-    buildChart(ctrRef,    campaigns.map(c => parseFloat(c.ctr)       || 0), 'CTR %',       '#4caf50');
-    buildChart(clicksRef, campaigns.map(c => parseInt(c.clicks)      || 0), 'Clicks',      '#ff9800');
-    buildChart(imprRef,   campaigns.map(c => parseInt(c.impressions) || 0), 'Impressions', '#9c27b0');
-  }
+  const chartInstances = useRef({});
 
   useEffect(() => {
     if (!campaigns?.length) return;
+
+    function draw() {
+      const labels = campaigns.map(c => {
+        const n = campaignNameMap?.[String(c.id)] || ('Campaign ' + c.id);
+        return n.length > 22 ? n.substring(0, 22) + '\u2026' : n;
+      });
+
+      function make(ref, data, label, color) {
+        if (!ref.current || !window.Chart) return;
+        if (chartInstances.current[label]) {
+          try { chartInstances.current[label].destroy(); } catch(e) {}
+        }
+        chartInstances.current[label] = new window.Chart(ref.current, {
+          type: 'bar',
+          data: { labels, datasets: [{ label, data, backgroundColor: color, borderRadius: 4 }] },
+          options: {
+            responsive: true,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' } },
+              y: { grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      make(spendRef,  campaigns.map(c => parseFloat(c.spent)     || 0), 'Spend',       '#2196F3');
+      make(ctrRef,    campaigns.map(c => parseFloat(c.ctr)       || 0), 'CTR %',       '#4caf50');
+      make(clicksRef, campaigns.map(c => parseInt(c.clicks)      || 0), 'Clicks',      '#ff9800');
+      make(imprRef,   campaigns.map(c => parseInt(c.impressions) || 0), 'Impressions', '#9c27b0');
+    }
+
     if (window.Chart) {
-      drawAll();
+      draw();
     } else {
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-      s.onload = drawAll;
+      s.onload = draw;
       document.head.appendChild(s);
     }
-    return () => { Object.values(charts.current).forEach(c => { try { c.destroy(); } catch(e) {} }); };
+
+    return () => {
+      Object.values(chartInstances.current).forEach(ch => { try { ch.destroy(); } catch(e) {} });
+      chartInstances.current = {};
+    };
   }, [campaigns, campaignNameMap]);
 
-  const chartStyle = { padding:'20px', background:'white', border:'1px solid #e0e0e0', borderRadius:'8px' };
-  const titleStyle = { marginBottom:'15px', color:'#0e1034', fontSize:'15px', fontWeight:600 };
+  const box = { padding:'20px', background:'white', border:'1px solid #e0e0e0', borderRadius:'8px' };
+  const ttl = { marginBottom:'12px', color:'#0e1034', fontSize:'14px', fontWeight:600 };
 
   return (
     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-      <div style={chartStyle}><h3 style={titleStyle}>Spend (USD) by Campaign</h3><canvas ref={spendRef}  style={{maxHeight:'280px'}} /></div>
-      <div style={chartStyle}><h3 style={titleStyle}>CTR by Campaign</h3>         <canvas ref={ctrRef}    style={{maxHeight:'280px'}} /></div>
-      <div style={chartStyle}><h3 style={titleStyle}>Clicks by Campaign</h3>      <canvas ref={clicksRef} style={{maxHeight:'280px'}} /></div>
-      <div style={chartStyle}><h3 style={titleStyle}>Impressions by Campaign</h3> <canvas ref={imprRef}   style={{maxHeight:'280px'}} /></div>
+      <div style={box}><h3 style={ttl}>Spend (USD) by Campaign</h3> <canvas ref={spendRef}  /></div>
+      <div style={box}><h3 style={ttl}>CTR (%) by Campaign</h3>     <canvas ref={ctrRef}    /></div>
+      <div style={box}><h3 style={ttl}>Clicks by Campaign</h3>      <canvas ref={clicksRef} /></div>
+      <div style={box}><h3 style={ttl}>Impressions by Campaign</h3> <canvas ref={imprRef}   /></div>
     </div>
   );
 }
@@ -1825,9 +1835,11 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       });
       if (res.ok) {
         const result = await res.json();
-        // Ensure metrics.topCampaigns is always populated from liveData
-        if (result && result.metrics) {
-          result.metrics.topCampaigns = filteredTC.length > 0 ? filteredTC : (result.metrics.topCampaigns || []);
+        // Always inject topCampaigns from liveData into metrics
+        // The /api/report route may not echo them back reliably
+        if (result) {
+          if (!result.metrics) result.metrics = {};
+          result.metrics.topCampaigns = filteredTC;
         }
         setAiReportResult(result);
       } else {
