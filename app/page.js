@@ -1816,43 +1816,90 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // ── Step 1: Determine which campaigns to include ──────────
-      // Respect the user's selection in Report Generator exactly
-      let topCampaigns = [];
+      // ── Step 1: Determine EXACTLY which items the user has selected ─────
+      // This mirrors precisely what the Report Generator is showing.
+      // We build a definitive list of IDs based on reportLevel + selection state.
 
-      // If liveData already has real per-campaign data, use it directly
-      const liveCamps = liveData.topCampaigns || [];
-      if (liveCamps.length > 0) {
-        topCampaigns = campIds.length > 0
-          ? liveCamps.filter(c => campIds.includes(String(c.id)))
-          : liveCamps;
+      let selectedIds = [];        // the IDs to fetch analytics for
+      let idType = 'campaignIds';  // which analytics API field to use
+
+      if (reportLevel === 'groups' && selectedGroupIds.length > 0) {
+        // User selected specific Campaign Groups
+        selectedIds = selectedGroupIds;
+        idType = 'campaignGroupIds';
+      } else if (reportLevel === 'groups' && selectedGroupIds.length === 0) {
+        // No groups selected — use all groups
+        selectedIds = ownGroups.map(g => String(g.id));
+        idType = 'campaignGroupIds';
+      } else if (reportLevel === 'campaigns' && selectedCampIds.length > 0) {
+        // User selected specific Ad Sets / Campaigns
+        selectedIds = selectedCampIds;
+        idType = 'campaignIds';
+      } else if (reportLevel === 'campaigns' && selectedCampIds.length === 0) {
+        // No ad sets selected — use all
+        selectedIds = ownCampaigns.map(c => String(c.id));
+        idType = 'campaignIds';
+      } else if (reportLevel === 'ads' && selectedAdIds.length > 0) {
+        // User selected specific Ads — report on their parent campaigns
+        selectedIds = selectedCampIds.length > 0 ? selectedCampIds : ownCampaigns.map(c => String(c.id));
+        idType = 'campaignIds';
+      } else {
+        // Fallback: use all campaigns
+        selectedIds = ownCampaigns.map(c => String(c.id));
+        idType = 'campaignIds';
       }
 
-      // ── Step 2: Fetch per-campaign analytics individually ─────
-      // This is the only reliable way — each campaign gets its own API call
-      if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
-        const sourceCamps = campIds.length > 0
-          ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
-          : ownCampaigns.slice(0, 20);
+      selectedIds = selectedIds.slice(0, 50);
 
-        // Fetch all campaigns in parallel — each with its own campaignIds:[id]
+      // The display-level campaigns for the report table come from ownCampaigns
+      // filtered to match the selection
+      const sourceCamps = (() => {
+        if (reportLevel === 'groups') {
+          // For groups, show all campaigns (group analytics returns account-level breakdown)
+          return ownCampaigns.slice(0, 20);
+        }
+        if (reportLevel === 'campaigns' && selectedCampIds.length > 0) {
+          return ownCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+        }
+        if (reportLevel === 'ads' && selectedCampIds.length > 0) {
+          return ownCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+        }
+        return ownCampaigns.slice(0, 20);
+      })();
+
+      // ── Step 2: Try liveData.topCampaigns first ────────────────
+      let topCampaigns = [];
+      const liveCamps = liveData.topCampaigns || [];
+      if (liveCamps.length > 0) {
+        if (reportLevel === 'campaigns' && selectedCampIds.length > 0) {
+          topCampaigns = liveCamps.filter(c => selectedCampIds.includes(String(c.id)));
+        } else if (reportLevel === 'ads' && selectedCampIds.length > 0) {
+          topCampaigns = liveCamps.filter(c => selectedCampIds.includes(String(c.id)));
+        } else {
+          topCampaigns = liveCamps;
+        }
+      }
+
+      // ── Step 3: Fetch per-item analytics individually in parallel ──
+      // Each item gets its own API call so data is real, not distributed evenly
+      if (topCampaigns.length === 0 && sourceCamps.length > 0) {
         const results = await Promise.all(
           sourceCamps.map(async (camp) => {
             try {
+              const body = {
+                accountIds:   [selectedAcctId],
+                campaignIds:  [String(camp.id)],
+                currentRange: { start: dateStart, end: dateEnd },
+                previousRange: payload.previousRange,
+                exchangeRate: parseFloat(fxRate) || 18.5,
+              };
               const r = await fetch('/api/analytics', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accountIds:   [selectedAcctId],
-                  campaignIds:  [String(camp.id)],
-                  currentRange: { start: dateStart, end: dateEnd },
-                  previousRange: payload.previousRange,
-                  exchangeRate: parseFloat(fxRate) || 18.5,
-                })
+                body: JSON.stringify(body)
               });
               if (!r.ok) return null;
               const d = await r.json();
-              // Each single-campaign response returns aggregate for that campaign
-              const cur = d.current || d.topCampaigns?.[0] || {};
+              const cur = d.current || {};
               return {
                 id:          camp.id,
                 name:        camp.name,
@@ -1869,27 +1916,45 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
             } catch { return null; }
           })
         );
-
         topCampaigns = results.filter(Boolean).filter(c => c.impressions > 0 || c.clicks > 0 || c.spent > 0);
-
-        // If individual fetches all returned zeros, keep all (some may be valid with 0 impressions)
-        if (topCampaigns.length === 0) {
-          topCampaigns = results.filter(Boolean);
-        }
+        if (topCampaigns.length === 0) topCampaigns = results.filter(Boolean);
       }
 
-      // ── Step 3: Generate the AI report ───────────────────────
+      // ── Step 4: Build filtered aggregate metrics for selected items ──
+      // If specific campaigns/ad-sets selected, sum their metrics; else use liveData.current
+      const current = (() => {
+        if (topCampaigns.length > 0 && (selectedCampIds.length > 0 || selectedGroupIds.length > 0)) {
+          const imp  = topCampaigns.reduce((s,c) => s + (c.impressions||0), 0);
+          const clk  = topCampaigns.reduce((s,c) => s + (c.clicks||0), 0);
+          const spd  = topCampaigns.reduce((s,c) => s + (c.spent||0), 0);
+          const lds  = topCampaigns.reduce((s,c) => s + (c.leads||0), 0);
+          return {
+            ...liveData.current,
+            impressions: imp,
+            clicks:      clk,
+            spent:       spd,
+            leads:       lds,
+            ctr:         imp > 0 ? clk / imp * 100 : 0,
+            cpl:         lds > 0 ? spd / lds : 0,
+            cpm:         imp > 0 ? spd / imp * 1000 : 0,
+            cpc:         clk > 0 ? spd / clk : 0,
+          };
+        }
+        return liveData.current;
+      })();
+
+      // ── Step 5: Generate the AI report ───────────────────────
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          current:           liveData.current,
+          current,
           previous:          liveData.previous,
           topCampaigns,
           topAds:            liveData.topAds,
           budgetPacing:      liveData.budgetPacing,
           currentRange:      { start: dateStart, end: dateEnd },
           previousRange:     payload.previousRange,
-          selectedCampaigns: campIds.length > 0 ? campIds : selectedCampIds,
+          selectedCampaigns: selectedCampIds.length > 0 ? selectedCampIds : selectedGroupIds,
           exchangeRate:      parseFloat(fxRate) || 18.5,
         })
       });
@@ -2649,11 +2714,16 @@ ${buildChartScript(display, campaignNameMap)}
             {generatingAIReport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>✦</span>}
             {generatingAIReport
               ? 'Generating...'
-              : campIds.length > 0
-                ? `AI Report (${campIds.length} campaign${campIds.length !== 1 ? 's' : ''})`
-                : selectedGroupIds.length > 0
-                  ? `AI Report (${selectedGroupIds.length} group${selectedGroupIds.length !== 1 ? 's' : ''})`
-                  : 'AI Report'}
+              : (() => {
+                  if (reportLevel === 'campaigns' && selectedCampIds.length > 0)
+                    return `AI Report (${selectedCampIds.length} ad set${selectedCampIds.length !== 1 ? 's' : ''})`;
+                  if (reportLevel === 'groups' && selectedGroupIds.length > 0)
+                    return `AI Report (${selectedGroupIds.length} campaign${selectedGroupIds.length !== 1 ? 's' : ''})`;
+                  if (reportLevel === 'ads' && selectedAdIds.length > 0)
+                    return `AI Report (${selectedAdIds.length} ad${selectedAdIds.length !== 1 ? 's' : ''})`;
+                  return 'AI Report (all)';
+                })()
+            }
           </button>
 
           {report && (
