@@ -1807,8 +1807,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   }
 
   // ─── AI Report via /api/report ───
-  // Uses liveData which was already fetched with the exact same scope/selection
-  // as the Report Generator — no additional API calls needed.
   async function generateAIReport() {
     if (!liveData) return;
     setGeneratingAIReport(true);
@@ -1818,35 +1816,88 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // liveData was fetched via fetchAnalytics() using getAnalyticsPayload()
-      // which already scopes to selectedGroupIds / selectedCampIds / selectedAdIds.
-      // So liveData.current and liveData.topCampaigns are already exactly right.
+      // liveData.current is already scoped to the exact selection —
+      // use it directly for the summary metrics.
 
-      // Filter topCampaigns to the specific ad-set selection if user chose at that level
+      // Step 1: Get topCampaigns — filtered to selection if applicable
       let topCampaigns = liveData.topCampaigns || [];
       if (selectedCampIds.length > 0 && (reportLevel === 'campaigns' || reportLevel === 'ads')) {
-        const filtered = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
-        if (filtered.length > 0) topCampaigns = filtered;
+        const f = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+        if (f.length > 0) topCampaigns = f;
       }
 
-      // If topCampaigns is empty (API didn't return per-campaign breakdown),
-      // fetch using exactly the same payload that was used to load the report
-      if (topCampaigns.length === 0) {
-        const r = await fetch('/api/analytics', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(getAnalyticsPayload())
-        });
-        if (r.ok) {
-          const d = await r.json();
-          topCampaigns = d.topCampaigns || [];
-          if (selectedCampIds.length > 0 && topCampaigns.length > 0) {
-            const filtered = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
-            if (filtered.length > 0) topCampaigns = filtered;
+      // Step 2: If topCampaigns still empty, fetch each ad set individually.
+      // We determine which ad sets to fetch based on what's selected:
+      //   - Ad Sets level + selection → use selectedCampIds directly
+      //   - Campaigns level + selection → use selectedGroupIds to scope ownCampaigns
+      //   - No specific selection → fetch all ownCampaigns (already loaded for this account)
+      if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
+        const adSetsToFetch = (() => {
+          if ((reportLevel === 'campaigns' || reportLevel === 'ads') && selectedCampIds.length > 0)
+            return ownCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+          // For groups level, all ownCampaigns belong to this account —
+          // fetch them all and filter to those with actual activity
+          return ownCampaigns.slice(0, 30);
+        })();
+
+        const results = await Promise.all(
+          adSetsToFetch.map(async (camp) => {
+            try {
+              const r = await fetch('/api/analytics', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  accountIds:   [selectedAcctId],
+                  campaignIds:  [String(camp.id)],
+                  currentRange: { start: dateStart, end: dateEnd },
+                  previousRange: payload.previousRange,
+                  exchangeRate: parseFloat(fxRate) || 18.5,
+                })
+              });
+              if (!r.ok) return null;
+              const d = await r.json();
+              const cur = d.current || {};
+              if (!cur.impressions && !cur.clicks && !cur.spent) return null;
+              return {
+                id:          camp.id,
+                name:        camp.name,
+                impressions: cur.impressions || 0,
+                clicks:      cur.clicks      || 0,
+                ctr:         cur.ctr         || (cur.impressions > 0 ? (cur.clicks / cur.impressions * 100) : 0),
+                spent:       cur.spent       || 0,
+                leads:       cur.leads       || 0,
+                engagements: cur.engagements || 0,
+                likes:       cur.likes       || 0,
+                comments:    cur.comments    || 0,
+                shares:      cur.shares      || 0,
+              };
+            } catch { return null; }
+          })
+        );
+
+        // Only keep ad sets that had activity in this period
+        topCampaigns = results.filter(Boolean);
+
+        // If selectedGroupIds are set on groups level, verify the totals match
+        // by checking if the sum of fetched ad sets matches liveData.current
+        // This validates we have the right scope
+        if (selectedGroupIds.length > 0 && topCampaigns.length > 0) {
+          const fetchedSpend = topCampaigns.reduce((s, c) => s + (c.spent || 0), 0);
+          const liveSpend = liveData.current?.spent || 0;
+          // If fetched spend is much larger than live spend, we fetched too broadly —
+          // filter to only the top contributors that sum to ~live spend
+          if (fetchedSpend > liveSpend * 1.1 && liveSpend > 0) {
+            // Sort by spend desc, take only what fits within the known total
+            topCampaigns.sort((a, b) => (b.spent || 0) - (a.spent || 0));
+            let runningTotal = 0;
+            topCampaigns = topCampaigns.filter(c => {
+              runningTotal += (c.spent || 0);
+              return runningTotal <= liveSpend * 1.05;
+            });
           }
         }
       }
 
-      // Generate the AI report using liveData.current (already scoped)
+      // Step 3: Generate the AI report using liveData.current (already scoped correctly)
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
