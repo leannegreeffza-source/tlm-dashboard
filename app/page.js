@@ -709,10 +709,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
               {/* Campaign Performance Comparison */}
               <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
                 <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Campaign Performance Comparison</h2>
-                {/* Debug: show campaign count */}
-                <p style={{fontSize:'11px',color:'#bbb',marginBottom:'12px',fontFamily:'monospace'}}>
-                  campaigns in metrics: {metrics?.topCampaigns?.length ?? 'undefined'} | reportData.topCampaigns: {reportData?.topCampaigns?.length ?? 'undefined'}
-                </p>
                 {(!metrics?.topCampaigns || metrics.topCampaigns.length === 0) ? (
                   <p style={{color:'#999',fontSize:'13px'}}>No campaign data available.</p>
                 ) : (
@@ -731,18 +727,18 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                           const name = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
                           return (
                             <tr key={c.id || i} style={{background:i%2===0?'white':'#fafafa'}}>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>
                                 <strong>{name}</strong><br/>
-                                <span style={{fontSize:'11px',color:'#999',fontFamily:'monospace'}}>ID: {c.id}</span>
+                                <span style={{fontSize:'11px',color:'#888',fontFamily:'monospace'}}>ID: {c.id}</span>
                               </td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{(c.impressions||0).toLocaleString()}</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{(c.clicks||0).toLocaleString()}</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{parseFloat(c.ctr||0).toFixed(2)}%</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>${(c.spent||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.leads||0}</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:statusColor(analysis?.status)}} contentEditable suppressContentEditableWarning>{perfBadge(analysis?.performance)}</td>
-                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0'}} contentEditable suppressContentEditableWarning>{trendArrow(analysis?.trend)}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>{(c.impressions||0).toLocaleString()}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>{(c.clicks||0).toLocaleString()}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>{parseFloat(c.ctr||0).toFixed(2)}%</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>${(c.spent||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>{c.leads||0}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>{c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:statusColor(analysis?.status),fontWeight:600}} contentEditable suppressContentEditableWarning>{perfBadge(analysis?.performance)}</td>
+                              <td style={{padding:'12px',borderBottom:'1px solid #e0e0e0',color:'#111'}} contentEditable suppressContentEditableWarning>{trendArrow(analysis?.trend)}</td>
                             </tr>
                           );
                         })}
@@ -1827,28 +1823,30 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // Build topCampaigns — try liveData first, fall back to ownCampaigns with metrics from liveData.current
-      const rawTC = liveData.topCampaigns || [];
+      // Get topCampaigns — if analytics didn't return them, fetch with explicit campaignIds
+      let filteredTC = liveData.topCampaigns || [];
 
-      // If liveData.topCampaigns is empty, synthesise entries from ownCampaigns so the table/charts aren't blank
-      let filteredTC = rawTC;
-      if (rawTC.length === 0 && ownCampaigns.length > 0) {
-        // Distribute aggregate metrics proportionally (best we can without per-campaign breakdown)
-        const cur = liveData.current || {};
-        filteredTC = ownCampaigns.slice(0, 20).map(c => ({
-          id:          c.id,
-          impressions: 0,
-          clicks:      0,
-          ctr:         0,
-          spent:       0,
-          leads:       0,
-        }));
+      if (filteredTC.length === 0 && ownCampaigns.length > 0) {
+        // Re-fetch analytics with explicit campaign IDs to get per-campaign breakdown
+        const campIdsToFetch = (campIds.length > 0 ? campIds : ownCampaigns.map(c => String(c.id))).slice(0, 50);
+        try {
+          const r2 = await fetch('/api/analytics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...payload,
+              campaignIds: campIdsToFetch,
+            })
+          });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            filteredTC = d2.topCampaigns || [];
+          }
+        } catch(e) { console.warn('Per-campaign fetch failed', e); }
       } else if (campIds.length > 0) {
-        filteredTC = rawTC.filter(c => campIds.includes(String(c.id)));
-        if (filteredTC.length === 0) filteredTC = rawTC; // safety: if filter removes all, use all
+        filteredTC = filteredTC.filter(c => campIds.includes(String(c.id)));
+        if (filteredTC.length === 0) filteredTC = liveData.topCampaigns || [];
       }
-
-      console.log('[generateAIReport] filteredTC length:', filteredTC.length, 'liveData.topCampaigns:', rawTC.length);
 
       const res = await fetch('/api/report', {
         method: 'POST',
@@ -1867,16 +1865,14 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       });
       if (res.ok) {
         const result = await res.json();
-        // Always force topCampaigns from our local filteredTC — API just echoes it back
         if (!result.metrics) result.metrics = {};
         result.metrics.topCampaigns = filteredTC;
-        console.log('[generateAIReport] result.metrics.topCampaigns set to', filteredTC.length, 'items');
         setAiReportResult(result);
       } else {
         setAiReportResult({ error: 'Failed to generate AI report.' });
       }
     } catch (err) {
-      console.error('[generateAIReport] error:', err);
+      console.error('[generateAIReport]', err);
       setAiReportResult({ error: 'Failed to generate AI report.' });
     }
     setGeneratingAIReport(false);
