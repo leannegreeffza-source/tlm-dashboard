@@ -489,6 +489,67 @@ function FXCalculatorBlock({ reportData, currentRange }) {
   );
 }
 
+// ── InlineCharts — owns its own canvas refs, no getElementById race ──
+function InlineCharts({ campaigns, campaignNameMap }) {
+  const spendRef  = useRef(null);
+  const ctrRef    = useRef(null);
+  const clicksRef = useRef(null);
+  const imprRef   = useRef(null);
+  const charts    = useRef({});
+
+  const labels = campaigns.map(c => {
+    const n = campaignNameMap?.[String(c.id)] || ('Campaign ' + c.id);
+    return n.length > 22 ? n.substring(0, 22) + '…' : n;
+  });
+
+  function buildChart(ref, data, label, color) {
+    if (!ref.current || !window.Chart) return;
+    if (charts.current[label]) { try { charts.current[label].destroy(); } catch(e) {} }
+    charts.current[label] = new window.Chart(ref.current, {
+      type: 'bar',
+      data: { labels, datasets: [{ label, data, backgroundColor: color, borderRadius: 4 }] },
+      options: {
+        responsive: true,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }, y: { grid: { display: false } } }
+      }
+    });
+  }
+
+  function drawAll() {
+    buildChart(spendRef,  campaigns.map(c => parseFloat(c.spent)     || 0), 'Spend',       '#2196F3');
+    buildChart(ctrRef,    campaigns.map(c => parseFloat(c.ctr)       || 0), 'CTR %',       '#4caf50');
+    buildChart(clicksRef, campaigns.map(c => parseInt(c.clicks)      || 0), 'Clicks',      '#ff9800');
+    buildChart(imprRef,   campaigns.map(c => parseInt(c.impressions) || 0), 'Impressions', '#9c27b0');
+  }
+
+  useEffect(() => {
+    if (!campaigns?.length) return;
+    if (window.Chart) {
+      drawAll();
+    } else {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+      s.onload = drawAll;
+      document.head.appendChild(s);
+    }
+    return () => { Object.values(charts.current).forEach(c => { try { c.destroy(); } catch(e) {} }); };
+  }, [campaigns, campaignNameMap]);
+
+  const chartStyle = { padding:'20px', background:'white', border:'1px solid #e0e0e0', borderRadius:'8px' };
+  const titleStyle = { marginBottom:'15px', color:'#0e1034', fontSize:'15px', fontWeight:600 };
+
+  return (
+    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+      <div style={chartStyle}><h3 style={titleStyle}>Spend (USD) by Campaign</h3><canvas ref={spendRef}  style={{maxHeight:'280px'}} /></div>
+      <div style={chartStyle}><h3 style={titleStyle}>CTR by Campaign</h3>         <canvas ref={ctrRef}    style={{maxHeight:'280px'}} /></div>
+      <div style={chartStyle}><h3 style={titleStyle}>Clicks by Campaign</h3>      <canvas ref={clicksRef} style={{maxHeight:'280px'}} /></div>
+      <div style={chartStyle}><h3 style={titleStyle}>Impressions by Campaign</h3> <canvas ref={imprRef}   style={{maxHeight:'280px'}} /></div>
+    </div>
+  );
+}
+
 function AIReportModal({ show, onClose, generatingReport, reportData, reportResult, currentRange, previousRange, campaignNameMap, fxRate }) {
   const reportRef = useRef(null);
   const chartSuffix = useRef(Date.now());
@@ -670,22 +731,14 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                 )}
               </div>
 
-              {/* Performance Charts */}
+              {/* Performance Charts — self-contained with refs, no ID race condition */}
               <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
                 <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Performance Charts</h2>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'20px'}}>
-                  {[
-                    { id:`spendChart_${sfx}`,       title:'Spend (USD) by Campaign' },
-                    { id:`ctrChart_${sfx}`,         title:'CTR by Campaign' },
-                    { id:`clicksChart_${sfx}`,      title:'Clicks by Campaign' },
-                    { id:`impressionsChart_${sfx}`, title:'Impressions by Campaign' },
-                  ].map(chart => (
-                    <div key={chart.id} style={{padding:'20px',background:'white',border:'1px solid #e0e0e0',borderRadius:'8px'}}>
-                      <h3 style={{marginBottom:'15px',color:'#0e1034',fontSize:'16px'}}>{chart.title}</h3>
-                      <canvas id={chart.id} style={{maxHeight:'300px'}}></canvas>
-                    </div>
-                  ))}
-                </div>
+                {metrics?.topCampaigns?.length > 0 ? (
+                  <InlineCharts campaigns={metrics.topCampaigns} campaignNameMap={campaignNameMap} />
+                ) : (
+                  <p style={{color:'#999',fontSize:'13px'}}>No campaign data available for charts.</p>
+                )}
               </div>
 
               {/* Optimization Recommendations */}
@@ -742,13 +795,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
           </div>
         ) : null}
 
-        {report && metrics?.topCampaigns?.length > 0 && (
-          <ChartRenderer
-            campaigns={metrics.topCampaigns}
-            campaignNameMap={campaignNameMap}
-            suffix={sfx}
-          />
-        )}
       </div>
     </div>
   );
