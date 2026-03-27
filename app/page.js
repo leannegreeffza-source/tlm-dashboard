@@ -1409,6 +1409,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [region,    setRegion]    = useState('ZA');
   const [dateStart, setDateStart] = useState(parentRange?.start || '');
   const [dateEnd,   setDateEnd]   = useState(parentRange?.end   || '');
+  const [fxRate,    setFxRate]    = useState('18.50');
 
   // ─── Report + AI ───
   const [report,    setReport]    = useState(null);
@@ -2238,6 +2239,26 @@ ${buildChartScript(display, campaignNameMap)}
           </div>
         </div>
 
+        {/* Row 2: FX Rate */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <div>
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">USD → ZAR Exchange Rate</div>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-mono">R</span>
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                placeholder="e.g. 18.50"
+                value={fxRate}
+                onChange={e => setFxRate(e.target.value)}
+                className="w-full pl-7 pr-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500"
+              />
+            </div>
+            <p className="text-xs text-slate-600 mt-1">$1 USD = R{parseFloat(fxRate)||0} ZAR</p>
+          </div>
+        </div>
+
         {/* ── Report Level Tabs ── */}
         <div className="mb-5">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Report Level</div>
@@ -2623,7 +2644,74 @@ ${buildChartScript(display, campaignNameMap)}
             );
           })()}
 
-          {/* ── AI Insights ── */}
+          {/* ── ZAR Summary Block ── */}
+          {(() => {
+            const fx  = parseFloat(fxRate) || 0;
+            if (!fx) return null;
+            const spend     = agg.spend || agg.spent || 0;
+            const cpc       = agg.cpc   || 0;
+            const cpm       = agg.cpm   || 0;
+            const cpl       = agg.cpl   || 0;
+            const cpv       = agg.cpv   || 0;
+            const zarSpend  = spend * fx;
+            const zarCpc    = cpc   * fx;
+            const zarCpm    = cpm   * fx;
+            const zarCpl    = cpl   * fx;
+            const zarCpv    = cpv   * fx;
+            const fmtZar = (v) => `R ${v.toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+            const zarCards = [
+              { label: 'Total Spent (ZAR)',    val: fmtZar(zarSpend), sub: `$${spend.toFixed(2)} USD × R${fx}` },
+              { label: 'CPC (ZAR)',            val: fmtZar(zarCpc),   sub: `$${cpc.toFixed(2)} USD × R${fx}` },
+              { label: 'CPM (ZAR)',            val: fmtZar(zarCpm),   sub: `$${cpm.toFixed(2)} USD × R${fx}` },
+              ...(cpl  > 0 ? [{ label: 'CPL (ZAR)', val: fmtZar(zarCpl), sub: `$${cpl.toFixed(2)} USD × R${fx}` }] : []),
+              ...(cpv  > 0 ? [{ label: 'CPV (ZAR)', val: fmtZar(zarCpv), sub: `$${cpv.toFixed(2)} USD × R${fx}` }] : []),
+            ];
+
+            return (
+              <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#1a1a1a'}}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black"
+                      style={{background:'#F6DC4E',color:'#272828'}}>R</div>
+                    <div>
+                      <div className="font-bold text-white text-sm">ZAR Summary</div>
+                      <div className="text-xs" style={{color:'#888'}}>
+                        Exchange rate: $1 USD = R{fx.toFixed(2)} ZAR
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Adjust rate:</span>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1.5 text-xs text-slate-400 font-mono">R</span>
+                      <input
+                        type="number" min="1" step="0.01" value={fxRate}
+                        onChange={e => setFxRate(e.target.value)}
+                        className="w-24 pl-6 pr-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* ZAR cards */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-6">
+                  {zarCards.map(card => (
+                    <div key={card.label} className="rounded-xl p-5 border border-slate-700" style={{background:'#272828'}}>
+                      <div className="text-xs font-bold uppercase tracking-wide mb-2"
+                        style={{color:'#888',letterSpacing:'1px'}}>{card.label}</div>
+                      <div className="text-2xl font-bold mb-2 text-white"
+                        style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>{card.val}</div>
+                      <div className="text-xs font-mono" style={{color:'#555'}}>{card.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-6 pb-4 text-xs text-slate-600">
+                  All values converted from USD using exchange rate R{fx.toFixed(2)}. Update the rate above to recalculate instantly.
+                </div>
+              </div>
+            );
+          })()}
           {(aiLoading || aiText || aiError) && (
             <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#272828'}}>
               {/* Header */}
