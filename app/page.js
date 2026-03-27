@@ -73,7 +73,7 @@ function DateRangePicker({ value, onChange }) {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white hover:bg-slate-600">
+        className="flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm font-medium text-white hover:bg-[#2a4a6e]">
         <Calendar className="w-4 h-4 text-slate-400" />
         {formatDisplay(value.start, value.end)}
         <ChevronDown className="w-4 h-4 text-slate-400" />
@@ -124,7 +124,7 @@ function SidebarSection({ title, loading, items, selectedIds, onToggle, onSelect
   const accent = accents[accentColor];
 
   return (
-    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div className="bg-[#0f1f3d] rounded-xl p-4 border border-[#1e3a5f]">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-bold text-white text-sm uppercase tracking-wide">{title}</h2>
         <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ function SidebarSection({ title, loading, items, selectedIds, onToggle, onSelect
         <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
         <input type="text" placeholder={searchPlaceholder}
           value={searchValue} onChange={e => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
+          className="w-full pl-9 pr-3 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
       </div>
       <div className="flex gap-2 mb-3">
         <button onClick={onSelectAll} className={`flex-1 px-2 py-1.5 text-white rounded-lg text-xs font-medium ${accent.btn}`}>Select All</button>
@@ -151,7 +151,7 @@ function SidebarSection({ title, loading, items, selectedIds, onToggle, onSelect
       <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
         {items.map(item => (
           <label key={item.id} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors ${
-            selectedIds.includes(item.id) ? `${accent.selected} text-white` : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-slate-500'
+            selectedIds.includes(item.id) ? `${accent.selected} text-white` : 'border-[#2a4a6e] text-slate-300 hover:bg-[#1e3a5f] hover:border-slate-500'
           }`}>
             <input type="checkbox" checked={selectedIds.includes(item.id)}
               onChange={() => onToggle(item.id)} className="w-4 h-4 accent-blue-500 mt-0.5 flex-shrink-0" />
@@ -184,12 +184,12 @@ function TopPerformingBlock({ title, items, accountId, type, nameMap }) {
 
   if (type === 'ad') {
     return (
-      <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+      <div className="bg-[#0f1f3d] rounded-xl p-5 border border-[#1e3a5f]">
         <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-4">{title}</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-600">
+              <tr className="border-b border-[#2a4a6e]">
                 <th className="text-left pb-2 px-2 text-slate-400 font-semibold whitespace-nowrap">Creative ID</th>
                 <th className="text-left pb-2 px-2 text-slate-400 font-semibold">Title</th>
                 <th className="text-left pb-2 px-2 text-slate-400 font-semibold">URL</th>
@@ -211,12 +211,12 @@ function TopPerformingBlock({ title, items, accountId, type, nameMap }) {
                 const otherEng = item.otherEngagements || 0;
                 const socialActions = (item.likes || 0) + (item.comments || 0) + (item.shares || 0) + (item.follows || 0);
                 return (
-                  <tr key={item.id} className="border-b border-slate-700 hover:bg-slate-700/30">
+                  <tr key={item.id} className="border-b border-[#1e3a5f] hover:bg-[#1e3a5f]/30">
                     <td className="py-3 px-2 font-mono text-slate-300 whitespace-nowrap">{item.id}</td>
                     <td className="py-3 px-2 text-slate-200 max-w-xs">
                       <div className="flex items-start gap-2">
                         {item.imageUrl && (
-                          <img src={item.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 border border-slate-600" />
+                          <img src={item.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 border border-[#2a4a6e]" />
                         )}
                         <span className="leading-snug">{name}</span>
                       </div>
@@ -245,11 +245,11 @@ function TopPerformingBlock({ title, items, accountId, type, nameMap }) {
   }
 
   return (
-    <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+    <div className="bg-[#0f1f3d] rounded-xl p-5 border border-[#1e3a5f]">
       <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-4">{title}</h3>
       <div className="space-y-3">
         {items.map((item, i) => (
-          <div key={item.id} className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
+          <div key={item.id} className="bg-[#1e3a5f]/50 rounded-lg p-3 border border-[#2a4a6e]">
             <div className="flex items-start justify-between gap-2 mb-1">
               <a href={getUrl(item.id)} target="_blank" rel="noopener noreferrer"
                 className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 min-w-0">
@@ -316,7 +316,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
   const barColors = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500'];
 
   return (
-    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 mt-6">
+    <div className="bg-[#0f1f3d] rounded-xl p-6 border border-[#1e3a5f] mt-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-8 h-8 rounded-lg bg-yellow-600 flex items-center justify-center text-white font-bold text-sm">R</div>
         <div>
@@ -339,13 +339,13 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 <label className="text-xs text-slate-400 block mb-1">Start Date</label>
                 <input type="date" value={p.start}
                   onChange={e => updatePeriod(i, 'start', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
+                  className="w-full px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">End Date</label>
                 <input type="date" value={p.end}
                   onChange={e => updatePeriod(i, 'end', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
+                  className="w-full px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Exchange Rate (R per $1)</label>
@@ -353,11 +353,11 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                   <span className="absolute left-2 top-1.5 text-slate-400 text-xs font-bold">R</span>
                   <input type="number" step="0.01" placeholder="18.50" value={p.rate}
                     onChange={e => updatePeriod(i, 'rate', e.target.value)}
-                    className="w-full pl-6 pr-2 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
+                    className="w-full pl-6 pr-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
               {periodResults[i].valid && (
-                <div className="mt-3 pt-3 border-t border-slate-600 space-y-1">
+                <div className="mt-3 pt-3 border-t border-[#2a4a6e] space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">USD Spend</span>
                     <span className="text-white font-mono">${periodResults[i].usdSpend.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
@@ -375,13 +375,13 @@ function FXCalculatorBlock({ reportData, currentRange }) {
 
       {zarTotalSpend > 0 && (
         <>
-          <div className="border-t border-slate-700 pt-6">
+          <div className="border-t border-[#1e3a5f] pt-6">
             <div className="flex items-center gap-2 mb-4">
               <h4 className="text-sm font-bold text-white uppercase tracking-wide">ZAR Summary</h4>
               <span className="text-xs text-slate-500">Blended Rate: R{blendedRate.toFixed(4)} / $1</span>
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-slate-700/50 rounded-xl p-5 border border-slate-600">
+              <div className="bg-[#1e3a5f]/50 rounded-xl p-5 border border-[#2a4a6e]">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">ZAR Total Spend</span>
                   <span className="text-xs bg-yellow-900 text-yellow-300 px-2 py-0.5 rounded-full font-bold">R</span>
@@ -409,7 +409,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 </div>
               </div>
 
-              <div className="bg-slate-700/50 rounded-xl p-5 border border-slate-600">
+              <div className="bg-[#1e3a5f]/50 rounded-xl p-5 border border-[#2a4a6e]">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">ZAR CPM</span>
                   <span className="text-xs bg-yellow-900 text-yellow-300 px-2 py-0.5 rounded-full font-bold">R</span>
@@ -418,7 +418,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                   R{zarCPM.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </div>
                 <div className="text-xs text-slate-400">per 1,000 impressions</div>
-                <div className="mt-3 pt-3 border-t border-slate-600">
+                <div className="mt-3 pt-3 border-t border-[#2a4a6e]">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">USD CPM</span>
                     <span className="text-slate-300 font-mono">${(totalImpressions > 0 ? (totalSpendUSD / totalImpressions) * 1000 : 0).toFixed(2)}</span>
@@ -426,7 +426,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                 </div>
               </div>
 
-              <div className="bg-slate-700/50 rounded-xl p-5 border border-slate-600">
+              <div className="bg-[#1e3a5f]/50 rounded-xl p-5 border border-[#2a4a6e]">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">ZAR CPC</span>
                   <span className="text-xs bg-yellow-900 text-yellow-300 px-2 py-0.5 rounded-full font-bold">R</span>
@@ -435,7 +435,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                   R{zarCPC.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </div>
                 <div className="text-xs text-slate-400">per click</div>
-                <div className="mt-3 pt-3 border-t border-slate-600">
+                <div className="mt-3 pt-3 border-t border-[#2a4a6e]">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">USD CPC</span>
                     <span className="text-slate-300 font-mono">${(totalClicks > 0 ? totalSpendUSD / totalClicks : 0).toFixed(2)}</span>
@@ -445,11 +445,11 @@ function FXCalculatorBlock({ reportData, currentRange }) {
             </div>
           </div>
 
-          <div className="mt-4 bg-slate-700/30 rounded-lg p-4 border border-slate-600">
+          <div className="mt-4 bg-[#1e3a5f]/30 rounded-lg p-4 border border-[#2a4a6e]">
             <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Period Breakdown</h5>
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-600">
+                <tr className="border-b border-[#2a4a6e]">
                   <th className="text-left pb-2 text-slate-400 font-semibold">Period</th>
                   <th className="text-left pb-2 text-slate-400 font-semibold">Dates</th>
                   <th className="text-right pb-2 text-slate-400 font-semibold">Days</th>
@@ -460,7 +460,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
               </thead>
               <tbody>
                 {periodResults.filter(pr => pr.valid).map((pr, i) => (
-                  <tr key={i} className="border-b border-slate-700">
+                  <tr key={i} className="border-b border-[#1e3a5f]">
                     <td className={`py-2 font-semibold ${labelColors[i]}`}>Period {i + 1}</td>
                     <td className="py-2 text-slate-300 font-mono">{pr.start} to {pr.end}</td>
                     <td className="py-2 text-right text-slate-300">{pr.days}</td>
@@ -469,7 +469,7 @@ function FXCalculatorBlock({ reportData, currentRange }) {
                     <td className={`py-2 text-right font-bold ${labelColors[i]}`}>R{pr.zarSpend.toFixed(2)}</td>
                   </tr>
                 ))}
-                <tr className="bg-slate-700/50">
+                <tr className="bg-[#1e3a5f]/50">
                   <td colSpan={4} className="py-2 font-bold text-white text-right pr-2">Total</td>
                   <td className="py-2 text-right font-bold text-white">${totalSpendUSD.toFixed(2)}</td>
                   <td className="py-2 text-right font-bold text-yellow-400">R{zarTotalSpend.toFixed(2)}</td>
@@ -1045,7 +1045,7 @@ function getBenchmarks() { return _benchmarks; }
 function TLLogo({ size = 32, className = '' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <rect width="400" height="400" fill="#272828"/>
+      <rect width="400" height="400" fill="#0a1628"/>
       <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
       <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
       <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
@@ -1161,15 +1161,15 @@ function BenchmarkManager() {
           <p className="text-slate-400 text-sm">LinkedIn Q4 2025 benchmarks. Changes persist to server and apply immediately to all new reports.</p>
           {loadErr && <p className="mt-2 text-yellow-400 text-xs">{loadErr}</p>}
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-slate-500 bg-[#0f1f3d] border border-[#1e3a5f] rounded-lg px-3 py-2">
           <Settings className="w-3.5 h-3.5 text-yellow-500" />
           Developer Access Only
         </div>
       </div>
       <div className="grid grid-cols-2 gap-5">
         {Object.entries(localBench).map(([region, metrics]) => (
-          <div key={region} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700" style={{background:'#1a1a1a'}}>
+          <div key={region} className="bg-[#0f1f3d] rounded-xl border border-[#1e3a5f] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
               <div>
                 <h3 className="font-bold text-white text-sm">{region}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{Object.keys(metrics).length} metrics</p>
@@ -1192,13 +1192,13 @@ function BenchmarkManager() {
               </div>
               <div className="space-y-1.5">
                 {Object.entries(metrics).map(([metric, vals]) => (
-                  <div key={metric} className="grid grid-cols-4 gap-2 items-center bg-slate-700/30 rounded-lg px-2 py-2">
+                  <div key={metric} className="grid grid-cols-4 gap-2 items-center bg-[#1e3a5f]/30 rounded-lg px-2 py-2">
                     <span className="text-xs text-slate-300 font-medium truncate" title={metric}>{metric}</span>
                     {['low','median','high'].map(lvl => (
                       <div key={lvl}>
                         <input type="number" step="0.0001" value={vals[lvl]}
                           onChange={e => handleChange(region, metric, lvl, e.target.value)}
-                          className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white text-center focus:outline-none focus:border-yellow-500 font-mono" />
+                          className="w-full px-2 py-1 bg-[#1e3a5f] border border-[#2a4a6e] rounded text-xs text-white text-center focus:outline-none focus:border-yellow-500 font-mono" />
                         <div className="text-center text-xs text-slate-500 mt-0.5">{fmtBenchV(metric, vals[lvl])}</div>
                       </div>
                     ))}
@@ -1295,7 +1295,7 @@ function CampaignCharts({ campaignId, campaign: c, bench, region }) {
       const el4 = document.getElementById(`spd-${uid}`);
       if (el4) chartsRef.current.push(new Chart(el4, {
         type: 'bar',
-        data: { labels: weeks, datasets: [{ label: 'Spend $', data: spdArr, backgroundColor: '#272828' }]},
+        data: { labels: weeks, datasets: [{ label: 'Spend $', data: spdArr, backgroundColor: '#1d4ed8' }]},
         options: { ...defaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'Spend ($)' } } } }
       }));
     };
@@ -1418,7 +1418,7 @@ function LevelSelector({ label, items, allItems, selectedIds, onToggle, onClear,
         <div className="flex items-center gap-2">
           {selectedIds.length > 0 && (
             <button onClick={onClear}
-              className="text-xs text-slate-400 hover:text-red-400 px-2 py-1 rounded border border-slate-700 hover:border-red-800 transition-colors">
+              className="text-xs text-slate-400 hover:text-red-400 px-2 py-1 rounded border border-[#1e3a5f] hover:border-red-800 transition-colors">
               Clear all
             </button>
           )}
@@ -1449,7 +1449,7 @@ function LevelSelector({ label, items, allItems, selectedIds, onToggle, onClear,
       <div className="relative mb-2">
         <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
         <input type="text" placeholder={placeholder} value={search} onChange={e => onSearch(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500" />
+          className="w-full pl-8 pr-3 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500" />
       </div>
 
       {/* List */}
@@ -1999,7 +1999,7 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
     }).join('');
 
     const aiSection = aiText ? `
-      <div style="background:#272828;border-radius:10px;padding:30px;margin-bottom:30px;">
+      <div style="background:#0a1628;border-radius:10px;padding:30px;margin-bottom:30px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
           <div style="width:36px;height:36px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#272828;flex-shrink:0">AI</div>
           <div>
@@ -2014,10 +2014,10 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
 <title>${accountName} — LinkedIn Report ${fmtDate(dateStart)}</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#F4F3F0;color:#272828;line-height:1.6}.container{max-width:1200px;margin:0 auto;padding:24px}@media print{body{background:white}.no-print{display:none!important}}</style>
 </head><body><div class="container">
-<div style="background:#272828;color:white;padding:40px;border-radius:12px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-start">
+<div style="background:#0a1628;color:white;padding:40px;border-radius:12px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-start">
   <div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <svg width="36" height="36" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#1a1a1a"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
+      <svg width="36" height="36" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#0f1f3d"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
       <span style="color:#B1AAA4;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Turn Left Media</span>
     </div>
     <h1 style="font-size:2em;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px">${accountName}</h1>
@@ -2045,7 +2045,7 @@ ${[
 <div style="background:white;padding:30px;border-radius:10px;margin-bottom:28px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
   <h2 style="font-size:1.6em;font-weight:700;color:#272828;margin-bottom:6px;padding-bottom:12px;border-bottom:3px solid #F6DC4E">Performance vs ${region} Benchmarks</h2>
   <table style="width:100%;border-collapse:collapse;margin-top:16px">
-    <thead><tr style="background:#272828;color:white"><th style="padding:12px 15px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase">Metric</th><th style="padding:12px 15px;text-align:left">Your Result</th><th style="padding:12px 15px;text-align:left">Low</th><th style="padding:12px 15px;text-align:left">Median</th><th style="padding:12px 15px;text-align:left">High</th><th style="padding:12px 15px;text-align:left">Rating</th></tr></thead>
+    <thead><tr style="background:#0a1628;color:white"><th style="padding:12px 15px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase">Metric</th><th style="padding:12px 15px;text-align:left">Your Result</th><th style="padding:12px 15px;text-align:left">Low</th><th style="padding:12px 15px;text-align:left">Median</th><th style="padding:12px 15px;text-align:left">High</th><th style="padding:12px 15px;text-align:left">Rating</th></tr></thead>
     <tbody>${benchRows}</tbody>
   </table>
   <div style="margin-top:16px;padding:12px 16px;background:#F4F3F0;border-radius:8px;font-size:12px;color:#888">
@@ -2089,7 +2089,7 @@ ${aiSection}
       '  var ctrEl = document.getElementById("wk-ctr-"+cId);',
       '  if (ctrEl) new Chart(ctrEl, { type:"line", data:{labels:weeks,datasets:[{label:"CTR %",data:ctrs,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,0.08)",tension:0.4,fill:true,pointRadius:3}]}, options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{grid:{display:false}}}} });',
       '  var spEl = document.getElementById("wk-sp-"+cId);',
-      '  if (spEl) new Chart(spEl, { type:"bar", data:{labels:weeks,datasets:[{label:"Spend $",data:spends,backgroundColor:"#272828",borderRadius:3}]}, options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{grid:{display:false}}}} });',
+      '  if (spEl) new Chart(spEl, { type:"bar", data:{labels:weeks,datasets:[{label:"Spend $",data:spends,backgroundColor:"#1d4ed8",borderRadius:3}]}, options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{grid:{display:false}}}} });',
       '});',
     ].join('\n');
   }
@@ -2190,7 +2190,7 @@ ${aiSection}
 
     // AI section
     const aiSection = aiText ? `
-    <div style="background:#272828;border-radius:10px;padding:32px;margin-bottom:28px">
+    <div style="background:#0a1628;border-radius:10px;padding:32px;margin-bottom:28px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
         <div style="width:38px;height:38px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#272828;flex-shrink:0">AI</div>
         <div>
@@ -2219,7 +2219,7 @@ ${aiSection}
   h2{font-size:1.5em;font-weight:700;color:#272828;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #F6DC4E}
   section{background:white;padding:28px 32px;border-radius:10px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
   table{width:100%;border-collapse:collapse}
-  th{text-align:left;padding:10px 14px;background:#272828;color:white;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  th{text-align:left;padding:10px 14px;background:#0a1628;color:white;font-size:11px;letter-spacing:1px;text-transform:uppercase}
   [contenteditable]:focus{outline:2px solid #F6DC4E;border-radius:2px}
   @media print{body{background:white}.no-print{display:none!important}@page{margin:1.5cm}}
 </style>
@@ -2228,10 +2228,10 @@ ${aiSection}
 <div class="container">
 
   <!-- HEADER -->
-  <div style="background:#272828;color:white;padding:40px;border-radius:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start">
+  <div style="background:#0a1628;color:white;padding:40px;border-radius:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start">
     <div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <svg width="38" height="38" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#1a1a1a"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
+        <svg width="38" height="38" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#0f1f3d"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
         <span style="color:#B1AAA4;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Turn Left Media</span>
       </div>
       <h1 style="font-size:2em;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px" contenteditable>${accountName}</h1>
@@ -2286,7 +2286,7 @@ ${aiSection}
   </section>
 
   <!-- AI RECOMMENDATIONS -->
-  ${aiSection || `<div style="background:#272828;border-radius:10px;padding:24px;margin-bottom:24px;color:#888;font-size:13px;text-align:center">
+  ${aiSection || `<div style="background:#0a1628;border-radius:10px;padding:24px;margin-bottom:24px;color:#888;font-size:13px;text-align:center">
     No AI recommendations generated yet. Click "AI Recommendations" in the app first, then re-export.
   </div>`}
 
@@ -2352,7 +2352,7 @@ ${buildChartScript(display, campaignNameMap)}
     <div className="max-w-screen-2xl mx-auto p-6 space-y-5" ref={printRef}>
 
       {/* ── Config panel ── */}
-      <div className="rounded-xl border border-slate-700 p-6" style={{background:'#1a1a1a'}}>
+      <div className="rounded-xl border border-[#1e3a5f] p-6" style={{background:'#0f1f3d'}}>
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5"
           style={{fontFamily:'Helvetica Neue,Helvetica,Arial,sans-serif'}}>Report Configuration</h2>
 
@@ -2370,7 +2370,7 @@ ${buildChartScript(display, campaignNameMap)}
               <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
               <input type="text" placeholder="Search accounts..." value={acctSearch}
                 onChange={e => setAcctSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500" />
+                className="w-full pl-8 pr-3 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500" />
             </div>
             <div className="max-h-36 overflow-y-auto space-y-1">
               {loadingAccounts && <div className="flex items-center gap-2 px-2 py-2 text-xs text-slate-500"><RefreshCw className="w-3 h-3 animate-spin" style={{color:'#F6DC4E'}} />Loading all accounts...</div>}
@@ -2392,7 +2392,7 @@ ${buildChartScript(display, campaignNameMap)}
           <div>
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Benchmark Region</div>
             <select value={region} onChange={e => setRegion(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500">
+              className="w-full px-3 py-2.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500">
               {Object.keys(getBenchmarks()).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -2404,12 +2404,12 @@ ${buildChartScript(display, campaignNameMap)}
               <div className="flex-1">
                 <div className="text-xs text-slate-600 mb-1">Start</div>
                 <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
-                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                  className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
               </div>
               <div className="flex-1">
                 <div className="text-xs text-slate-600 mb-1">End</div>
                 <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)}
-                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                  className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
               </div>
             </div>
           </div>
@@ -2424,12 +2424,12 @@ ${buildChartScript(display, campaignNameMap)}
               <div className="flex-1">
                 <div className="text-xs text-slate-600 mb-1">Start</div>
                 <input type="date" value={prevStart} onChange={e => setPrevStart(e.target.value)}
-                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                  className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
               </div>
               <div className="flex-1">
                 <div className="text-xs text-slate-600 mb-1">End</div>
                 <input type="date" value={prevEnd} onChange={e => setPrevEnd(e.target.value)}
-                  className="w-full px-2 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                  className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
               </div>
             </div>
           </div>
@@ -2437,13 +2437,13 @@ ${buildChartScript(display, campaignNameMap)}
 
         {/* Row 2: FX Rate */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-slate-700" style={{background:'#272828'}}>
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap">USD → ZAR Rate</span>
             <div className="relative">
               <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">R</span>
               <input type="number" min="1" step="0.01" placeholder="18.50" value={fxRate}
                 onChange={e => setFxRate(e.target.value)}
-                className="w-28 pl-7 pr-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
+                className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
             </div>
             <span className="text-xs text-slate-500">$1 = R{parseFloat(fxRate)||0}</span>
           </div>
@@ -2469,13 +2469,13 @@ ${buildChartScript(display, campaignNameMap)}
                 <button key={id} onClick={() => setReportLevel(id)}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-xs font-bold transition-all"
                   style={active
-                    ? {background:'#272828',borderColor:'#F6DC4E',color:'#F6DC4E'}
+                    ? {background:'#112240',borderColor:'#F6DC4E',color:'#F6DC4E'}
                     : {background:'transparent',borderColor:'#475569',color:'#64748b'}}>
                   {loading && <RefreshCw className="w-3 h-3 animate-spin" />}
                   {label}
                   {num > 0 && (
                     <span className="px-1.5 py-0.5 rounded-full text-xs font-bold"
-                      style={{background: active ? '#F6DC4E' : '#334155', color: active ? '#272828' : '#94a3b8'}}>
+                      style={{background: active ? '#F6DC4E' : '#1e3a5f', color: active ? '#272828' : '#94a3b8'}}>
                       {num}
                     </span>
                   )}
@@ -2550,18 +2550,18 @@ ${buildChartScript(display, campaignNameMap)}
 
           {/* ── ID Import panel (shared) ── */}
           {showIdImport && (
-            <div className="mt-3 p-4 rounded-lg border border-slate-600" style={{background:'#272828'}}>
+            <div className="mt-3 p-4 rounded-lg border border-[#2a4a6e]" style={{background:'#0f1f3d'}}>
               <p className="text-xs text-slate-400 mb-2">
                 Paste {idImportLevel === 'groups' ? 'Campaign Group' : idImportLevel === 'ads' ? 'Ad' : 'Campaign'} IDs — comma, space, or newline separated.
               </p>
               <textarea value={idImport} onChange={e => { setIdImport(e.target.value); setIdImportErr(''); }}
                 placeholder="e.g. 123456789, 987654321" rows={3}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500 font-mono resize-none mb-2" />
+                className="w-full px-3 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500 font-mono resize-none mb-2" />
               {idImportErr && <p className="text-xs text-red-400 mb-2">{idImportErr}</p>}
               <div className="flex gap-2">
                 <button onClick={handleIdImport} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={{background:'#F6DC4E',color:'#272828'}}>Import</button>
                 <button onClick={() => { setShowIdImport(false); setIdImport(''); setIdImportErr(''); }}
-                  className="px-4 py-1.5 rounded-lg text-xs border border-slate-600 text-slate-400 hover:text-white transition-colors">Cancel</button>
+                  className="px-4 py-1.5 rounded-lg text-xs border border-[#2a4a6e] text-slate-400 hover:text-white transition-colors">Cancel</button>
               </div>
             </div>
           )}
@@ -2590,7 +2590,7 @@ ${buildChartScript(display, campaignNameMap)}
           {/* Primary: Load Data from LinkedIn */}
           <button onClick={fetchAnalytics} disabled={!selectedAcctId || !dateStart || !dateEnd || loadingData}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            style={{background:'#0000FF',color:'white',border:'1px solid #0000cc'}}>
+            style={{background:'#1d4ed8',color:'white',border:'1px solid #0000cc'}}>
             {loadingData
               ? <RefreshCw className="w-4 h-4 animate-spin" />
               : <RefreshCw className="w-4 h-4" />}
@@ -2600,7 +2600,7 @@ ${buildChartScript(display, campaignNameMap)}
           {/* Generate report */}
           <button onClick={generateReport} disabled={!liveData || loadingData}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            style={{background:'#272828',color:'white',border:'1px solid #444'}}>
+            style={{background:'#0d1b2e',color:'white',border:'1px solid #444'}}>
             <FileText className="w-4 h-4" /> Generate Report
           </button>
 
@@ -2622,13 +2622,13 @@ ${buildChartScript(display, campaignNameMap)}
 
           {report && (
             <button onClick={exportHTML}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
               <ExternalLink className="w-4 h-4" /> Export HTML
             </button>
           )}
           {report && (
             <button onClick={() => window.print()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-600 transition-colors border border-slate-600">
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
               Export PDF
             </button>
           )}
@@ -2637,7 +2637,7 @@ ${buildChartScript(display, campaignNameMap)}
 
       {/* ── Empty state ── */}
       {!report && (
-        <div className="rounded-xl border border-slate-700 p-16 text-center" style={{background:'#1a1a1a'}}>
+        <div className="rounded-xl border border-[#1e3a5f] p-16 text-center" style={{background:'#0f1f3d'}}>
           <TLLogo size={48} className="mx-auto mb-5 opacity-30" />
           <h3 className="text-lg font-bold text-white mb-2">No Report Generated</h3>
           <p className="text-slate-500 text-sm">Configure above and click Generate Report. Make sure an account is loaded in Campaign Manager first.</p>
@@ -2647,7 +2647,7 @@ ${buildChartScript(display, campaignNameMap)}
       {report && agg && (
         <>
           {/* ── Report Header ── */}
-          <div className="rounded-xl p-8 flex items-start justify-between" style={{background:'#272828'}}>
+          <div className="rounded-xl p-8 flex items-start justify-between" style={{background:'#0f1f3d'}}>
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <TLLogo size={36} />
@@ -2850,16 +2850,16 @@ ${buildChartScript(display, campaignNameMap)}
           })()}
 
           {(aiLoading || aiText || aiError) && (
-            <div className="rounded-xl overflow-hidden border border-slate-700" style={{background:'#272828'}}>
+            <div className="rounded-xl overflow-hidden border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
               {/* Header */}
-              <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-700">
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-[#1e3a5f]">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0" style={{background:'#F6DC4E',color:'#272828'}}>AI</div>
                 <div>
                   <div className="font-bold text-white text-sm">Claude AI Recommendations</div>
                   <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.region} Q4 2025 · {selectedNames.length} campaign{selectedNames.length!==1?'s':''}</div>
                 </div>
                 {aiText && !aiLoading && (
-                  <button onClick={getAIInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+                  <button onClick={getAIInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-[#2a4a6e] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
                     Refresh
                   </button>
                 )}
@@ -2907,15 +2907,15 @@ ${buildChartScript(display, campaignNameMap)}
                   <div>
                     {/* Executive Summary — full width */}
                     {execSummary && (
-                      <div className="px-6 py-5 border-b border-slate-700">
+                      <div className="px-6 py-5 border-b border-[#1e3a5f]">
                         <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'#F6DC4E',fontFamily:'monospace',letterSpacing:'2px'}}>Executive Summary</div>
                         <p className="text-sm leading-relaxed" style={{color:'#d1cbc3'}}>{execSummary.split('\n').filter(l=>!l.startsWith('##')).join(' ').replace(/^-\s/,'')}</p>
                       </div>
                     )}
 
                     {/* 2-col grid: What's Working + Issues */}
-                    <div className="grid grid-cols-2 gap-0 border-b border-slate-700">
-                      <div className="px-6 py-5 border-r border-slate-700">
+                    <div className="grid grid-cols-2 gap-0 border-b border-[#1e3a5f]">
+                      <div className="px-6 py-5 border-r border-[#1e3a5f]">
                         <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#4ade80',fontFamily:'monospace',letterSpacing:'2px'}}>✓ What's Working</div>
                         <ul className="space-y-3">
                           {working.map((item,i) => (
@@ -2942,8 +2942,8 @@ ${buildChartScript(display, campaignNameMap)}
                     </div>
 
                     {/* 2-col grid: Optimisation + Audience */}
-                    <div className="grid grid-cols-2 gap-0 border-b border-slate-700">
-                      <div className="px-6 py-5 border-r border-slate-700">
+                    <div className="grid grid-cols-2 gap-0 border-b border-[#1e3a5f]">
+                      <div className="px-6 py-5 border-r border-[#1e3a5f]">
                         <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#60a5fa',fontFamily:'monospace',letterSpacing:'2px'}}>→ Optimization Opportunities</div>
                         <ul className="space-y-3">
                           {optimise.map((item,i) => (
@@ -2971,7 +2971,7 @@ ${buildChartScript(display, campaignNameMap)}
 
                     {/* 2-col grid: Budget + Next Actions */}
                     <div className="grid grid-cols-2 gap-0">
-                      <div className="px-6 py-5 border-r border-slate-700">
+                      <div className="px-6 py-5 border-r border-[#1e3a5f]">
                         <div className="text-xs font-bold uppercase tracking-widest mb-4" style={{color:'#F6DC4E',fontFamily:'monospace',letterSpacing:'2px'}}>$ Budget Recommendations</div>
                         <ul className="space-y-3">
                           {budget.map((item,i) => (
@@ -3023,7 +3023,7 @@ ${buildChartScript(display, campaignNameMap)}
               <>
                 {/* Group Summary */}
                 <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
-                  <div className="px-8 py-5 flex items-center justify-between" style={{background:'#272828'}}>
+                  <div className="px-8 py-5 flex items-center justify-between" style={{background:'#0f1f3d'}}>
                     <div>
                       <div className="text-xs font-bold mb-1" style={{color:'#B1AAA4',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase'}}>Campaign Group Performance Report</div>
                       <h2 className="text-xl font-bold text-white">Group Summary</h2>
@@ -3036,8 +3036,8 @@ ${buildChartScript(display, campaignNameMap)}
                       {label:'Total Impressions',    val:fmtNum(totalImpr),  sub:`${fmtNum(totalClk)} total clicks`,                                                    accent:'#059669'},
                       {label:'Group Avg CTR',        val:groupCTR,           sub:bCTR?<span style={{color:parseFloat(groupCTR)>=(bCTR.low*100)?'#059669':'#dc2626',fontSize:'11px',fontFamily:'monospace'}}>{parseFloat(groupCTR)>=(bCTR.low*100)?'↑ ABOVE':'↓ BELOW'} {fmtPct(bCTR.low)} BENCHMARK</span>:null, accent:'#059669'},
                       {label:'Group Avg Engagement', val:groupEng,           sub:bEng?<span style={{color:agg.engRate>=(bEng.low)?'#059669':'#dc2626',fontSize:'11px',fontFamily:'monospace'}}>{agg.engRate>=(bEng.low)?'↑ ABOVE':'↓ BELOW'} {fmtPct(bEng.low)} BENCHMARK</span>:null, accent:'#059669'},
-                      {label:'Cost Per Click',       val:fmtCur(agg.cpc),    sub:`Total leads: ${totalLds}`,                                                             accent:'#272828'},
-                      {label:'Active Campaigns',     val:`${displayCampaigns.filter(c=>c.impressions>0).length} / ${displayCampaigns.length}`, sub:`${displayCampaigns.filter(c=>!c.impressions||c.impressions===0).length} paused`, accent:'#272828'},
+                      {label:'Cost Per Click',       val:fmtCur(agg.cpc),    sub:`Total leads: ${totalLds}`,                                                             accent:'#1e3a5f'},
+                      {label:'Active Campaigns',     val:`${displayCampaigns.filter(c=>c.impressions>0).length} / ${displayCampaigns.length}`, sub:`${displayCampaigns.filter(c=>!c.impressions||c.impressions===0).length} paused`, accent:'#1e3a5f'},
                     ].map(({label,val,sub,accent})=>(
                       <div key={label} className="rounded-lg p-5" style={{borderLeft:`4px solid ${accent}`,background:'#fafaf9',border:'1px solid #e8e6df',borderLeftWidth:'4px',borderLeftColor:accent}}>
                         <div style={{fontFamily:'monospace',fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'#888',marginBottom:'8px'}}>{label}</div>
@@ -3067,7 +3067,7 @@ ${buildChartScript(display, campaignNameMap)}
                     return (
                       <div key={c.id} style={{background:'white',border:'1px solid #e8e6df',borderRadius:'8px',overflow:'hidden'}}>
                         {/* Header */}
-                        <div style={{background:'#272828',padding:'24px 28px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'20px',flexWrap:'wrap'}}>
+                        <div style={{background:'#0d1b2e',padding:'24px 28px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'20px',flexWrap:'wrap'}}>
                           <div>
                             <div style={{fontFamily:'monospace',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'rgba(255,255,255,0.45)',marginBottom:'4px'}}>CAMPAIGN {String(idx+1).padStart(2,'0')}</div>
                             <div style={{fontFamily:'monospace',fontSize:'14px',fontWeight:600,color:'white',marginBottom:'4px'}}>{name}</div>
@@ -3631,14 +3631,14 @@ export default function Dashboard() {
   return (
     <>
       <style>{`@media print { .no-print { display: none !important; } body { background: #0f172a !important; } @page { margin: 1cm; } }`}</style>
-      <div className="min-h-screen bg-slate-900">
+      <div className="min-h-screen bg-[#0a1628]">
         {/* ── Top Bar ── */}
-        <div className="bg-slate-900 border-b border-slate-700 shadow-lg no-print sticky top-0 z-40">
+        <div className="bg-[#0a1628] border-b border-[#1e3a5f] shadow-lg no-print sticky top-0 z-40">
           <div className="max-w-screen-2xl mx-auto px-6">
-            <div className="flex justify-between items-center py-3 border-b border-slate-800">
+            <div className="flex justify-between items-center py-3 border-b border-[#1e3a5f]">
               <div className="flex items-center gap-3">
                 <svg width="28" height="28" viewBox="0 0 400 400" fill="none">
-                  <rect width="400" height="400" fill="#272828"/>
+                  <rect width="400" height="400" fill="#0a1628"/>
                   <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
                   <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
                   <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
@@ -3651,7 +3651,7 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-2">
                 {session?.user?.name && (
-                  <span className="text-slate-400 text-xs border border-slate-700 rounded-full px-3 py-1">
+                  <span className="text-slate-400 text-xs border border-[#1e3a5f] rounded-full px-3 py-1">
                     {session.user.name}
                   </span>
                 )}
@@ -3690,8 +3690,8 @@ export default function Dashboard() {
                 const isActive = activeMainTab === tab.id;
                 return (
                   <button key={tab.id} onClick={() => setActiveMainTab(tab.id)}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${isActive ? '' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
-                    style={isActive ? {borderColor:'#F6DC4E',color:'#F6DC4E',background:'rgba(246,220,78,0.05)'} : {}}>
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${isActive ? '' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#0f1f3d]/50'}`}
+                    style={isActive ? {borderColor:'#F6DC4E',color:'#F6DC4E',background:'rgba(246,220,78,0.08)'} : {}}>
                     <Icon className="w-4 h-4" />
                     {tab.label}
                   </button>
@@ -3712,7 +3712,7 @@ export default function Dashboard() {
                 className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ml-auto ${
                   activeMainTab === 'dashboard' && devUnlocked
                     ? ''
-                    : 'border-transparent text-slate-600 hover:text-slate-400 hover:bg-slate-800/30'
+                    : 'border-transparent text-slate-600 hover:text-slate-400 hover:bg-[#0f1f3d]/30'
                 }`}
                 style={activeMainTab === 'dashboard' && devUnlocked ? {borderColor:'#B1AAA4',color:'#B1AAA4',background:'rgba(177,170,164,0.05)'} : {}}>
                 <BarChart2 className="w-4 h-4" />
@@ -3808,7 +3808,7 @@ export default function Dashboard() {
 
             <div className="col-span-9 print:col-span-12">
               {!reportData ? (
-                <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700">
+                <div className="bg-[#0f1f3d] rounded-xl p-12 text-center border border-[#1e3a5f]">
                   <Target className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-white mb-2">Select an Account to Begin</h2>
                   <p className="text-slate-400">Use the sidebar steps to filter by account, campaign group, campaign and ad</p>
@@ -3836,7 +3836,7 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="bg-slate-800 rounded-xl p-4 mb-6 border border-slate-700 no-print">
+                  <div className="bg-[#0f1f3d] rounded-xl p-4 mb-6 border border-[#1e3a5f] no-print">
                     <div className="flex flex-wrap items-center gap-4">
                       <div>
                         <p className="text-xs text-slate-400 mb-1 font-medium uppercase tracking-wide">Current Period</p>
@@ -3862,8 +3862,8 @@ export default function Dashboard() {
                   </div>
 
                   {/* ── Objective Tabs ── */}
-                  <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
-                    <div className="flex overflow-x-auto border-b border-slate-700">
+                  <div className="bg-[#0f1f3d] rounded-xl border border-[#1e3a5f] mb-6 overflow-hidden">
+                    <div className="flex overflow-x-auto border-b border-[#1e3a5f]">
                       {OBJECTIVE_TABS.map(tab => {
                         const Icon = tab.icon;
                         const isActive = activeObjectiveTab === tab.id;
@@ -3890,14 +3890,14 @@ export default function Dashboard() {
                             className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${
                               isActive
                                 ? `${activeColors[tab.id]} border-b-2`
-                                : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-700/50'
+                                : 'border-transparent text-slate-400 hover:text-white hover:bg-[#1e3a5f]/50'
                             }`}
                           >
                             <Icon className="w-4 h-4" />
                             {tab.label}
                             {count > 0 && (
                               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                                isActive ? 'bg-slate-700 text-white' : 'bg-slate-700 text-slate-400'
+                                isActive ? 'bg-[#1e3a5f] text-white' : 'bg-[#1e3a5f] text-slate-400'
                               }`}>
                                 {count}
                               </span>
@@ -3962,9 +3962,9 @@ export default function Dashboard() {
         {/* ── Developer Password Modal ── */}
         {showDevModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,0.85)'}}>
-            <div className="rounded-2xl border border-slate-700 p-8 w-full max-w-sm shadow-2xl" style={{background:'#1a1a1a'}}>
+            <div className="rounded-2xl border border-[#1e3a5f] p-8 w-full max-w-sm shadow-2xl" style={{background:'#0f1f3d'}}>
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{background:'#272828',border:'1px solid #444'}}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{background:'#0d1b2e',border:'1px solid #444'}}>
                   <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -3999,7 +3999,7 @@ export default function Dashboard() {
                 }}
                 autoFocus
                 className="w-full px-4 py-3 rounded-lg border text-sm text-white font-mono focus:outline-none mb-2"
-                style={{background:'#272828',borderColor: devPassErr ? '#ef4444' : '#374151'}}
+                style={{background:'#0d1b2e',borderColor: devPassErr ? '#ef4444' : '#374151'}}
               />
               {devPassErr && <p className="text-xs text-red-400 mb-3">{devPassErr}</p>}
 
@@ -4021,7 +4021,7 @@ export default function Dashboard() {
                 </button>
                 <button
                   onClick={() => { setShowDevModal(false); setDevPassword(''); setDevPassErr(''); }}
-                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-[#1e3a5f] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
                   Cancel
                 </button>
               </div>
@@ -4052,7 +4052,7 @@ function MetricCard({ label, current, previous, format, icon: Icon, prefix = '' 
   }
 
   return (
-    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+    <div className="bg-[#1e3a5f]/50 rounded-lg p-4 border border-[#2a4a6e]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">{label}</span>
         <Icon className="w-4 h-4 text-slate-500" />
@@ -4083,7 +4083,7 @@ function BudgetPacingCard({ pacing, manualBudget, onBudgetChange, campaignStart,
   }
 
   return (
-    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+    <div className="bg-[#0f1f3d] rounded-xl p-6 border border-[#1e3a5f]">
       <h3 className="text-lg font-bold text-white mb-6">Budgeting and Pacing</h3>
       <div className="grid grid-cols-2 gap-6">
 
@@ -4157,10 +4157,10 @@ function BudgetPacingCard({ pacing, manualBudget, onBudgetChange, campaignStart,
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{background:'#272828'}}>
+    <div className="min-h-screen flex items-center justify-center" style={{background:'#0f1f3d'}}>
       <div className="text-center">
         <svg width="48" height="48" viewBox="0 0 400 400" fill="none" className="mx-auto mb-6 animate-pulse">
-          <rect width="400" height="400" fill="#1a1a1a"/>
+          <rect width="400" height="400" fill="#0f1f3d"/>
           <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
           <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
           <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
@@ -4174,11 +4174,11 @@ function LoadingScreen() {
 
 function SignInScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{background:'#272828'}}>
+    <div className="min-h-screen flex items-center justify-center" style={{background:'#0f1f3d'}}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
           <svg width="56" height="56" viewBox="0 0 400 400" fill="none" className="mb-5">
-            <rect width="400" height="400" fill="#1a1a1a"/>
+            <rect width="400" height="400" fill="#0f1f3d"/>
             <path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/>
             <path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/>
             <path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/>
@@ -4186,7 +4186,7 @@ function SignInScreen() {
           <h1 className="text-2xl font-bold text-white tracking-wide">Turn Left Media</h1>
           <p className="text-slate-400 text-sm mt-1">LinkedIn Campaign Platform</p>
         </div>
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8">
+        <div className="bg-[#0f1f3d] rounded-2xl border border-[#1e3a5f] p-8">
           <h2 className="text-lg font-bold text-white mb-1">Sign in</h2>
           <p className="text-slate-400 text-sm mb-6">Connect your LinkedIn account to continue</p>
           <button onClick={() => signIn('linkedin')}
