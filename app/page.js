@@ -1816,108 +1816,100 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     try {
       const payload = getAnalyticsPayload();
 
-      // ── Step 1: Determine EXACTLY which items the user has selected ─────
-      // This mirrors precisely what the Report Generator is showing.
-      // We build a definitive list of IDs based on reportLevel + selection state.
-
-      let selectedIds = [];        // the IDs to fetch analytics for
-      let idType = 'campaignIds';  // which analytics API field to use
-
-      if (reportLevel === 'groups' && selectedGroupIds.length > 0) {
-        // User selected specific Campaign Groups
-        selectedIds = selectedGroupIds;
-        idType = 'campaignGroupIds';
-      } else if (reportLevel === 'groups' && selectedGroupIds.length === 0) {
-        // No groups selected — use all groups
-        selectedIds = ownGroups.map(g => String(g.id));
-        idType = 'campaignGroupIds';
-      } else if (reportLevel === 'campaigns' && selectedCampIds.length > 0) {
-        // User selected specific Ad Sets / Campaigns
-        selectedIds = selectedCampIds;
-        idType = 'campaignIds';
-      } else if (reportLevel === 'campaigns' && selectedCampIds.length === 0) {
-        // No ad sets selected — use all
-        selectedIds = ownCampaigns.map(c => String(c.id));
-        idType = 'campaignIds';
-      } else if (reportLevel === 'ads' && selectedAdIds.length > 0) {
-        // User selected specific Ads — report on their parent campaigns
-        selectedIds = selectedCampIds.length > 0 ? selectedCampIds : ownCampaigns.map(c => String(c.id));
-        idType = 'campaignIds';
-      } else {
-        // Fallback: use all campaigns
-        selectedIds = ownCampaigns.map(c => String(c.id));
-        idType = 'campaignIds';
-      }
-
-      selectedIds = selectedIds.slice(0, 50);
-
-      // The display-level campaigns for the report table come from ownCampaigns
-      // filtered to match the selection
-      const sourceCamps = (() => {
-        if (reportLevel === 'groups') {
-          // For groups, show all campaigns (group analytics returns account-level breakdown)
-          return ownCampaigns.slice(0, 20);
-        }
-        if (reportLevel === 'campaigns' && selectedCampIds.length > 0) {
-          return ownCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
-        }
-        if (reportLevel === 'ads' && selectedCampIds.length > 0) {
-          return ownCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
-        }
-        return ownCampaigns.slice(0, 20);
+      // ── Step 1: Build exact analytics scope matching Report Generator selection ─
+      // Use exactly the same IDs that were used to load the report data.
+      const analyticsScope = (() => {
+        if (reportLevel === 'groups' && selectedGroupIds.length > 0)
+          return { campaignGroupIds: selectedGroupIds };
+        if (reportLevel === 'groups')
+          return { campaignGroupIds: ownGroups.map(g => String(g.id)).slice(0, 20) };
+        if ((reportLevel === 'campaigns' || reportLevel === 'ads') && selectedCampIds.length > 0)
+          return { campaignIds: selectedCampIds };
+        return { campaignIds: ownCampaigns.map(c => String(c.id)).slice(0, 50) };
       })();
 
-      // ── Step 2: Try liveData.topCampaigns first ────────────────
+      // ── Step 2: Get topCampaigns — scoped to selection only ─────
       let topCampaigns = [];
+
+      // Use liveData if it already has scoped per-campaign data
       const liveCamps = liveData.topCampaigns || [];
       if (liveCamps.length > 0) {
-        if (reportLevel === 'campaigns' && selectedCampIds.length > 0) {
-          topCampaigns = liveCamps.filter(c => selectedCampIds.includes(String(c.id)));
-        } else if (reportLevel === 'ads' && selectedCampIds.length > 0) {
+        if (selectedCampIds.length > 0 && (reportLevel === 'campaigns' || reportLevel === 'ads')) {
           topCampaigns = liveCamps.filter(c => selectedCampIds.includes(String(c.id)));
         } else {
           topCampaigns = liveCamps;
         }
       }
 
-      // ── Step 3: Fetch per-item analytics individually in parallel ──
-      // Each item gets its own API call so data is real, not distributed evenly
-      if (topCampaigns.length === 0 && sourceCamps.length > 0) {
-        const results = await Promise.all(
-          sourceCamps.map(async (camp) => {
-            try {
-              const body = {
-                accountIds:   [selectedAcctId],
-                campaignIds:  [String(camp.id)],
-                currentRange: { start: dateStart, end: dateEnd },
-                previousRange: payload.previousRange,
-                exchangeRate: parseFloat(fxRate) || 18.5,
-              };
-              const r = await fetch('/api/analytics', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-              });
-              if (!r.ok) return null;
-              const d = await r.json();
-              const cur = d.current || {};
-              return {
-                id:          camp.id,
-                name:        camp.name,
-                impressions: cur.impressions || 0,
-                clicks:      cur.clicks      || 0,
-                ctr:         cur.ctr         || (cur.impressions > 0 ? cur.clicks / cur.impressions * 100 : 0),
-                spent:       cur.spent       || 0,
-                leads:       cur.leads       || 0,
-                engagements: cur.engagements || 0,
-                likes:       cur.likes       || 0,
-                comments:    cur.comments    || 0,
-                shares:      cur.shares      || 0,
-              };
-            } catch { return null; }
+      // ── Step 3: Fetch analytics scoped to selection ──────────────
+      if (topCampaigns.length === 0) {
+        // First try a scoped analytics call — this returns topCampaigns for the group/selection
+        const scopeRes = await fetch('/api/analytics', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountIds: [selectedAcctId],
+            ...analyticsScope,
+            currentRange: { start: dateStart, end: dateEnd },
+            previousRange: payload.previousRange,
+            exchangeRate: parseFloat(fxRate) || 18.5,
           })
-        );
-        topCampaigns = results.filter(Boolean).filter(c => c.impressions > 0 || c.clicks > 0 || c.spent > 0);
-        if (topCampaigns.length === 0) topCampaigns = results.filter(Boolean);
+        });
+        if (scopeRes.ok) {
+          const sd = await scopeRes.json();
+          if (sd.topCampaigns && sd.topCampaigns.length > 0) {
+            topCampaigns = sd.topCampaigns;
+            // Apply campaign-level filter if needed
+            if (selectedCampIds.length > 0) {
+              const f = topCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
+              if (f.length > 0) topCampaigns = f;
+            }
+          }
+        }
+
+        // If scoped call returned nothing, fetch each selected ad set individually
+        if (topCampaigns.length === 0) {
+          // Only use ad sets that are explicitly in the selection
+          const adSetIds = selectedCampIds.length > 0
+            ? selectedCampIds
+            : ownCampaigns.map(c => String(c.id)).slice(0, 20);
+          const adSetMeta = ownCampaigns.filter(c => adSetIds.includes(String(c.id)));
+
+          const results = await Promise.all(
+            adSetMeta.map(async (camp) => {
+              try {
+                const r = await fetch('/api/analytics', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    accountIds:  [selectedAcctId],
+                    campaignIds: [String(camp.id)],
+                    currentRange: { start: dateStart, end: dateEnd },
+                    previousRange: payload.previousRange,
+                    exchangeRate: parseFloat(fxRate) || 18.5,
+                  })
+                });
+                if (!r.ok) return null;
+                const d = await r.json();
+                const cur = d.current || {};
+                return {
+                  id: camp.id, name: camp.name,
+                  impressions: cur.impressions || 0,
+                  clicks:      cur.clicks      || 0,
+                  ctr:         cur.ctr         || (cur.impressions > 0 ? cur.clicks / cur.impressions * 100 : 0),
+                  spent:       cur.spent       || 0,
+                  leads:       cur.leads       || 0,
+                  engagements: cur.engagements || 0,
+                  likes:       cur.likes       || 0,
+                  comments:    cur.comments    || 0,
+                  shares:      cur.shares      || 0,
+                };
+              } catch { return null; }
+            })
+          );
+          topCampaigns = results.filter(Boolean).filter(c => c.impressions > 0 || c.clicks > 0 || c.spent > 0);
+          if (topCampaigns.length === 0) topCampaigns = results.filter(Boolean);
+        }
+      }
+
       }
 
       // ── Step 4: Build filtered aggregate metrics for selected items ──
