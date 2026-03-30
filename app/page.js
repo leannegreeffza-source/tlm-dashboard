@@ -2796,7 +2796,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Clicks',
                 val:   fmtNum(agg.clicks),
                 sub:   `CTR: ${fmtPct(agg.ctr)}`,
-                bench: vsBench('Sponsored Content CTR', agg.ctr),
+                bench: null,
                 mom:   momBadge(mom(agg.clicks, p.clicks), false),
               },
               {
@@ -2838,7 +2838,7 @@ ${buildChartScript(display, campaignNameMap)}
                   : fmtPct(agg.ctr),
                 sub:   agg.landingClicks > 0 ? `${fmtNum(agg.landingClicks)} landing page clicks` : null,
                 zar:   null,
-                bench: vsBench('Sponsored Content CTR', agg.landingCtr || agg.ctr),
+                bench: null,
                 mom:   momBadge(mom(agg.landingCtr || agg.ctr, p.landingCtr || p.ctr), false),
               },
               {
@@ -2879,7 +2879,7 @@ ${buildChartScript(display, campaignNameMap)}
                 val:   fmtNum(agg.engagements || 0),
                 sub:   `Eng Rate: ${fmtPct(agg.engRate)}`,
                 zar:   null,
-                bench: vsBench('Sponsored Engagement Rate', agg.engRate),
+                bench: null,
                 mom:   momBadge(mom(agg.engagements || 0, p.engagements || 0), false),
               },
               {
