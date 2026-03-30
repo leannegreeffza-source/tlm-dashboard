@@ -2832,8 +2832,10 @@ ${buildChartScript(display, campaignNameMap)}
                 mom:   momBadge(mom(agg.cpc, p.cpc), true),
               },
               {
-                label: 'Clicks to Landing Page',
-                val:   fmtPct(agg.landingCtr || agg.ctr),
+                label: 'Clicks to Landing Page CTR',
+                val:   agg.landingClicks > 0
+                  ? fmtPct(agg.landingClicks / agg.impressions)
+                  : fmtPct(agg.ctr),
                 sub:   agg.landingClicks > 0 ? `${fmtNum(agg.landingClicks)} landing page clicks` : null,
                 zar:   null,
                 bench: vsBench('Sponsored Content CTR', agg.landingCtr || agg.ctr),
