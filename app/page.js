@@ -1750,16 +1750,20 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         const spd = filtered.reduce((s,c) => s + (c.spent||0), 0);
         const lds = filtered.reduce((s,c) => s + (c.leads||0), 0);
         const eng = filtered.reduce((s,c) => s + ((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0)), 0);
+        const lc  = filtered.reduce((s,c) => s + (c.webClicks||c.landingPageClicks||0), 0);
         return {
           impressions: imp, clicks: clk, spend: spd, leads: lds,
-          ctr:     imp > 0 ? clk / imp : 0,
-          cpl:     lds > 0 ? spd / lds : 0,
-          ffr:     clk > 0 ? lds / clk : 0,
-          engRate: imp > 0 ? eng / imp : 0,
-          reach:   Math.round(imp * 0.82),
-          cpm:     imp > 0 ? (spd / imp) * 1000 : 0,
-          cpc:     clk > 0 ? spd / clk : 0,
-          prev:    prevObj,
+          ctr:          imp > 0 ? clk / imp : 0,
+          landingCtr:   imp > 0 ? (lc > 0 ? lc / imp : clk / imp) : 0,
+          landingClicks: lc,
+          cpl:          lds > 0 ? spd / lds : 0,
+          ffr:          clk > 0 ? lds / clk : 0,
+          engRate:      imp > 0 ? eng / imp : 0,
+          engagements:  eng,
+          reach:        Math.round(imp * 0.82),
+          cpm:          imp > 0 ? (spd / imp) * 1000 : 0,
+          cpc:          clk > 0 ? spd / clk : 0,
+          prev:         prevObj,
         };
       }
     }
@@ -1769,20 +1773,32 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     const clk = current.clicks      || 0;
     const spd = current.spent       || 0;
     const lds = current.leads       || 0;
-    const eng = current.engagements || 0;
+
+    // Engagements: use pre-summed field if available, otherwise sum components
+    const eng = (current.engagements && current.engagements > 0)
+      ? current.engagements
+      : (clk + (current.likes||0) + (current.comments||0) + (current.shares||0) + (current.follows||0) + (current.otherEngagements||0));
+
+    // Landing page clicks — LinkedIn API field
+    const landingClicks = current.landingPageClicks || current.clicksToLandingPage || current.webClicks || 0;
+
     const ctr     = current.ctr != null            ? current.ctr / 100            : (imp > 0 ? clk / imp : 0);
     const engRate = current.engagementRate != null  ? current.engagementRate / 100  : (imp > 0 ? eng / imp : 0);
+    const landingCtr = imp > 0 ? landingClicks / imp : ctr; // fallback to ctr if no landing data
 
     return {
       impressions: imp, clicks: clk, spend: spd, leads: lds,
       ctr,
-      cpl:     lds > 0 ? spd / lds : (current.cpl || 0),
-      ffr:     clk > 0 ? lds / clk : 0,
+      landingCtr,
+      landingClicks,
+      cpl:         lds > 0 ? spd / lds : (current.cpl || 0),
+      ffr:         clk > 0 ? lds / clk : 0,
       engRate,
-      reach:   current.reach || current.totalReach || Math.round(imp * 0.82),
-      cpm:     current.cpm   || (imp > 0 ? (spd / imp) * 1000 : 0),
-      cpc:     current.cpc   || (clk > 0 ? spd / clk : 0),
-      prev:    prevObj,
+      engagements: eng,
+      reach:       current.reach || current.totalReach || Math.round(imp * 0.82),
+      cpm:         current.cpm   || (imp > 0 ? (spd / imp) * 1000 : 0),
+      cpc:         current.cpc   || (clk > 0 ? spd / clk : 0),
+      prev:        prevObj,
     };
   }
 
@@ -2816,12 +2832,12 @@ ${buildChartScript(display, campaignNameMap)}
                 mom:   momBadge(mom(agg.cpc, p.cpc), true),
               },
               {
-                label: 'Landing Page CTR',
-                val:   fmtPct(agg.ctr),
-                sub:   null,
+                label: 'Clicks to Landing Page',
+                val:   fmtPct(agg.landingCtr || agg.ctr),
+                sub:   agg.landingClicks > 0 ? `${fmtNum(agg.landingClicks)} landing page clicks` : null,
                 zar:   null,
-                bench: vsBench('Sponsored Content CTR', agg.ctr),
-                mom:   momBadge(mom(agg.ctr, p.ctr), false),
+                bench: vsBench('Sponsored Content CTR', agg.landingCtr || agg.ctr),
+                mom:   momBadge(mom(agg.landingCtr || agg.ctr, p.landingCtr || p.ctr), false),
               },
               {
                 label: 'Website Visits',
