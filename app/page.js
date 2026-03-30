@@ -1525,6 +1525,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [fxRate,    setFxRate]    = useState('18.50');
 
   // ─── Previous period (auto-calculated, user can override) ───
+  const [useCompare, setUseCompare] = useState(false);
   const [prevStart, setPrevStart] = useState('');
   const [prevEnd,   setPrevEnd]   = useState('');
 
@@ -1645,7 +1646,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       accountIds:  [selectedAcctId],
       currentRange: { start: dateStart, end: dateEnd },
       previousRange: (() => {
-        if (prevStart && prevEnd) return { start: prevStart, end: prevEnd };
+        if (prevStart && prevEnd && useCompare) return { start: prevStart, end: prevEnd };
         const s    = new Date(dateStart + 'T00:00:00').getTime();
         const e    = new Date(dateEnd   + 'T00:00:00').getTime();
         const span = Math.max(e - s, 86400000);
@@ -2479,24 +2480,37 @@ ${buildChartScript(display, campaignNameMap)}
             </div>
           </div>
 
-          {/* Previous period */}
+          {/* Compare period — opt-in via checkbox */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Compare Period</div>
-              <span className="text-xs text-slate-600">Auto-calculated · editable</span>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                onClick={() => setUseCompare(v => !v)}
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors"
+                style={{color: useCompare ? '#F6DC4E' : '#475569', background:'none', border:'none', cursor:'pointer', padding:0}}>
+                <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                  style={{
+                    background: useCompare ? '#F6DC4E' : 'transparent',
+                    borderColor: useCompare ? '#F6DC4E' : '#475569',
+                  }}>
+                  {useCompare && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="#0a1628" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </span>
+                Compare Period
+              </button>
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <div className="text-xs text-slate-600 mb-1">Start</div>
-                <input type="date" value={prevStart} onChange={e => setPrevStart(e.target.value)}
-                  className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+            {useCompare && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <div className="text-xs text-slate-600 mb-1">Start</div>
+                  <input type="date" value={prevStart} onChange={e => setPrevStart(e.target.value)}
+                    className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs text-slate-600 mb-1">End</div>
+                  <input type="date" value={prevEnd} onChange={e => setPrevEnd(e.target.value)}
+                    className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                </div>
               </div>
-              <div className="flex-1">
-                <div className="text-xs text-slate-600 mb-1">End</div>
-                <input type="date" value={prevEnd} onChange={e => setPrevEnd(e.target.value)}
-                  className="w-full px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -2512,7 +2526,7 @@ ${buildChartScript(display, campaignNameMap)}
             </div>
             <span className="text-xs text-slate-500">$1 = R{parseFloat(fxRate)||0}</span>
           </div>
-          {prevStart && prevEnd && dateStart && dateEnd && (
+          {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
               Comparing <span className="text-slate-300">{dateStart} – {dateEnd}</span> vs <span className="text-slate-300">{prevStart} – {prevEnd}</span>
