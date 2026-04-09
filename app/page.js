@@ -982,63 +982,327 @@ window.addEventListener('load', function() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// BENCHMARKS DATA — sourced from LinkedIn Q4 2025 In-Depth
-// ─────────────────────────────────────────────────────────────
-let _benchmarks = {
-  'ZA': {
-    'Sponsored Content CTR':     { low: 0.0014, median: 0.0057, high: 0.0117 },
-    'Sponsored Engagement Rate': { low: 0.0020, median: 0.0088, high: 0.0183 },
-    'Lead Gen Form Fill Rate':   { low: 0.0626, median: 0.1537, high: 0.3552 },
-    'Cost Per Lead ($)':         { low: 3.67,   median: 10.83,  high: 29.19  },
-    'Organic CTR':               { low: 0.0261, median: 0.0474, high: 0.1019 },
-    'Organic Engagement Rate':   { low: 0.0360, median: 0.0615, high: 0.1188 },
-    'Video View Through Rate':   { low: 0.318,  median: 0.459,  high: 0.755  },
-    'CPM ($)':                   { low: 4.40,   median: 4.40,   high: 4.40   },
-    'CPC ($)':                   { low: 0.91,   median: 0.91,   high: 0.91   },
-  },
-  'Africa': {
-    'Sponsored Content CTR':     { low: 0.0030, median: 0.0060, high: 0.0122 },
-    'Sponsored Engagement Rate': { low: 0.0040, median: 0.0092, high: 0.0225 },
-    'Lead Gen Form Fill Rate':   { low: 0.0374, median: 0.0965, high: 0.2397 },
-    'Cost Per Lead ($)':         { low: 5.57,   median: 16.76,  high: 48.02  },
-    'Organic CTR':               { low: 0.0298, median: 0.0524, high: 0.1203 },
-    'Organic Engagement Rate':   { low: 0.0442, median: 0.0713, high: 0.1436 },
-    'Video View Through Rate':   { low: 0.284,  median: 0.378,  high: 0.594  },
-    'CPM ($)':                   { low: 3.75,   median: 3.75,   high: 3.75   },
-    'CPC ($)':                   { low: 0.57,   median: 0.57,   high: 0.57   },
-  },
+// BENCHMARK TABLES — all regions & industries from LinkedIn Q4 2025 In-Depth
+// ─────────────────────────────────────────────────────────────────────────────
+const BENCHMARK_TABLES = {
   'North America': {
-    'Sponsored Content CTR':     { low: 0.0013, median: 0.0057, high: 0.0141 },
-    'Sponsored Engagement Rate': { low: 0.0017, median: 0.0046, high: 0.0093 },
-    'Lead Gen Form Fill Rate':   { low: 0.0281, median: 0.0833, high: 0.2211 },
-    'Cost Per Lead ($)':         { low: 77.31,  median: 110,    high: 160    },
-    'Organic CTR':               { low: 0.0194, median: 0.0367, high: 0.0716 },
-    'Organic Engagement Rate':   { low: 0.0334, median: 0.0554, high: 0.0940 },
-    'CPM ($)':                   { low: 6.00,   median: 6.00,   high: 6.00   },
-    'CPC ($)':                   { low: 2.50,   median: 2.50,   high: 2.50   },
-  },
-  'Europe': {
-    'Sponsored Content CTR':     { low: 0.0023, median: 0.0047, high: 0.0092 },
-    'Sponsored Engagement Rate': { low: 0.0042, median: 0.0102, high: 0.0238 },
-    'Lead Gen Form Fill Rate':   { low: 0.0238, median: 0.0685, high: 0.1739 },
-    'Cost Per Lead ($)':         { low: 49.23,  median: 80,     high: 130    },
-    'Organic CTR':               { low: 0.0298, median: 0.0524, high: 0.1203 },
-    'Organic Engagement Rate':   { low: 0.0442, median: 0.0713, high: 0.1436 },
-    'CPM ($)':                   { low: 5.20,   median: 5.20,   high: 5.20   },
-    'CPC ($)':                   { low: 2.10,   median: 2.10,   high: 2.10   },
+    label: 'North America',
+    data: {
+      'Organic CTR': { low: 0.0194, median: 0.0367, high: 0.0716 },
+      'Organic Engagement Rate': { low: 0.0334, median: 0.0554, high: 0.094 },
+      'Sponsored Content CTR': { low: 0.0013, median: 0.0057, high: 0.0141 },
+      'Lead Gen Form Fill Rate': { low: 0.026, median: 0.069, high: 0.1605 },
+      'Cost Per Lead ($)': { low: 79.95, median: 235.14, high: 656.37 },
+      'Video View Through Rate': { low: 0.317, median: 0.465, high: 0.733 },
+      'CPM ($)': { low: 6.75, median: 23.12, high: 74.57 },
+      'CPC ($)': { low: 1.19, median: 2.95, high: 12.32 },
+      'Conversion Rate': { low: 0.0092, median: 0.0455, high: 0.235 },
+      'Cost Per Conversion ($)': { low: 33.0, median: 194.43, high: 872.37 },
+    },
   },
   'South America': {
-    'Sponsored Content CTR':     { low: 0.0023, median: 0.0064, high: 0.0164 },
-    'Sponsored Engagement Rate': { low: 0.0034, median: 0.0089, high: 0.0234 },
-    'Lead Gen Form Fill Rate':   { low: 0.0250, median: 0.0909, high: 0.2692 },
-    'Cost Per Lead ($)':         { low: 7.12,   median: 20,     high: 50     },
-    'Organic CTR':               { low: 0.0259, median: 0.0463, high: 0.1191 },
-    'Organic Engagement Rate':   { low: 0.0391, median: 0.0635, high: 0.1380 },
-    'CPM ($)':                   { low: 3.20,   median: 3.20,   high: 3.20   },
-    'CPC ($)':                   { low: 0.80,   median: 0.80,   high: 0.80   },
+    label: 'South America',
+    data: {
+      'Organic CTR': { low: 0.0259, median: 0.0463, high: 0.1191 },
+      'Organic Engagement Rate': { low: 0.0391, median: 0.0635, high: 0.138 },
+      'Sponsored Content CTR': { low: 0.0023, median: 0.0064, high: 0.0164 },
+      'Lead Gen Form Fill Rate': { low: 0.0231, median: 0.0649, high: 0.1739 },
+      'Cost Per Lead ($)': { low: 9.05, median: 32.57, high: 102.7 },
+      'Video View Through Rate': { low: 0.274, median: 0.38, high: 0.653 },
+      'CPM ($)': { low: 1.9, median: 5.68, high: 13.88 },
+      'CPC ($)': { low: 0.28, median: 0.72, high: 2.13 },
+      'Conversion Rate': { low: 0.0089, median: 0.0444, high: 0.2183 },
+      'Cost Per Conversion ($)': { low: 4.87, median: 32.49, high: 140.9 },
+    },
+  },
+  'Europe': {
+    label: 'Europe',
+    data: {
+      'Organic CTR': { low: 0.0298, median: 0.0524, high: 0.1203 },
+      'Organic Engagement Rate': { low: 0.0442, median: 0.0713, high: 0.1436 },
+      'Sponsored Content CTR': { low: 0.0023, median: 0.0047, high: 0.0092 },
+      'Lead Gen Form Fill Rate': { low: 0.0233, median: 0.0597, high: 0.1367 },
+      'Cost Per Lead ($)': { low: 52.91, median: 137.39, high: 351.74 },
+      'Video View Through Rate': { low: 0.272, median: 0.351, high: 0.462 },
+      'CPM ($)': { low: 13.54, median: 31.04, high: 59.68 },
+      'CPC ($)': { low: 2.25, median: 5.45, high: 11.98 },
+      'Conversion Rate': { low: 0.011, median: 0.0438, high: 0.1755 },
+      'Cost Per Conversion ($)': { low: 26.5, median: 120.71, high: 478.53 },
+    },
+  },
+  'Africa': {
+    label: 'Africa',
+    data: {
+      'Organic CTR': { low: 0.0298, median: 0.0524, high: 0.1203 },
+      'Organic Engagement Rate': { low: 0.0442, median: 0.0713, high: 0.1436 },
+      'Sponsored Content CTR': { low: 0.003, median: 0.006, high: 0.0122 },
+      'Lead Gen Form Fill Rate': { low: 0.0377, median: 0.0833, high: 0.1714 },
+      'Cost Per Lead ($)': { low: 7.0, median: 18.44, high: 49.31 },
+      'Video View Through Rate': { low: 0.284, median: 0.378, high: 0.594 },
+      'CPM ($)': { low: 1.05, median: 3.17, high: 8.86 },
+      'CPC ($)': { low: 0.18, median: 0.45, high: 1.21 },
+      'Conversion Rate': { low: 0.011, median: 0.0438, high: 0.1755 },
+      'Cost Per Conversion ($)': { low: 26.49, median: 120.71, high: 478.53 },
+    },
+  },
+  'Eurasia': {
+    label: 'Eurasia',
+    data: {
+      'Organic CTR': { low: 0.0298, median: 0.0524, high: 0.1203 },
+      'Organic Engagement Rate': { low: 0.0442, median: 0.0713, high: 0.1436 },
+      'Sponsored Content CTR': { low: 0.0021, median: 0.0055, high: 0.0149 },
+      'Lead Gen Form Fill Rate': { low: 0.0041, median: 0.026, high: 0.0611 },
+      'Cost Per Lead ($)': { low: 22.96, median: 60.46, high: 139.54 },
+      'Video View Through Rate': { low: 0.236, median: 0.314, high: 0.429 },
+      'CPM ($)': { low: 1.79, median: 5.1, high: 11.6 },
+      'CPC ($)': { low: 0.28, median: 0.74, high: 2.03 },
+      'Conversion Rate': { low: 0.0111, median: 0.0446, high: 0.1865 },
+      'Cost Per Conversion ($)': { low: 23.1, median: 110.22, high: 437.11 },
+    },
+  },
+  'Asia': {
+    label: 'Asia',
+    data: {
+      'Organic CTR': { low: 0.0298, median: 0.0524, high: 0.1203 },
+      'Organic Engagement Rate': { low: 0.0442, median: 0.0713, high: 0.1436 },
+      'Sponsored Content CTR': { low: 0.0032, median: 0.0066, high: 0.0146 },
+      'Lead Gen Form Fill Rate': { low: 0.0249, median: 0.0588, high: 0.125 },
+      'Cost Per Lead ($)': { low: 13.33, median: 35.19, high: 99.01 },
+      'Video View Through Rate': { low: 0.269, median: 0.35, high: 0.501 },
+      'CPM ($)': { low: 1.85, median: 6.72, high: 20.22 },
+      'CPC ($)': { low: 0.28, median: 0.86, high: 2.86 },
+      'Conversion Rate': { low: 0.0116, median: 0.0481, high: 0.2414 },
+      'Cost Per Conversion ($)': { low: 12.63, median: 74.83, high: 301.6 },
+    },
+  },
+  'US': {
+    label: 'United States',
+    data: {
+      'Organic CTR': { low: 0.0186, median: 0.0353, high: 0.0678 },
+      'Organic Engagement Rate': { low: 0.0327, median: 0.0543, high: 0.0906 },
+      'Sponsored Content CTR': { low: 0.0011, median: 0.0054, high: 0.0135 },
+      'Lead Gen Form Fill Rate': { low: 0.027, median: 0.0704, high: 0.1622 },
+      'Cost Per Lead ($)': { low: 99.12, median: 274.89, high: 732.7 },
+      'Video View Through Rate': { low: 0.327, median: 0.481, high: 0.736 },
+      'CPM ($)': { low: 6.62, median: 23.96, high: 80.62 },
+      'CPC ($)': { low: 1.27, median: 3.13, high: 13.45 },
+      'Conversion Rate': { low: 0.0092, median: 0.0455, high: 0.235 },
+      'Cost Per Conversion ($)': { low: 32.98, median: 194.43, high: 872.37 },
+    },
+  },
+  'UK': {
+    label: 'United Kingdom',
+    data: {
+      'Organic CTR': { low: 0.0267, median: 0.0465, high: 0.0908 },
+      'Organic Engagement Rate': { low: 0.0401, median: 0.0649, high: 0.1136 },
+      'Sponsored Content CTR': { low: 0.0018, median: 0.0049, high: 0.0122 },
+      'Lead Gen Form Fill Rate': { low: 0.0256, median: 0.0702, high: 0.1667 },
+      'Cost Per Lead ($)': { low: 45.94, median: 132.22, high: 356.47 },
+      'Video View Through Rate': { low: 0.271, median: 0.365, high: 0.482 },
+      'CPM ($)': { low: 11.06, median: 30.84, high: 60.86 },
+      'CPC ($)': { low: 1.86, median: 4.7, high: 11.33 },
+      'Conversion Rate': { low: 0.011, median: 0.0438, high: 0.1755 },
+      'Cost Per Conversion ($)': { low: 26.49, median: 120.71, high: 478.53 },
+    },
+  },
+  'KE': {
+    label: 'Kenya',
+    data: {
+      'Organic CTR': { low: 0.0303, median: 0.0539, high: 0.1786 },
+      'Sponsored Content CTR': { low: 0.0042, median: 0.0082, high: 0.0233 },
+      'Lead Gen Form Fill Rate': { low: 0.0442, median: 0.0909, high: 0.1724 },
+      'Cost Per Lead ($)': { low: 6.04, median: 14.13, high: 34.25 },
+      'Video View Through Rate': { low: 0.26, median: 0.337, high: 0.411 },
+      'CPM ($)': { low: 2.78, median: 6.57, high: 12.85 },
+      'CPC ($)': { low: 0.24, median: 0.66, high: 1.46 },
+      'Conversion Rate': { low: 0.011, median: 0.0438, high: 0.1755 },
+      'Cost Per Conversion ($)': { low: 26.49, median: 120.71, high: 478.53 },
+    },
+  },
+  'NG': {
+    label: 'Nigeria',
+    data: {
+      'Organic CTR': { low: 0.0297, median: 0.0496, high: 0.0925 },
+      'Organic Engagement Rate': { low: 0.0388, median: 0.0683, high: 0.1199 },
+      'Sponsored Content CTR': { low: 0.0034, median: 0.008, high: 0.0226 },
+      'Lead Gen Form Fill Rate': { low: 0.0575, median: 0.125, high: 0.2206 },
+      'Cost Per Lead ($)': { low: 4.7, median: 13.27, high: 33.24 },
+      'Video View Through Rate': { low: 0.265, median: 0.362, high: 0.464 },
+      'CPM ($)': { low: 1.84, median: 5.54, high: 13.2 },
+      'CPC ($)': { low: 0.25, median: 0.66, high: 1.68 },
+      'Conversion Rate': { low: 0.011, median: 0.0438, high: 0.1755 },
+      'Cost Per Conversion ($)': { low: 26.49, median: 120.71, high: 478.53 },
+    },
+  },
+  'ZA': {
+    label: 'South Africa',
+    data: {
+      'Organic CTR': { low: 0.0261, median: 0.0474, high: 0.1019 },
+      'Organic Engagement Rate': { low: 0.036, median: 0.0615, high: 0.1188 },
+      'Sponsored Content CTR': { low: 0.0014, median: 0.0057, high: 0.0117 },
+      'Lead Gen Form Fill Rate': { low: 0.0426, median: 0.0993, high: 0.2089 },
+      'Cost Per Lead ($)': { low: 10.03, median: 27.89, high: 68.82 },
+      'Video View Through Rate': { low: 0.318, median: 0.459, high: 0.755 },
+      'CPM ($)': { low: 1.5, median: 3.88, high: 11.43 },
+      'CPC ($)': { low: 0.31, median: 0.65, high: 1.85 },
+      'Conversion Rate': { low: 0.011, median: 0.0438, high: 0.1755 },
+      'Cost Per Conversion ($)': { low: 26.49, median: 120.71, high: 478.53 },
+    },
+  },
+  'Bank': {
+    label: 'Banking',
+    data: {
+      'Organic CTR': { low: 0.0261, median: 0.0474, high: 0.1019 },
+      'Organic Engagement Rate': { low: 0.036, median: 0.0615, high: 0.1188 },
+      'Sponsored Content CTR': { low: 0.0014, median: 0.0043, high: 0.011 },
+      'Lead Gen Form Fill Rate': { low: 0.2922, median: 0.4149, high: 0.5519 },
+      'Cost Per Lead ($)': { low: 4.7, median: 5.51, high: 16.23 },
+      'Video View Through Rate': { low: 0.213, median: 0.306, high: 0.425 },
+      'CPM ($)': { low: 1.42, median: 6.33, high: 18.7 },
+      'CPC ($)': { low: 0.64, median: 1.29, high: 2.69 },
+      'Conversion Rate': { low: 0.0198, median: 0.0734, high: 0.1995 },
+      'Cost Per Conversion ($)': { low: 26.51, median: 90.24, high: 332.72 },
+    },
+  },
+  'TelC': {
+    label: 'Telecommunications',
+    data: {
+      'Organic CTR': { low: 0.033, median: 0.0584, high: 0.1665 },
+      'Organic Engagement Rate': { low: 0.0471, median: 0.0735, high: 0.1863 },
+      'Sponsored Content CTR': { low: 0.0017, median: 0.0048, high: 0.0106 },
+      'Lead Gen Form Fill Rate': { low: 0.045, median: 0.0857, high: 0.1163 },
+      'Cost Per Lead ($)': { low: 27.74, median: 51.56, high: 85.68 },
+      'Video View Through Rate': { low: 0.323, median: 0.375, high: 0.66 },
+      'CPM ($)': { low: 2.36, median: 6.55, high: 16.91 },
+      'CPC ($)': { low: 0.5, median: 1.19, high: 2.81 },
+      'Conversion Rate': { low: 0.0147, median: 0.0625, high: 0.3333 },
+      'Cost Per Conversion ($)': { low: 18.15, median: 97.42, high: 354.94 },
+    },
+  },
+  'FinS': {
+    label: 'Financial Services',
+    data: {
+      'Organic CTR': { low: 0.0244, median: 0.0461, high: 0.0978 },
+      'Organic Engagement Rate': { low: 0.0341, median: 0.0594, high: 0.114 },
+      'Sponsored Content CTR': { low: 0.0014, median: 0.0054, high: 0.0141 },
+      'Lead Gen Form Fill Rate': { low: 0.0402, median: 0.0768, high: 0.1314 },
+      'Cost Per Lead ($)': { low: 14.05, median: 42.85, high: 69.75 },
+      'Video View Through Rate': { low: 0.324, median: 0.422, high: 0.72 },
+      'CPM ($)': { low: 1.41, median: 4.38, high: 13.09 },
+      'CPC ($)': { low: 0.33, median: 0.68, high: 1.99 },
+      'Conversion Rate': { low: 0.0109, median: 0.0473, high: 0.1726 },
+      'Cost Per Conversion ($)': { low: 27.26, median: 118.63, high: 476.0 },
+    },
+  },
+  'Auto': {
+    label: 'Automotive',
+    data: {
+      'Organic CTR': { low: 0.0312, median: 0.0549, high: 0.1498 },
+      'Organic Engagement Rate': { low: 0.0458, median: 0.0722, high: 0.1706 },
+      'Sponsored Content CTR': { low: 0.0012, median: 0.006, high: 0.0105 },
+      'Lead Gen Form Fill Rate': { low: 0.0097, median: 0.0163, high: 0.025 },
+      'Cost Per Lead ($)': { low: 47.38, median: 84.37, high: 112.71 },
+      'CPM ($)': { low: 1.18, median: 3.21, high: 8.03 },
+      'CPC ($)': { low: 0.31, median: 0.64, high: 1.22 },
+      'Conversion Rate': { low: 0.0099, median: 0.0442, high: 0.2185 },
+      'Cost Per Conversion ($)': { low: 20.74, median: 107.79, high: 408.78 },
+    },
+  },
+  'HiEd': {
+    label: 'Higher Education',
+    data: {
+      'Organic CTR': { low: 0.021, median: 0.0436, high: 0.1425 },
+      'Organic Engagement Rate': { low: 0.0292, median: 0.056, high: 0.1598 },
+      'Sponsored Content CTR': { low: 0.0039, median: 0.0071, high: 0.0103 },
+      'Lead Gen Form Fill Rate': { low: 0.0549, median: 0.0996, high: 0.1751 },
+      'Cost Per Lead ($)': { low: 8.49, median: 16.01, high: 29.52 },
+      'Video View Through Rate': { low: 0.29, median: 0.436, high: 0.703 },
+      'CPM ($)': { low: 2.83, median: 6.88, high: 11.23 },
+      'CPC ($)': { low: 0.36, median: 1.02, high: 1.62 },
+      'Conversion Rate': { low: 0.0083, median: 0.0326, high: 0.1165 },
+      'Cost Per Conversion ($)': { low: 27.4, median: 109.01, high: 358.46 },
+    },
+  },
+  'IT': {
+    label: 'Information Technology',
+    data: {
+      'Organic CTR': { low: 0.0306, median: 0.0598, high: 0.1246 },
+      'Organic Engagement Rate': { low: 0.0431, median: 0.0754, high: 0.1486 },
+      'Sponsored Content CTR': { low: 0.002, median: 0.0067, high: 0.0152 },
+      'Lead Gen Form Fill Rate': { low: 0.0707, median: 0.1207, high: 0.189 },
+      'Cost Per Lead ($)': { low: 9.79, median: 55.75, high: 91.43 },
+      'Video View Through Rate': { low: 0.325, median: 0.451, high: 0.714 },
+      'CPM ($)': { low: 1.42, median: 3.83, high: 10.76 },
+      'CPC ($)': { low: 0.27, median: 0.53, high: 1.41 },
+      'Conversion Rate': { low: 0.0113, median: 0.0522, high: 0.2285 },
+      'Cost Per Conversion ($)': { low: 20.61, median: 123.53, high: 518.08 },
+    },
+  },
+  'Mark': {
+    label: 'Marketing & Advertising',
+    data: {
+      'Organic CTR': { low: 0.0295, median: 0.0515, high: 0.1043 },
+      'Organic Engagement Rate': { low: 0.042, median: 0.0688, high: 0.1349 },
+      'Sponsored Content CTR': { low: 0.001, median: 0.0053, high: 0.0124 },
+      'Lead Gen Form Fill Rate': { low: 0.033, median: 0.0588, high: 0.2531 },
+      'Cost Per Lead ($)': { low: 5.48, median: 25.58, high: 47.15 },
+      'Video View Through Rate': { low: 0.403, median: 0.685, high: 0.822 },
+      'CPM ($)': { low: 1.38, median: 3.04, high: 7.63 },
+      'CPC ($)': { low: 0.27, median: 0.53, high: 1.3 },
+      'Conversion Rate': { low: 0.0128, median: 0.0591, high: 0.3127 },
+      'Cost Per Conversion ($)': { low: 14.76, median: 86.36, high: 337.82 },
+    },
+  },
+  'Reta': {
+    label: 'Retail',
+    data: {
+      'Organic CTR': { low: 0.0301, median: 0.0525, high: 0.1024 },
+      'Organic Engagement Rate': { low: 0.0352, median: 0.0635, high: 0.1148 },
+      'Sponsored Content CTR': { low: 0.0015, median: 0.0093, high: 0.0195 },
+      'Lead Gen Form Fill Rate': { low: 0.0223, median: 0.0223, high: 0.0223 },
+      'Cost Per Lead ($)': { low: 27.56, median: 27.56, high: 27.56 },
+      'Video View Through Rate': { low: 0.388, median: 0.57, high: 0.804 },
+      'CPM ($)': { low: 1.87, median: 3.91, high: 6.8 },
+      'CPC ($)': { low: 0.25, median: 0.39, high: 1.38 },
+      'Conversion Rate': { low: 0.0184, median: 0.0857, high: 0.2871 },
+      'Cost Per Conversion ($)': { low: 23.5, median: 75.84, high: 249.2 },
+    },
+  },
+  'AirT': {
+    label: 'Airlines & Travel',
+    data: {
+      'Organic CTR': { low: 0.0229, median: 0.0426, high: 0.073 },
+      'Organic Engagement Rate': { low: 0.0379, median: 0.0592, high: 0.0884 },
+      'Sponsored Content CTR': { low: 0.0007, median: 0.0035, high: 0.0114 },
+      'Lead Gen Form Fill Rate': { low: 0.455, median: 0.425, high: 0.425 },
+      'Cost Per Lead ($)': { low: 1.2, median: 1.2, high: 1.2 },
+      'Video View Through Rate': { low: 0.37, median: 0.412, high: 0.75 },
+      'CPM ($)': { low: 0.67, median: 1.98, high: 5.48 },
+      'CPC ($)': { low: 0.0029, median: 0.0047, high: 0.0097 },
+      'Conversion Rate': { low: 0.0066, median: 0.0588, high: 0.25 },
+      'Cost Per Conversion ($)': { low: 8.53, median: 39.15, high: 184.81 },
+    },
+  },
+  'Gov': {
+    label: 'Government',
+    data: {
+      'Organic CTR': { low: 0.0237, median: 0.0491, high: 0.111 },
+      'Organic Engagement Rate': { low: 0.0299, median: 0.0588, high: 0.1205 },
+      'Sponsored Content CTR': { low: 0.0008, median: 0.0019, high: 0.0132 },
+      'Lead Gen Form Fill Rate': { low: 0.1227, median: 0.1227, high: 0.1227 },
+      'Cost Per Lead ($)': { low: 16.26, median: 16.26, high: 16.26 },
+      'Video View Through Rate': { low: 0.435, median: 0.668, high: 0.833 },
+      'CPM ($)': { low: 0.55, median: 1.72, high: 5.21 },
+      'CPC ($)': { low: 0.0033, median: 0.0066, high: 0.0128 },
+      'Conversion Rate': { low: 0.0265, median: 0.1947, high: 0.3692 },
+      'Cost Per Conversion ($)': { low: 8.36, median: 26.63, high: 160.97 },
+    },
   },
 };
-function getBenchmarks() { return _benchmarks; }
+function getBenchmarks(tableKey) {
+  const key = tableKey || 'ZA';
+  return BENCHMARK_TABLES[key]?.data || BENCHMARK_TABLES['ZA'].data;
+}
 
 // ─────────────────────────────────────────────────────────────
 // TL LOGO SVG (inline, matches brand asset)
@@ -1057,8 +1321,8 @@ function TLLogo({ size = 32, className = '' }) {
 // ─────────────────────────────────────────────────────────────
 // RATING HELPERS
 // ─────────────────────────────────────────────────────────────
-function calcRating(metric, value, region) {
-  const bench = _benchmarks[region];
+function calcRating(metric, value, tableKey) {
+  const bench = BENCHMARK_TABLES[tableKey]?.data || BENCHMARK_TABLES['ZA'].data;
   if (!bench?.[metric]) return null;
   const { low, median, high } = bench[metric];
   const isCost = metric.includes('Cost') || metric.includes('CPM') || metric.includes('CPC');
@@ -1104,7 +1368,11 @@ function fmtDate(d) {
 // BENCHMARK MANAGER  (developer-only tab)
 // ─────────────────────────────────────────────────────────────
 function BenchmarkManager() {
-  const [localBench, setLocalBench] = useState(() => JSON.parse(JSON.stringify(_benchmarks)));
+  const [localBench, setLocalBench] = useState(() => {
+    const flat = {};
+    Object.entries(BENCHMARK_TABLES).forEach(([k, v]) => { flat[k] = { ...v.data }; });
+    return flat;
+  });
   const [saved,   setSaved]   = useState({});
   const [saving,  setSaving]  = useState({});
   const [loadErr, setLoadErr] = useState(null);
@@ -1115,10 +1383,10 @@ function BenchmarkManager() {
       .then(data => {
         if (data) {
           setLocalBench(data);
-          Object.keys(data).forEach(region => {
-            if (_benchmarks[region]) {
-              Object.keys(data[region]).forEach(metric => {
-                _benchmarks[region][metric] = { ...data[region][metric] };
+          Object.keys(data).forEach(key => {
+            if (BENCHMARK_TABLES[key]) {
+              Object.keys(data[key]).forEach(metric => {
+                BENCHMARK_TABLES[key].data[metric] = { ...data[key][metric] };
               });
             }
           });
@@ -1136,9 +1404,10 @@ function BenchmarkManager() {
 
   async function saveRegion(region) {
     setSaving(prev => ({ ...prev, [region]: true }));
-    const updated = { ..._benchmarks, [region]: localBench[region] };
+    const updated = {};
+    Object.entries(localBench).forEach(([k, v]) => { updated[k] = v; });
     Object.entries(localBench[region]).forEach(([metric, vals]) => {
-      if (_benchmarks[region]) _benchmarks[region][metric] = { ...vals };
+      if (BENCHMARK_TABLES[region]) BENCHMARK_TABLES[region].data[metric] = { ...vals };
     });
     try {
       const res = await fetch('/api/benchmarks', {
@@ -1520,7 +1789,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [selectedAdIds,    setSelectedAdIds]    = useState([]);
 
   // ─── Config ───
-  const [region,    setRegion]    = useState('ZA');
+  const [region,         setRegion]         = useState('ZA');
+  const [benchmarkTable, setBenchmarkTable] = useState('ZA');
   const [dateStart, setDateStart] = useState(parentRange?.start || '');
   const [dateEnd,   setDateEnd]   = useState(parentRange?.end   || '');
   const [fxRate,     setFxRate]     = useState('18.50');
@@ -1822,7 +2092,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     const agg = buildAgg();
     if (!agg) return;
     setAiText(null); setAiError(null);
-    setReport({ agg, region, bench: getBenchmarks()[region], dateStart, dateEnd, selectedNames, accountName });
+    setReport({ agg, region, bench: getBenchmarks(benchmarkTable), benchmarkTable, benchmarkLabel: BENCHMARK_TABLES[benchmarkTable]?.label || benchmarkTable, dateStart, dateEnd, selectedNames, accountName });
   }
 
   // ─── AI Report via /api/report ───
@@ -2456,12 +2726,26 @@ ${buildChartScript(display, campaignNameMap)}
             </div>
           </div>
 
-          {/* Region */}
+          {/* Benchmark Table */}
           <div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Benchmark Region</div>
-            <select value={region} onChange={e => setRegion(e.target.value)}
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Benchmark Table</div>
+            <select value={benchmarkTable} onChange={e => setBenchmarkTable(e.target.value)}
               className="w-full px-3 py-2.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500">
-              {Object.keys(getBenchmarks()).map(r => <option key={r} value={r}>{r}</option>)}
+              <optgroup label="── Regions ──" style={{color:'#94a3b8'}}>
+                {['North America','South America','Europe','Africa','Eurasia','Asia'].map(k => (
+                  <option key={k} value={k}>{BENCHMARK_TABLES[k]?.label || k}</option>
+                ))}
+              </optgroup>
+              <optgroup label="── Countries ──" style={{color:'#94a3b8'}}>
+                {['US','UK','KE','NG','ZA'].map(k => (
+                  <option key={k} value={k}>{BENCHMARK_TABLES[k]?.label || k}</option>
+                ))}
+              </optgroup>
+              <optgroup label="── Industries ──" style={{color:'#94a3b8'}}>
+                {['Bank','TelC','FinS','Auto','HiEd','IT','Mark','Reta','AirT','Gov'].map(k => (
+                  <option key={k} value={k}>{BENCHMARK_TABLES[k]?.label || k}</option>
+                ))}
+              </optgroup>
             </select>
           </div>
 
@@ -2783,7 +3067,7 @@ ${buildChartScript(display, campaignNameMap)}
           {(() => {
             const p    = agg.prev || {};
             const rgn  = report.region;
-            const bm   = getBenchmarks()[rgn] || {};
+            const bm   = getBenchmarks(benchmarkTable) || {};
 
             // MoM % change — null if no previous data
             const mom = (cur, prv) => (!prv || prv === 0) ? null : ((cur - prv) / prv * 100);
@@ -2841,7 +3125,7 @@ ${buildChartScript(display, campaignNameMap)}
                 val:   fmtPct(agg.ctr),
                 sub:   null,
                 bench: vsBench('Sponsored Content CTR', agg.ctr),
-                rating: <RatingPill rating={calcRating('Sponsored Content CTR', agg.ctr, rgn)} />,
+                rating: <RatingPill rating={calcRating('Sponsored Content CTR', agg.ctr, benchmarkTable)} />,
                 mom:   momBadge(mom(agg.ctr, p.ctr), false),
               },
               {
@@ -2908,7 +3192,7 @@ ${buildChartScript(display, campaignNameMap)}
                 sub:   null,
                 zar:   null,
                 bench: vsBench('Sponsored Engagement Rate', agg.engRate),
-                rating: <RatingPill rating={calcRating('Sponsored Engagement Rate', agg.engRate, rgn)} />,
+                rating: <RatingPill rating={calcRating('Sponsored Engagement Rate', agg.engRate, benchmarkTable)} />,
                 mom:   momBadge(mom(agg.engRate, p.engRate), false),
               },
               {
@@ -3176,9 +3460,9 @@ ${buildChartScript(display, campaignNameMap)}
                     const cpc     = c.clicks>0 ? c.spent/c.clicks : 0;
                     const cpl     = c.leads>0  ? c.spent/c.leads  : 0;
                     const isPaused= !c.impressions||c.impressions===0;
-                    const ctrR    = calcRating('Sponsored Content CTR',ctr,report.region);
-                    const engR2   = calcRating('Sponsored Engagement Rate',engR,report.region);
-                    const cpcR    = calcRating('CPC ($)',cpc,report.region);
+                    const ctrR    = calcRating('Sponsored Content CTR',ctr,benchmarkTable);
+                    const engR2   = calcRating('Sponsored Engagement Rate',engR,benchmarkTable);
+                    const cpcR    = calcRating('CPC ($)',cpc,benchmarkTable);
                     return (
                       <div key={c.id} style={{background:'white',border:'1px solid #e8e6df',borderRadius:'8px',overflow:'hidden'}}>
                         {/* Header */}
@@ -3279,10 +3563,10 @@ ${buildChartScript(display, campaignNameMap)}
                       const cpc   = c.clicks>0 ? c.spent/c.clicks : 0;
                       const cpl   = c.leads>0  ? c.spent/c.leads  : 0;
                       const isPaused = !c.impressions||c.impressions===0;
-                      const ctrR  = calcRating('Sponsored Content CTR',ctr,report.region);
-                      const engR2 = calcRating('Sponsored Engagement Rate',engR,report.region);
-                      const cpcR  = calcRating('CPC ($)',cpc,report.region);
-                      const cplR  = c.leads>0 ? calcRating('Cost Per Lead ($)',cpl,report.region) : null;
+                      const ctrR  = calcRating('Sponsored Content CTR',ctr,benchmarkTable);
+                      const engR2 = calcRating('Sponsored Engagement Rate',engR,benchmarkTable);
+                      const cpcR  = calcRating('CPC ($)',cpc,benchmarkTable);
+                      const cplR  = c.leads>0 ? calcRating('Cost Per Lead ($)',cpl,benchmarkTable) : null;
                       const bCTR2 = bench['Sponsored Content CTR'];
                       const bEng2 = bench['Sponsored Engagement Rate'];
                       const bCPC2 = bench['CPC ($)'];
@@ -3421,7 +3705,7 @@ ${buildChartScript(display, campaignNameMap)}
                             const diff   = isCost ? bval-actual : actual-bval;
                             const pct    = bval>0?((diff/bval)*100).toFixed(1):'0';
                             const ok     = diff>=0;
-                            const r      = paused ? null : calcRating(metric, actual, report.region);
+                            const r      = paused ? null : calcRating(metric, actual, benchmarkTable);
                             return (
                               <tr key={`${c.id}-${ri}`} style={{borderBottom:'1px solid #e8e6df',background:ci%2===0?'white':'#fafaf9'}}>
                                 {ri===0 && <td rowSpan={3} style={{padding:'10px 14px',fontWeight:600,color:'#272828',verticalAlign:'top',paddingTop:'14px'}}>{cname}<div style={{fontFamily:'monospace',fontSize:'11px',color:'#B1AAA4',marginTop:'2px'}}>ID: {c.id}</div></td>}
