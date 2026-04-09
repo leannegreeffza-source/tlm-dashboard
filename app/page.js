@@ -560,7 +560,7 @@ function InlineCharts({ campaigns, campaignNameMap }) {
   );
 }
 
-function AIReportModal({ show, onClose, generatingReport, reportData, reportResult, currentRange, previousRange, campaignNameMap, fxRate }) {
+function AIReportModal({ show, onClose, generatingReport, reportData, reportResult, currentRange, previousRange, campaignNameMap, fxRate, fxCurrency }) {
   const reportRef = useRef(null);
   const chartSuffix = useRef(Date.now());
 
@@ -582,7 +582,8 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
   const rawMetrics = reportResult?.metrics;
   const metrics = rawMetrics || {};
   const fx      = parseFloat(fxRate) || 0;
-  const fmtZar  = (v) => v > 0 ? `R ${(v * fx).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}` : null;
+  const fxSym   = fxCurrency === 'KES' ? 'KSh' : 'R';
+  const fmtZar  = (v) => v > 0 ? `${fxSym} ${(v * fx).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}` : null;
   const sfx     = chartSuffix.current;
 
   function statusColor(status) {
@@ -673,27 +674,27 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                 ))}
               </div>
 
-              {/* ZAR Summary Block */}
+              {/* Currency Summary Block */}
               {fx > 0 && (
                 <div style={{margin:'0 30px 30px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:'10px',padding:'20px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'16px'}}>
-                    <div style={{width:'32px',height:'32px',background:'#16a34a',borderRadius:'8px',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'13px',color:'white',flexShrink:0}}>R</div>
+                    <div style={{width:'32px',height:'32px',background:'#16a34a',borderRadius:'8px',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'13px',color:'white',flexShrink:0}}>{fxSym}</div>
                     <div>
-                      <div style={{fontWeight:700,fontSize:'14px',color:'#15803d'}}>ZAR Summary</div>
-                      <div style={{fontSize:'12px',color:'#86efac'}}>@ R{fx.toFixed(2)} per $1 USD</div>
+                      <div style={{fontWeight:700,fontSize:'14px',color:'#15803d'}}>{fxCurrency === 'KES' ? 'KES' : 'ZAR'} Summary</div>
+                      <div style={{fontSize:'12px',color:'#86efac'}}>@ {fxSym}{fx.toFixed(2)} per $1 USD</div>
                     </div>
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px'}}>
                     {[
-                      { label:'Total Spent (ZAR)',  val: fmtZar(spent) },
-                      { label:'CPM (ZAR)',           val: fmtZar(cpm)   },
-                      { label:'CPC (ZAR)',           val: fmtZar(cpc)   },
-                      ...(cpl > 0  ? [{ label:'CPL (ZAR)', val: fmtZar(cpl) }] : []),
+                      { label:`Total Spent (${fxCurrency === 'KES' ? 'KES' : 'ZAR'})`, val: fmtZar(spent) },
+                      { label:`CPM (${fxCurrency === 'KES' ? 'KES' : 'ZAR'})`,          val: fmtZar(cpm)   },
+                      { label:`CPC (${fxCurrency === 'KES' ? 'KES' : 'ZAR'})`,          val: fmtZar(cpc)   },
+                      ...(cpl > 0  ? [{ label:`CPL (${fxCurrency === 'KES' ? 'KES' : 'ZAR'})`, val: fmtZar(cpl) }] : []),
                     ].map((z,i) => z.val ? (
                       <div key={i} style={{background:'white',border:'1px solid #bbf7d0',borderRadius:'8px',padding:'14px'}}>
                         <div style={{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1.5px',color:'#16a34a',fontWeight:700,marginBottom:'6px'}}>{z.label}</div>
                         <div style={{fontSize:'22px',fontWeight:700,color:'#15803d'}} contentEditable suppressContentEditableWarning>{z.val}</div>
-                        <div style={{fontSize:'11px',color:'#86efac',marginTop:'4px'}}>× R{fx.toFixed(2)}</div>
+                        <div style={{fontSize:'11px',color:'#86efac',marginTop:'4px'}}>× {fxSym}{fx.toFixed(2)}</div>
                       </div>
                     ) : null)}
                   </div>
@@ -1522,7 +1523,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [region,    setRegion]    = useState('ZA');
   const [dateStart, setDateStart] = useState(parentRange?.start || '');
   const [dateEnd,   setDateEnd]   = useState(parentRange?.end   || '');
-  const [fxRate,    setFxRate]    = useState('18.50');
+  const [fxRate,     setFxRate]     = useState('18.50');
+  const [fxCurrency, setFxCurrency] = useState('ZAR'); // 'ZAR' or 'KES'
 
   // ─── Previous period (auto-calculated, user can override) ───
   const [useCompare, setUseCompare] = useState(false);
@@ -2517,14 +2519,35 @@ ${buildChartScript(display, campaignNameMap)}
         {/* Row 2: FX Rate */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap">USD → ZAR Rate</span>
+            {/* Currency toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
+              {[{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
+                <button key={opt.val} onClick={() => {
+                  setFxCurrency(opt.val);
+                  setFxRate(opt.val === 'ZAR' ? '18.50' : '130');
+                }}
+                  className="px-3 py-1.5 text-xs font-bold transition-all"
+                  style={fxCurrency === opt.val
+                    ? {background:'#F6DC4E', color:'#0a1628'}
+                    : {background:'transparent', color:'#64748b'}}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {/* Rate input */}
             <div className="relative">
-              <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">R</span>
-              <input type="number" min="1" step="0.01" placeholder="18.50" value={fxRate}
+              <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
+                {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
+              </span>
+              <input type="number" min="1" step="0.01"
+                placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
+                value={fxRate}
                 onChange={e => setFxRate(e.target.value)}
                 className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
             </div>
-            <span className="text-xs text-slate-500">$1 = R{parseFloat(fxRate)||0}</span>
+            <span className="text-xs text-slate-500">
+              $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
+            </span>
           </div>
           {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
             <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -2825,7 +2848,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'Spent (USD)',
                 val:   fmtCur(agg.spend || agg.spent || 0),
                 sub:   null,
-                zar:   parseFloat(fxRate) > 0 ? `R ${((agg.spend||agg.spent||0) * parseFloat(fxRate)).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}` : null,
+                zar:   parseFloat(fxRate) > 0 ? `${(fxCurrency === 'ZAR' ? 'R' : 'KSh')} ${((agg.spend||agg.spent||0) * parseFloat(fxRate)).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}` : null,
                 bench: null,
                 mom:   momBadge(mom(agg.spend || agg.spent || 0, p.spend || p.spent || 0), true),
               },
@@ -2833,7 +2856,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPM (USD)',
                 val:   fmtCur(agg.cpm),
                 sub:   null,
-                zar:   parseFloat(fxRate) > 0 ? `R ${(agg.cpm * parseFloat(fxRate)).toFixed(2)}` : null,
+                zar:   parseFloat(fxRate) > 0 ? `${(fxCurrency === 'ZAR' ? 'R' : 'KSh')} ${(agg.cpm * parseFloat(fxRate)).toFixed(2)}` : null,
                 bench: vsBench('CPM ($)', agg.cpm),
                 mom:   momBadge(mom(agg.cpm, p.cpm), true),
               },
@@ -2841,7 +2864,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPC (USD)',
                 val:   fmtCur(agg.cpc),
                 sub:   null,
-                zar:   parseFloat(fxRate) > 0 ? `R ${(agg.cpc * parseFloat(fxRate)).toFixed(2)}` : null,
+                zar:   parseFloat(fxRate) > 0 ? `${(fxCurrency === 'ZAR' ? 'R' : 'KSh')} ${(agg.cpc * parseFloat(fxRate)).toFixed(2)}` : null,
                 bench: vsBench('CPC ($)', agg.cpc),
                 mom:   momBadge(mom(agg.cpc, p.cpc), true),
               },
@@ -2875,7 +2898,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPL (USD)',
                 val:   agg.leads > 0 ? fmtCur(agg.cpl) : '—',
                 sub:   `Total spend: ${fmtCur(agg.spend || agg.spent || 0)}`,
-                zar:   agg.leads > 0 && parseFloat(fxRate) > 0 ? `R ${(agg.cpl * parseFloat(fxRate)).toFixed(2)} per lead` : null,
+                zar:   agg.leads > 0 && parseFloat(fxRate) > 0 ? `${(fxCurrency === 'ZAR' ? 'R' : 'KSh')} ${(agg.cpl * parseFloat(fxRate)).toFixed(2)} per lead` : null,
                 bench: agg.leads > 0 ? vsBench('Cost Per Lead ($)', agg.cpl) : null,
                 mom:   momBadge(agg.leads > 0 && p.cpl > 0 ? mom(agg.cpl, p.cpl) : null, true),
               },
@@ -2908,7 +2931,7 @@ ${buildChartScript(display, campaignNameMap)}
                 label: 'CPV (USD)',
                 val:   agg.cpv != null && agg.cpv > 0 ? fmtCur(agg.cpv) : '$0.00',
                 sub:   null,
-                zar:   agg.cpv > 0 && parseFloat(fxRate) > 0 ? `R ${(agg.cpv * parseFloat(fxRate)).toFixed(3)}` : null,
+                zar:   agg.cpv > 0 && parseFloat(fxRate) > 0 ? `${(fxCurrency === 'ZAR' ? 'R' : 'KSh')} ${(agg.cpv * parseFloat(fxRate)).toFixed(3)}` : null,
                 bench: null,
                 mom:   momBadge(mom(agg.cpv || 0, p.cpv || 0), true),
               },
@@ -3453,6 +3476,7 @@ ${buildChartScript(display, campaignNameMap)}
         previousRange={getAnalyticsPayload().previousRange}
         campaignNameMap={campaignNameMap}
         fxRate={fxRate}
+        fxCurrency={fxCurrency}
       />
     </div>
   );
