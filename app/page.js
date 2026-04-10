@@ -2379,7 +2379,7 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
   <div style="text-align:right">
     <div style="color:#F6DC4E;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">LinkedIn Performance Report</div>
     <div style="color:#B1AAA4;font-size:13px">Period: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}</div>
-    <div style="color:#B1AAA4;font-size:13px">Benchmark: ${region}</div>
+    <div style="color:#B1AAA4;font-size:13px">Benchmark: ${report?.benchmarkLabel || report?.benchmarkTable || region}</div>
     <div style="color:#555;font-size:12px;margin-top:6px">Generated: ${now}</div>
   </div>
 </div>
@@ -3071,7 +3071,7 @@ ${buildChartScript(display, campaignNameMap)}
             <div className="text-right">
               <div className="text-xs font-bold tracking-widest uppercase mb-2" style={{color:'#F6DC4E'}}>LinkedIn Performance Report</div>
               <div className="text-sm" style={{color:'#B1AAA4'}}>Period: {fmtDate(report.dateStart)} – {fmtDate(report.dateEnd)}</div>
-              <div className="text-sm" style={{color:'#B1AAA4'}}>Benchmark: {report.region}</div>
+              <div className="text-sm" style={{color:'#B1AAA4'}}>Benchmark: {report.benchmarkLabel || report.benchmarkTable || report.region}</div>
               <div className="text-xs mt-1" style={{color:'#555'}}>
                 Generated: {new Date().toLocaleDateString('en-ZA',{day:'numeric',month:'long',year:'numeric'})}
               </div>
@@ -3270,7 +3270,7 @@ ${buildChartScript(display, campaignNameMap)}
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0" style={{background:'#F6DC4E',color:'#272828'}}>AI</div>
                 <div>
                   <div className="font-bold text-white text-sm">Claude AI Recommendations</div>
-                  <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.region} Q4 2025 · {selectedNames.length} campaign{selectedNames.length!==1?'s':''}</div>
+                  <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.benchmarkLabel || report.benchmarkTable || report.region} Q1 2026 · {selectedNames.length} campaign{selectedNames.length!==1?'s':''}</div>
                 </div>
                 {aiText && !aiLoading && (
                   <button onClick={getAIInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-[#2a4a6e] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
@@ -3283,7 +3283,7 @@ ${buildChartScript(display, campaignNameMap)}
               {aiLoading && (
                 <div className="flex items-center gap-3 px-6 py-8 text-slate-400 text-sm">
                   <RefreshCw className="w-4 h-4 animate-spin" style={{color:'#F6DC4E'}} />
-                  Analysing {selectedNames.length} campaign{selectedNames.length!==1?'s':''} against {report.region} benchmarks...
+                  Analysing {selectedNames.length} campaign{selectedNames.length!==1?'s':''} against {report.benchmarkLabel || report.benchmarkTable || report.region} benchmarks...
                 </div>
               )}
 
