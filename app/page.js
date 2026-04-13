@@ -2344,8 +2344,8 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
     setAiLoading(false);
   }
 
-  // ── Export full branded HTML ──
-  function exportHTML() {
+  // ── Build full branded HTML string (shared by Export HTML and Export PDF) ──
+  function buildReportHTML() {
     if (!report) return;
     const { agg, region, bench, benchmarkTable: bTable, benchmarkLabel: bLabel, dateStart, dateEnd, selectedNames, accountName } = report;
     const b = bench || {};
@@ -2563,6 +2563,14 @@ ${aiSection}
 </div>
 </div></body></html>`;
 
+    return html;
+  }
+
+  // ── Export full branded HTML (download) ──
+  function exportHTML() {
+    const html = buildReportHTML();
+    if (!html || !report) return;
+    const { accountName, dateStart } = report;
     const blob = new Blob([html], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -2570,7 +2578,6 @@ ${aiSection}
     a.download = `TLM-Report-${accountName.replace(/\s+/g,'-')}-${dateStart}.html`;
     a.click();
     URL.revokeObjectURL(url);
-    return html;
   }
 
   // ── Helper: build chart script string without regex literals in template ──
@@ -3191,10 +3198,8 @@ ${buildChartScript(display, campaignNameMap)}
           )}
           {report && (
             <button onClick={() => {
-              // Get the exact same HTML as Export HTML, then open and auto-print
-              const html = exportHTML();
+              const html = buildReportHTML();
               if (!html) return;
-              // Add print-color-adjust and auto-print script to the identical HTML
               const printHtml = html
                 .replace('background:#F4F3F0;color:#272828;line-height:1.6}',
                          'background:#F4F3F0;color:#272828;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}')
