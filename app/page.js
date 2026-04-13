@@ -2570,6 +2570,7 @@ ${aiSection}
     a.download = `TLM-Report-${accountName.replace(/\s+/g,'-')}-${dateStart}.html`;
     a.click();
     URL.revokeObjectURL(url);
+    return html;
   }
 
   // ── Helper: build chart script string without regex literals in template ──
@@ -3190,131 +3191,18 @@ ${buildChartScript(display, campaignNameMap)}
           )}
           {report && (
             <button onClick={() => {
-              const { agg, region, bench, benchmarkTable: bTable, benchmarkLabel: bLabel, dateStart, dateEnd, selectedNames, accountName } = report;
-              const b = bench || {};
-              const benchDisplayName = bLabel || BENCHMARK_TABLES[bTable]?.label || bTable || region;
-              const now = new Date().toLocaleDateString('en-ZA', { day:'numeric', month:'long', year:'numeric' });
-              const fx  = parseFloat(fxRate) || 0;
-              const fxSym = fxCurrency === 'KES' ? 'KSh' : 'R';
-              const fmtFx = (v) => fx > 0 && v > 0 ? `<div style="color:#059669;font-size:13px;font-weight:600;margin-top:2px">${fxSym} ${(v*fx).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>` : '';
-
-              function ratingBadge(metric, val) {
-                const r = calcRating(metric, val, bTable || region);
-                const bv = b[metric];
-                if (!r || !bv) return '';
-                const isCost = metric.includes('Cost') || metric.includes('CPM') || metric.includes('CPC');
-                const pct = isCost ? ((bv.median - val) / bv.median * 100) : ((val - bv.median) / bv.median * 100);
-                const good = pct >= 0;
-                const col = r==='exc'?'#059669':r==='above'?'#2563eb':r==='near'?'#ca8a04':'#dc2626';
-                const bg  = r==='exc'?'rgba(5,150,105,0.1)':r==='above'?'rgba(37,99,235,0.1)':r==='near'?'rgba(202,138,4,0.1)':'rgba(220,38,38,0.1)';
-                return `<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${bg};color:${col};margin-top:6px;font-family:monospace">${good?'↑':'↓'}${Math.abs(pct).toFixed(1)}% vs benchmark</div>`;
-              }
-              function ratingIndicator(metric, val) {
-                const r = calcRating(metric, val, bTable || region);
-                if (r==='exc') return '🟢'; if (r==='above') return '🔵';
-                if (r==='near') return '🟡'; if (r==='below') return '🔴'; return '';
-              }
-              function fmtBenchVp(metric, val) {
-                if (metric.includes('Cost')||metric.includes('CPM')||metric.includes('CPC')) return fmtCur(val);
-                return fmtPct(val);
-              }
-
-              const kpiCards = [
-                { label:'Impressions', value:fmtNum(agg.impressions), sub:`${fmtNum(agg.clicks)} clicks`, extra:'' },
-                { label:'Clicks', value:fmtNum(agg.clicks), sub:`CTR: ${fmtPct(agg.ctr)}`, extra:'' },
-                { label:'CTR', value:fmtPct(agg.ctr), sub:'', extra:ratingBadge('Sponsored Content CTR', agg.ctr) },
-                { label:'Spent (USD)', value:fmtCur(agg.spend||agg.spent||0), sub:'', extra:fmtFx(agg.spend||agg.spent||0) },
-                { label:'CPM (USD)', value:fmtCur(agg.cpm), sub:'', extra:fmtFx(agg.cpm)+ratingBadge('CPM ($)',agg.cpm) },
-                { label:'CPC (USD)', value:fmtCur(agg.cpc), sub:'', extra:fmtFx(agg.cpc)+ratingBadge('CPC ($)',agg.cpc) },
-                { label:'Clicks to Landing Page CTR', value:agg.landingClicks>0?fmtPct(agg.landingClicks/agg.impressions):fmtPct(agg.ctr), sub:agg.landingClicks>0?`${fmtNum(agg.landingClicks)} landing page clicks`:'', extra:'' },
-                { label:'Website Visits', value:fmtNum(agg.reach), sub:'Unique members reached', extra:'' },
-                { label:'Leads', value:String(agg.leads), sub:`Form Fill Rate: ${fmtPct(agg.ffr)}`, extra:agg.leads>0?ratingBadge('Lead Gen Form Fill Rate',agg.ffr):'' },
-                { label:'CPL (USD)', value:agg.leads>0?fmtCur(agg.cpl):'—', sub:`Total spend: ${fmtCur(agg.spend||agg.spent||0)}`, extra:agg.leads>0?fmtFx(agg.cpl)+ratingBadge('Cost Per Lead ($)',agg.cpl):'' },
-                { label:'Engagement Rate', value:fmtPct(agg.engRate), sub:'', extra:ratingBadge('Sponsored Engagement Rate',agg.engRate) },
-                { label:'Engagements', value:fmtNum(agg.engagements||0), sub:`Eng Rate: ${fmtPct(agg.engRate)}`, extra:'' },
-                { label:'Video View Rate', value:agg.videoViewRate>0?fmtPct(agg.videoViewRate):'0.00%', sub:'', extra:'' },
-                { label:'CPV (USD)', value:fmtCur(agg.cpv||0), sub:'', extra:fmtFx(agg.cpv||0) },
-              ].map(({label,value,sub,extra}) => `<div style="background:white;padding:18px;border-radius:10px;border:1px solid #e5e3de;break-inside:avoid"><div style="color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:600">${label}</div><div style="font-size:1.7em;font-weight:700;color:#0a1628;margin-bottom:3px">${value}</div>${sub?`<div style="font-size:12px;color:#999">${sub}</div>`:''}${extra}</div>`).join('');
-
-              const benchRows = [
-                ['Sponsored Content CTR', fmtPct(agg.ctr), 'Sponsored Content CTR', agg.ctr],
-                ['Engagement Rate', fmtPct(agg.engRate), 'Sponsored Engagement Rate', agg.engRate],
-                ['Form Fill Rate', fmtPct(agg.ffr), 'Lead Gen Form Fill Rate', agg.ffr],
-                ['Cost Per Lead', agg.leads>0?fmtCur(agg.cpl):'—', 'Cost Per Lead ($)', agg.cpl],
-                ['CPM', fmtCur(agg.cpm), 'CPM ($)', agg.cpm],
-                ['CPC', fmtCur(agg.cpc), 'CPC ($)', agg.cpc],
-              ].map(([label,val,metric,rawVal]) => {
-                const bv = b[metric]; const ind = ratingIndicator(metric, rawVal);
-                return `<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e3de;font-weight:600;font-size:13px">${label}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e3de;font-weight:700;color:#0a1628;font-size:13px">${val}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e3de;color:#888;font-size:13px">${bv?fmtBenchVp(metric,bv.low):'—'}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e3de;color:#888;font-size:13px">${bv?fmtBenchVp(metric,bv.median):'—'}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e3de;color:#888;font-size:13px">${bv?fmtBenchVp(metric,bv.high):'—'}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e3de;font-size:1.1em">${ind}</td></tr>`;
-              }).join('');
-
-              const aiBlock = aiText ? `<div style="background:#0a1628;border-radius:10px;padding:28px;margin-bottom:24px;break-inside:avoid"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><div style="width:32px;height:32px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#0a1628;flex-shrink:0">AI</div><div><div style="color:white;font-weight:700;font-size:14px">Claude AI Recommendations</div><div style="color:#888;font-size:11px">Powered by Claude Sonnet · ${benchDisplayName} Q1 2026</div></div></div><div style="color:#d1cbc3;font-size:13px;line-height:1.8">${aiText.replace(/## (.+)/g,'<h4 style="color:#F6DC4E;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:18px 0 6px">$1</h4>').replace(/^- (.+)$/gm,'<li style="margin-bottom:5px;margin-left:18px">$1</li>').replace(/\n\n/g,'<br/>')}</div></div>` : '';
-
-              const printHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>${accountName} — LinkedIn Report ${fmtDate(dateStart)}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#F4F3F0;color:#272828;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .page{max-width:1100px;margin:0 auto;padding:24px}
-  @media print{
-    body{background:white}
-    .page{padding:16px}
-    @page{margin:12mm;size:A4 landscape}
-  }
-</style>
-</head><body><div class="page">
-
-<div style="background:#0a1628;color:white;padding:32px;border-radius:12px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;-webkit-print-color-adjust:exact;print-color-adjust:exact">
-  <div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-      <svg width="32" height="32" viewBox="0 0 400 400" fill="none"><rect width="400" height="400" fill="#0f1f3d"/><path d="M60 120 L60 80 L200 80 L310 200 L310 240 L280 240 L280 215 L175 95 L95 95 L95 120 Z" fill="white"/><path d="M130 155 L130 320 L165 320 L165 155 Z" fill="white"/><path d="M200 200 L340 200 L340 320 L310 320 L310 235 L200 235 Z" fill="white"/></svg>
-      <span style="color:#B1AAA4;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Turn Left Media</span>
-    </div>
-    <h1 style="font-size:1.8em;font-weight:700;margin-bottom:5px">${accountName}</h1>
-    <p style="color:#B1AAA4;font-size:12px">${selectedNames.join(' · ')}</p>
-  </div>
-  <div style="text-align:right">
-    <div style="color:#F6DC4E;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">LinkedIn Performance Report</div>
-    <div style="color:#B1AAA4;font-size:12px">Period: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}</div>
-    <div style="color:#B1AAA4;font-size:12px">Benchmark: ${benchDisplayName}</div>
-    <div style="color:#555;font-size:11px;margin-top:4px">Generated: ${now}</div>
-  </div>
-</div>
-
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">
-${kpiCards}
-</div>
-
-<div style="background:white;padding:24px;border-radius:10px;margin-bottom:22px;border:1px solid #e5e3de;break-inside:avoid">
-  <h2 style="font-size:1.3em;font-weight:700;color:#0a1628;padding-bottom:10px;border-bottom:3px solid #F6DC4E;margin-bottom:14px">Performance vs ${benchDisplayName} Benchmarks</h2>
-  <table style="width:100%;border-collapse:collapse">
-    <thead><tr style="background:#0a1628;color:white;-webkit-print-color-adjust:exact;print-color-adjust:exact">
-      <th style="padding:10px 14px;text-align:left;font-size:10px;letter-spacing:1px;text-transform:uppercase">Metric</th>
-      <th style="padding:10px 14px;text-align:left;font-size:10px">Your Result</th>
-      <th style="padding:10px 14px;text-align:left;font-size:10px">Low</th>
-      <th style="padding:10px 14px;text-align:left;font-size:10px">Median</th>
-      <th style="padding:10px 14px;text-align:left;font-size:10px">High</th>
-      <th style="padding:10px 14px;text-align:left;font-size:10px">Rating</th>
-    </tr></thead>
-    <tbody>${benchRows}</tbody>
-  </table>
-  <div style="margin-top:12px;padding:10px 14px;background:#F4F3F0;border-radius:6px;font-size:11px;color:#888">
-    🟢 Exceptional &nbsp;|&nbsp; 🔵 Above Benchmark &nbsp;|&nbsp; 🟡 Near Benchmark &nbsp;|&nbsp; 🔴 Below Benchmark
-  </div>
-</div>
-
-${aiBlock}
-
-<div style="text-align:center;padding:16px;color:#888;font-size:11px;border-top:1px solid #e5e3de">
-  Report generated by Turn Left Media · ${now} · LinkedIn Q1 2026 Benchmarks (${benchDisplayName})
-</div>
-
-</div>
-<script>window.onload=function(){window.print();}</script>
-</body></html>`;
-
+              // Get the exact same HTML as Export HTML, then open and auto-print
+              const html = exportHTML();
+              if (!html) return;
+              // Add print-color-adjust and auto-print script to the identical HTML
+              const printHtml = html
+                .replace('background:#F4F3F0;color:#272828;line-height:1.6}',
+                         'background:#F4F3F0;color:#272828;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}')
+                .replace('@media print{body{background:white}.no-print{display:none!important}}',
+                         '@media print{body{background:#F4F3F0}@page{margin:10mm;size:A4 landscape}.no-print{display:none!important}}')
+                .replace('</body>', '<script>window.onload=function(){window.print();}<\/script></body>');
               const w = window.open('', '_blank');
-              if (w) { w.document.write(printHTML); w.document.close(); }
+              if (w) { w.document.write(printHtml); w.document.close(); }
             }}
               className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
               Export PDF
