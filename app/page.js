@@ -2259,8 +2259,9 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   async function getAIInsights() {
     if (!report) return;
     setAiLoading(true); setAiError(null); setAiText(null);
-    const { agg, region, bench } = report;
+    const { agg, region, bench, benchmarkTable: bTable, benchmarkLabel: bLabel } = report;
     const b = bench || {};
+    const benchDisplayName = bLabel || BENCHMARK_TABLES[bTable]?.label || bTable || region;
 
     // Build per-campaign breakdown for the prompt
     const campaignBreakdown = (() => {
@@ -2328,11 +2329,17 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
-      const data = await res.json();
-      if (data.text) setAiText(data.text);
-      else setAiError('No response from Claude. Check your API key.');
+      if (!res.ok) {
+        const err = await res.text().catch(() => res.statusText);
+        setAiError(`API error ${res.status}: ${err}`);
+      } else {
+        const data = await res.json();
+        if (data.text) setAiText(data.text);
+        else if (data.error) setAiError(`Claude error: ${data.error}`);
+        else setAiError('No response from Claude. Check your API key.');
+      }
     } catch (e) {
-      setAiError('Failed to connect to AI service. Please try again.');
+      setAiError(`Failed to connect: ${e.message}`);
     }
     setAiLoading(false);
   }
