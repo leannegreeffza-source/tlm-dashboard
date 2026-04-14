@@ -3219,12 +3219,14 @@ ${buildChartScript(display, campaignNameMap)}
             <button onClick={() => {
               const html = buildReportHTML();
               if (!html) return;
+              const endBody = String.fromCharCode(60,47) + 'body>';
+              const printScript = '<script>window.onload=function(){window.print();}' + String.fromCharCode(60,47) + 'script>';
               const printHtml = html
                 .replace('background:#F4F3F0;color:#272828;line-height:1.6}',
                          'background:#F4F3F0;color:#272828;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}')
                 .replace('@media print{body{background:white}.no-print{display:none!important}}',
                          '@media print{body{background:#F4F3F0}@page{margin:10mm;size:A4 landscape}.no-print{display:none!important}}')
-                .replace('</body>', '<script>window.onload=function(){window.print();}</scr'+'ipt></body>');
+                .replace(endBody, printScript + endBody);
               const w = window.open('', '_blank');
               if (w) { w.document.write(printHtml); w.document.close(); }
             }}
