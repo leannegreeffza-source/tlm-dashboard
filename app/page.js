@@ -2506,6 +2506,18 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
       </tr>`;
     }).join('');
 
+    const aiFormatted = aiText
+      ? aiText
+          .split('\n')
+          .map(line => {
+            if (line.startsWith('## ')) return `<h4 style="color:#F6DC4E;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:20px 0 8px">${line.slice(3)}</h4>`;
+            if (line.startsWith('- ')) return `<li style="margin-bottom:6px;margin-left:20px">${line.slice(2)}</li>`;
+            if (line === '') return '<br/>';
+            return line;
+          })
+          .join('\n')
+      : '';
+
     const aiSection = aiText ? `
       <div style="background:#0a1628;border-radius:10px;padding:30px;margin-bottom:30px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -2515,7 +2527,7 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
             <div style="color:#888;font-size:12px">Powered by Claude Sonnet · ${benchDisplayName} Q1 2026 Benchmarks</div>
           </div>
         </div>
-        <div style="color:#d1cbc3;font-size:14px;line-height:1.8">${aiText.replace(/## (.+)/g,'<h4 style="color:#F6DC4E;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:20px 0 8px">$1</h4>').replace(/^- (.+)$/gm,'<li style="margin-bottom:6px;margin-left:20px">$1</li>').replace(/\n\n/g,'<br/>')}</div>
+        <div style="color:#d1cbc3;font-size:14px;line-height:1.8">${aiFormatted}</div>
       </div>` : '';
 
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -2700,6 +2712,18 @@ ${aiSection}
     }).join('');
 
     // AI section
+    const aiFormattedCombined = aiText
+      ? aiText
+          .split('\n')
+          .map(line => {
+            if (line.startsWith('## ')) return `<h4 style="color:#F6DC4E;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:24px 0 10px;font-family:monospace">${line.slice(3)}</h4>`;
+            if (line.startsWith('- ')) return `<div style="display:flex;gap:10px;margin-bottom:8px"><span style="color:#F6DC4E;flex-shrink:0">→</span><span>${line.slice(2)}</span></div>`;
+            if (line === '') return '<br/>';
+            return line;
+          })
+          .join('\n')
+      : '';
+
     const aiSection = aiText ? `
     <div style="background:#0a1628;border-radius:10px;padding:32px;margin-bottom:28px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
@@ -2709,12 +2733,7 @@ ${aiSection}
           <div style="color:#888;font-size:12px">Powered by Claude Sonnet · ${benchDisplayName} Q1 2026 Benchmarks</div>
         </div>
       </div>
-      <div style="color:#d1cbc3;font-size:14px;line-height:1.9">${
-        aiText
-          .replace(/## (.+)/g,'<h4 style="color:#F6DC4E;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin:24px 0 10px;font-family:monospace">$1</h4>')
-          .replace(/^- (.+)$/gm,'<div style="display:flex;gap:10px;margin-bottom:8px"><span style="color:#F6DC4E;flex-shrink:0">→</span><span>$1</span></div>')
-          .replace(/\n\n/g,'<br/>')
-      }</div>
+      <div style="color:#d1cbc3;font-size:14px;line-height:1.9">${aiFormattedCombined}</div>
     </div>` : '';
 
     const html = `<!DOCTYPE html>
