@@ -3243,6 +3243,7 @@ ${buildChartScript(display, campaignNameMap)}
               className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
               Export PDF
             </button>
+          )}
         </div>
       </div>
 
