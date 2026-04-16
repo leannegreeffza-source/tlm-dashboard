@@ -1433,6 +1433,98 @@ function PerformanceOverTime({ session }) {
   // ── Chart metric selector ──
   const [chartMetric, setChartMetric] = useState('impressions');
 
+  // ── AI Analysis ──
+  const [aiLoading, setAiLoading]     = useState(false);
+  const [aiText, setAiText]           = useState(null);
+  const [aiError, setAiError]         = useState(null);
+
+  // ── AI Trend Analysis function ──
+  async function getAITrendInsights() {
+    if (!enrichedData.length) return;
+    setAiLoading(true); setAiError(null); setAiText(null);
+
+    const sym = fxCurrency === 'ZAR' ? 'R' : 'KSh';
+    const acctName = selectedAcctName || 'Unknown Account';
+
+    // Build per-month data summary for the prompt
+    const monthBreakdown = enrichedData.map((row, idx) => {
+      const m = row.metrics;
+      const prev = idx > 0 ? enrichedData[idx - 1].metrics : null;
+      const pctChange = (key) => {
+        if (!prev || !prev[key]) return '';
+        const change = ((m[key] - prev[key]) / prev[key]) * 100;
+        return ` (${change > 0 ? '+' : ''}${change.toFixed(1)}% MoM)`;
+      };
+      return `${row.label}:
+  - Impressions: ${(m.impressions || 0).toLocaleString()}${pctChange('impressions')}
+  - Clicks: ${(m.clicks || 0).toLocaleString()}${pctChange('clicks')}
+  - CTR: ${(m.ctr || 0).toFixed(2)}%${pctChange('ctr')}
+  - Spend: $${(m.spent || 0).toFixed(2)} / ${sym} ${((m.spentLocal || 0)).toFixed(2)}${pctChange('spent')}
+  - CPM: $${(m.cpm || 0).toFixed(2)}${pctChange('cpm')}
+  - CPC: $${(m.cpc || 0).toFixed(2)}${pctChange('cpc')}
+  - Leads: ${m.leads || 0}${pctChange('leads')}
+  - CPL: ${m.cpl > 0 ? '$' + m.cpl.toFixed(2) : 'N/A'}${m.cpl > 0 ? pctChange('cpl') : ''}`;
+    }).join('\n\n');
+
+    // Overall period summary
+    const n = enrichedData.length;
+    const first = enrichedData[0].metrics;
+    const last = enrichedData[n - 1].metrics;
+    const totalSpend = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0);
+    const totalImpr = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0);
+    const totalClicks = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0);
+    const totalLeads = enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0);
+
+    const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this ${n}-month LinkedIn performance trend data and provide specific, data-driven, actionable recommendations focused on month-over-month trends and trajectory.
+
+CLIENT: ${acctName}
+PERIOD: ${enrichedData[0].label} – ${enrichedData[n - 1].label} (${n} months)
+FX RATE: $1 = ${sym}${parseFloat(fxRate) || 0}
+
+MONTHLY BREAKDOWN:
+${monthBreakdown}
+
+PERIOD TOTALS:
+- Total Impressions: ${totalImpr.toLocaleString()}
+- Total Clicks: ${totalClicks.toLocaleString()}
+- Total Spend: $${totalSpend.toFixed(2)} / ${sym} ${(totalSpend * (parseFloat(fxRate) || 0)).toFixed(2)}
+- Total Leads: ${totalLeads}
+- Overall CTR: ${totalImpr > 0 ? (totalClicks / totalImpr * 100).toFixed(2) : '0'}%
+- Overall CPC: ${totalClicks > 0 ? '$' + (totalSpend / totalClicks).toFixed(2) : 'N/A'}
+- Overall CPL: ${totalLeads > 0 ? '$' + (totalSpend / totalLeads).toFixed(2) : 'N/A'}
+
+TRENDS (first month → last month):
+- Impressions: ${(first.impressions || 0).toLocaleString()} → ${(last.impressions || 0).toLocaleString()} (${first.impressions > 0 ? ((last.impressions - first.impressions) / first.impressions * 100).toFixed(1) : '0'}%)
+- CTR: ${(first.ctr || 0).toFixed(2)}% → ${(last.ctr || 0).toFixed(2)}%
+- CPC: $${(first.cpc || 0).toFixed(2)} → $${(last.cpc || 0).toFixed(2)}
+- Spend: $${(first.spent || 0).toFixed(2)} → $${(last.spent || 0).toFixed(2)}
+
+Respond with EXACTLY these seven sections. Use "## " to start each header. Use "- " for bullet points. Focus on trends, trajectory, seasonality, and month-over-month changes rather than single-month snapshots.
+
+## Executive Summary
+## Trend Analysis (what the numbers show month-over-month)
+## What's Working (improving metrics)
+## Concerning Trends (declining or worsening metrics)
+## Budget & Spend Efficiency Over Time
+## Seasonality & Timing Insights
+## Next 30-Day Action Plan Based on Trajectory`;
+
+    try {
+      const res = await fetch('/api/ai-recommendations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      if (!res.ok) throw new Error('AI request failed');
+      const data = await res.json();
+      setAiText(data.text || data.recommendations || data.content || JSON.stringify(data));
+    } catch (err) {
+      console.error('AI trend analysis error:', err);
+      setAiError('Failed to generate AI analysis. Please try again.');
+    }
+    setAiLoading(false);
+  }
+
   // Load accounts on mount
   useEffect(() => {
     async function go() {
@@ -1901,9 +1993,15 @@ function PerformanceOverTime({ session }) {
         </div>
       )}
 
-      {/* ── Export Buttons ── */}
+      {/* ── Export & AI Buttons ── */}
       {enrichedData.length > 0 && (
         <div className="flex gap-3 flex-wrap">
+          <button onClick={getAITrendInsights} disabled={aiLoading}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            style={{ background: '#F6DC4E', color: '#272828' }}>
+            {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {aiLoading ? 'Analysing...' : 'AI Recommendations'}
+          </button>
           <button onClick={() => {
             const html = buildOverTimeHTML(false);
             if (!html) return;
@@ -1927,6 +2025,57 @@ function PerformanceOverTime({ session }) {
             className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
             <FileText className="w-4 h-4" /> Export PDF
           </button>
+        </div>
+      )}
+
+      {/* ── AI Recommendations Display ── */}
+      {(aiLoading || aiText || aiError) && (
+        <div className="rounded-xl border border-[#1e3a5f] overflow-hidden" style={{ background: '#0a1628' }}>
+          <div className="flex items-center gap-3 px-5 py-3 border-b border-[#1e3a5f]" style={{ background: '#0f1f3d' }}>
+            <Sparkles className="w-4 h-4 text-yellow-400" />
+            <div className="font-bold text-white text-sm">Claude AI Trend Analysis</div>
+            {aiText && !aiLoading && (
+              <button onClick={getAITrendInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-[#2a4a6e] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+                Regenerate
+              </button>
+            )}
+          </div>
+          <div className="p-5">
+            {aiLoading && (
+              <div className="flex items-center gap-3 text-slate-400 text-sm">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Analysing {enrichedData.length} months of performance data...</span>
+              </div>
+            )}
+            {aiError && (
+              <div className="text-red-400 text-sm">{aiError}</div>
+            )}
+            {aiText && !aiLoading && (() => {
+              const sections = aiText.split(/^## /m).filter(Boolean);
+              return (
+                <div className="space-y-5">
+                  {sections.map((section, idx) => {
+                    const lines = section.trim().split('\n');
+                    const title = lines[0].trim();
+                    const body = lines.slice(1).join('\n').trim();
+                    return (
+                      <div key={idx}>
+                        <h4 className="text-sm font-bold text-yellow-400 mb-2">{title}</h4>
+                        <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                          {body.split('\n').map((line, li) => {
+                            if (line.startsWith('- ')) {
+                              return <div key={li} className="pl-3 mb-1">• {line.slice(2)}</div>;
+                            }
+                            return <div key={li} className="mb-1">{line}</div>;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
     </div>
@@ -2044,9 +2193,31 @@ function PerformanceOverTime({ session }) {
   </div>
   ` : ''}
 
+  ${aiText ? `
+  <div style="margin-top:32px;padding:24px;border:2px solid #F6DC4E;border-radius:12px;background:#fffef5">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <span style="font-size:18px">✦</span>
+      <h2 style="font-size:16px;font-weight:700;margin:0;color:#0a1628">Claude AI Trend Analysis</h2>
+    </div>
+    ${aiText.split(/^## /m).filter(Boolean).map(section => {
+      const lines = section.trim().split('\n');
+      const title = lines[0].trim();
+      const body = lines.slice(1).join('\n').trim();
+      const bodyHtml = body.split('\n').map(line => {
+        if (line.startsWith('- ')) return `<div style="padding-left:12px;margin-bottom:4px">• ${line.slice(2)}</div>`;
+        return `<div style="margin-bottom:4px">${line}</div>`;
+      }).join('');
+      return `<div style="margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:700;color:#b45309;margin:0 0 8px">${title}</h3>
+        <div style="font-size:13px;color:#374151;line-height:1.6">${bodyHtml}</div>
+      </div>`;
+    }).join('')}
+  </div>
+  ` : ''}
+
   <div style="margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center">
     <p>Turn Left Media · LinkedIn Campaign Platform</p>
-    <p style="margin-top:4px">Generated ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+    <p style="margin-top:4px">Generated ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}${aiText ? ' · AI analysis powered by Claude' : ''}</p>
   </div>
 
 </div>
