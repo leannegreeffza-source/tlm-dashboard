@@ -1438,6 +1438,11 @@ function PerformanceOverTime({ session }) {
   const [aiText, setAiText]           = useState(null);
   const [aiError, setAiError]         = useState(null);
 
+  // ── AI Report (structured modal report via /api/report) ──
+  const [showAIReport, setShowAIReport]             = useState(false);
+  const [aiReportResult, setAiReportResult]         = useState(null);
+  const [generatingAIReport, setGeneratingAIReport] = useState(false);
+
   // ── AI Trend Analysis function ──
   async function getAITrendInsights() {
     if (!enrichedData.length) return;
@@ -1523,6 +1528,106 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
       setAiError('Failed to generate AI analysis. Please try again.');
     }
     setAiLoading(false);
+  }
+
+  // ── AI Report (structured report via /api/report, opens in AIReportModal) ──
+  async function generateOTAIReport() {
+    if (!enrichedData.length || !selectedAcctId) return;
+    setGeneratingAIReport(true);
+    setShowAIReport(true);
+    setAiReportResult(null);
+
+    try {
+      // Aggregate all months into a single "current" metrics object
+      const totalImpressions = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0);
+      const totalClicks      = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0);
+      const totalSpent       = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0);
+      const totalLeads       = enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0);
+      const totalEngagements = enrichedData.reduce((a, r) => a + (r.metrics.engagements || 0), 0);
+      const totalWebsiteVisits = enrichedData.reduce((a, r) => a + (r.metrics.websiteVisits || 0), 0);
+
+      const current = {
+        impressions: totalImpressions,
+        clicks: totalClicks,
+        spent: totalSpent,
+        leads: totalLeads,
+        engagements: totalEngagements,
+        websiteVisits: totalWebsiteVisits,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cpm: totalImpressions > 0 ? (totalSpent / totalImpressions) * 1000 : 0,
+        cpc: totalClicks > 0 ? totalSpent / totalClicks : 0,
+        cpl: totalLeads > 0 ? totalSpent / totalLeads : 0,
+        engagementRate: totalImpressions > 0 ? (totalEngagements / totalImpressions) * 100 : 0,
+      };
+
+      // Use the first half as "previous" for comparison (if enough months)
+      const mid = Math.floor(enrichedData.length / 2);
+      const prevSlice = enrichedData.slice(0, mid);
+      const prevImpr   = prevSlice.reduce((a, r) => a + (r.metrics.impressions || 0), 0);
+      const prevClicks = prevSlice.reduce((a, r) => a + (r.metrics.clicks || 0), 0);
+      const prevSpent  = prevSlice.reduce((a, r) => a + (r.metrics.spent || 0), 0);
+      const prevLeads  = prevSlice.reduce((a, r) => a + (r.metrics.leads || 0), 0);
+
+      const previous = {
+        impressions: prevImpr,
+        clicks: prevClicks,
+        spent: prevSpent,
+        leads: prevLeads,
+        ctr: prevImpr > 0 ? (prevClicks / prevImpr) * 100 : 0,
+        cpm: prevImpr > 0 ? (prevSpent / prevImpr) * 1000 : 0,
+        cpc: prevClicks > 0 ? prevSpent / prevClicks : 0,
+        cpl: prevLeads > 0 ? prevSpent / prevLeads : 0,
+      };
+
+      // Build topCampaigns from monthly data (one entry per month, treated as "campaigns")
+      const topCampaigns = enrichedData.map(row => ({
+        id: row.label.replace(/\s/g, '-'),
+        name: row.label,
+        impressions: row.metrics.impressions || 0,
+        clicks: row.metrics.clicks || 0,
+        ctr: row.metrics.ctr ? row.metrics.ctr.toFixed(2) : '0.00',
+        spent: row.metrics.spent || 0,
+        leads: row.metrics.leads || 0,
+      }));
+
+      const firstMonth = enrichedData[0];
+      const lastMonth = enrichedData[enrichedData.length - 1];
+
+      const res = await fetch('/api/report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current,
+          previous,
+          topCampaigns,
+          topAds: [],
+          budgetPacing: {
+            spent: totalSpent,
+            dayOfMonth: new Date().getDate(),
+            daysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
+            projectedMonthly: totalSpent / enrichedData.length,
+          },
+          currentRange:  { start: firstMonth.start, end: lastMonth.end },
+          previousRange: { start: firstMonth.start, end: enrichedData[mid > 0 ? mid - 1 : 0].end },
+          selectedCampaigns: [],
+          exchangeRate: parseFloat(fxRate) || 18.5,
+        })
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (!result.metrics) result.metrics = {};
+        result.metrics.topCampaigns = topCampaigns;
+        result.metrics.current = current;
+        setAiReportResult(result);
+      } else {
+        setAiReportResult({ error: 'Failed to generate AI report.' });
+      }
+    } catch (err) {
+      console.error('[generateOTAIReport]', err);
+      setAiReportResult({ error: 'Failed to generate AI report.' });
+    }
+
+    setGeneratingAIReport(false);
   }
 
   // Load accounts on mount
@@ -2002,6 +2107,12 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
             {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {aiLoading ? 'Analysing...' : 'AI Recommendations'}
           </button>
+          <button onClick={generateOTAIReport} disabled={generatingAIReport}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            style={{ background: '#7c3aed', color: 'white', border: '1px solid #6d28d9' }}>
+            {generatingAIReport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>✦</span>}
+            {generatingAIReport ? 'Generating...' : `AI Report (${enrichedData.length} months)`}
+          </button>
           <button onClick={() => {
             const html = buildOverTimeHTML(false);
             if (!html) return;
@@ -2078,6 +2189,40 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
           </div>
         </div>
       )}
+
+      {/* ── AI Report Modal ── */}
+      <AIReportModal
+        show={showAIReport}
+        onClose={() => setShowAIReport(false)}
+        generatingReport={generatingAIReport}
+        reportData={enrichedData.length > 0 ? {
+          current: {
+            impressions: enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0),
+            clicks: enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0),
+            spent: enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0),
+            leads: enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0),
+            ctr: (() => { const i = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0); const c = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0); return i > 0 ? (c/i*100) : 0; })(),
+            cpm: (() => { const i = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0); const s = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0); return i > 0 ? (s/i*1000) : 0; })(),
+            cpc: (() => { const c = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0); const s = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0); return c > 0 ? (s/c) : 0; })(),
+            cpl: (() => { const l = enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0); const s = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0); return l > 0 ? (s/l) : 0; })(),
+          },
+          topCampaigns: enrichedData.map(row => ({
+            id: row.label.replace(/\s/g, '-'),
+            name: row.label,
+            impressions: row.metrics.impressions || 0,
+            clicks: row.metrics.clicks || 0,
+            ctr: row.metrics.ctr ? row.metrics.ctr.toFixed(2) : '0.00',
+            spent: row.metrics.spent || 0,
+            leads: row.metrics.leads || 0,
+          })),
+        } : null}
+        reportResult={aiReportResult}
+        currentRange={enrichedData.length > 0 ? { start: enrichedData[0].start, end: enrichedData[enrichedData.length - 1].end } : { start: '', end: '' }}
+        previousRange={enrichedData.length > 0 ? { start: enrichedData[0].start, end: enrichedData[Math.floor(enrichedData.length / 2)].end } : { start: '', end: '' }}
+        campaignNameMap={Object.fromEntries(enrichedData.map(r => [r.label.replace(/\s/g, '-'), r.label]))}
+        fxRate={fxRate}
+        fxCurrency={fxCurrency}
+      />
     </div>
   );
 
