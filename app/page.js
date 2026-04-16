@@ -1900,8 +1900,161 @@ function PerformanceOverTime({ session }) {
           </div>
         </div>
       )}
+
+      {/* ── Export Buttons ── */}
+      {enrichedData.length > 0 && (
+        <div className="flex gap-3 flex-wrap">
+          <button onClick={() => {
+            const html = buildOverTimeHTML(false);
+            if (!html) return;
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `TLM-Performance-Over-Time-${selectedAcctName.replace(/\s+/g, '-') || 'report'}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
+            <ExternalLink className="w-4 h-4" /> Export HTML
+          </button>
+          <button onClick={() => {
+            const html = buildOverTimeHTML(true);
+            if (!html) return;
+            const w = window.open('', '_blank');
+            if (w) { w.document.write(html); w.document.close(); }
+          }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
+            <FileText className="w-4 h-4" /> Export PDF
+          </button>
+        </div>
+      )}
     </div>
   );
+
+  // ── Build standalone HTML for Performance Over Time ──
+  function buildOverTimeHTML(forPrint) {
+    if (!enrichedData.length) return null;
+    const sym = fxCurrency === 'ZAR' ? 'R' : 'KSh';
+    const acctName = selectedAcctName || 'Unknown Account';
+    const periodLabel = enrichedData[0].label + ' – ' + enrichedData[enrichedData.length - 1].label;
+
+    // Totals / averages
+    const n = enrichedData.length;
+    const totals = {};
+    METRICS.forEach(m => {
+      const sum = enrichedData.reduce((a, r) => a + (r.metrics[m.key] || 0), 0);
+      const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
+      totals[m.key] = isRate ? (sum / n) : sum;
+    });
+
+    const trendArrow = (current, previous, key) => {
+      if (!previous || previous === 0) return '';
+      const pct = ((current - previous) / previous) * 100;
+      if (Math.abs(pct) < 0.5) return '';
+      const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
+      const isGood = costKeys.includes(key) ? pct < 0 : pct > 0;
+      const color = isGood ? '#10b981' : '#ef4444';
+      const arrow = pct > 0 ? '▲' : '▼';
+      return ` <span style="color:${color};font-size:10px;font-weight:700">${arrow} ${Math.abs(pct).toFixed(1)}%</span>`;
+    };
+
+    // Build rows
+    const dataRows = enrichedData.map((row, idx) => {
+      const cells = METRICS.map(m => {
+        const val = row.metrics[m.key] || 0;
+        const prev = idx > 0 ? (enrichedData[idx - 1].metrics[m.key] || 0) : null;
+        return `<td style="text-align:right;padding:10px 14px;font-family:monospace;font-size:13px;border-bottom:1px solid #eee">${m.format(val)}${prev !== null ? trendArrow(val, prev, m.key) : ''}</td>`;
+      }).join('');
+      return `<tr><td style="padding:10px 14px;font-weight:700;border-bottom:1px solid #eee;white-space:nowrap">${row.label}</td>${cells}</tr>`;
+    }).join('');
+
+    const totalCells = METRICS.map(m => {
+      const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
+      return `<td style="text-align:right;padding:10px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#b45309">${m.format(totals[m.key])}${isRate ? ' <span style="font-size:9px;color:#999;font-weight:400">(avg)</span>' : ''}</td>`;
+    }).join('');
+
+    const headerCells = METRICS.map(m =>
+      `<th style="text-align:right;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#666;border-bottom:2px solid #ddd;white-space:nowrap">${m.label}</th>`
+    ).join('');
+
+    // Summary cards
+    const summaryCards = METRICS.map(m => {
+      const first = enrichedData[0].metrics[m.key] || 0;
+      const last = enrichedData[enrichedData.length - 1].metrics[m.key] || 0;
+      const change = first > 0 ? ((last - first) / first) * 100 : 0;
+      const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
+      const isGood = costKeys.includes(m.key) ? change < 0 : change > 0;
+      const color = isGood ? '#10b981' : '#ef4444';
+      const arrow = change > 0 ? '▲' : '▼';
+      return `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;min-width:140px;flex:1">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#999;margin-bottom:4px">${m.label}</div>
+        <div style="font-size:16px;font-weight:700;font-family:monospace;margin-bottom:2px">${m.format(last)}</div>
+        ${first > 0 ? `<div style="font-size:12px;font-weight:700;color:${color}">${arrow} ${Math.abs(change).toFixed(1)}% <span style="color:#999;font-weight:400;font-size:11px">vs ${enrichedData[0].label}</span></div>` : ''}
+      </div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Performance Over Time — ${acctName}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 40px; color: #0a1628; background: #fff; }
+  @media print {
+    body { padding: 20px; }
+    .no-print { display: none !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head><body>
+<div style="max-width:1200px;margin:0 auto">
+
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #F6DC4E">
+    <div>
+      <h1 style="font-size:24px;font-weight:800;margin:0">Performance Over Time</h1>
+      <p style="font-size:14px;color:#666;margin:4px 0 0">${acctName} · ${periodLabel} · FX: $1 = ${sym}${parseFloat(fxRate) || 0}</p>
+    </div>
+  </div>
+
+  <h2 style="font-size:16px;font-weight:700;margin:24px 0 12px">Monthly Breakdown</h2>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f9fafb">
+          <th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#666;border-bottom:2px solid #ddd">Month</th>
+          ${headerCells}
+        </tr>
+      </thead>
+      <tbody>
+        ${dataRows}
+        <tr style="background:rgba(251,191,36,0.08);border-top:2px solid #f59e0b">
+          <td style="padding:10px 14px;font-weight:700;color:#b45309">Total / Avg</td>
+          ${totalCells}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  ${enrichedData.length >= 2 ? `
+  <h2 style="font-size:16px;font-weight:700;margin:32px 0 12px">Period Change Summary</h2>
+  <p style="font-size:12px;color:#999;margin-bottom:12px">${enrichedData[0].label} → ${enrichedData[enrichedData.length - 1].label}</p>
+  <div style="display:flex;flex-wrap:wrap;gap:10px">
+    ${summaryCards}
+  </div>
+  ` : ''}
+
+  <div style="margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center">
+    <p>Turn Left Media · LinkedIn Campaign Platform</p>
+    <p style="margin-top:4px">Generated ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+  </div>
+
+</div>
+${forPrint ? '<scr' + 'ipt>window.onload=function(){window.print();}</' + 'scr' + 'ipt>' : ''}
+</body></html>`;
+
+    return html;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
