@@ -1402,6 +1402,509 @@ function fmtDate(d) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// PERFORMANCE OVER TIME  (month-by-month breakdown tab)
+// ─────────────────────────────────────────────────────────────
+function PerformanceOverTime({ session }) {
+  // ── Accounts (same fetch as Report Generator) ──
+  const [accounts, setAccounts]         = useState([]);
+  const [selectedAcctId, setSelectedAcctId] = useState(null);
+  const [acctSearch, setAcctSearch]     = useState('');
+  const [loadingAccts, setLoadingAccts] = useState(false);
+
+  // ── Campaign groups & ad sets for filtering ──
+  const [ownGroups, setOwnGroups]           = useState([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState([]);
+  const [ownCampaigns, setOwnCampaigns]     = useState([]);
+  const [selectedCampIds, setSelectedCampIds] = useState([]);
+
+  // ── Month picker ──
+  const [preset, setPreset]       = useState('6');       // '3','6','12','custom'
+  const [customMonths, setCustomMonths] = useState([]);  // ['2026-01','2025-12',...]
+
+  // ── FX ──
+  const [fxCurrency, setFxCurrency] = useState('ZAR');
+  const [fxRate, setFxRate]         = useState('18.50');
+
+  // ── Data ──
+  const [monthlyData, setMonthlyData] = useState([]); // [{ label, start, end, metrics }]
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState(null);
+
+  // ── Chart metric selector ──
+  const [chartMetric, setChartMetric] = useState('impressions');
+
+  // Load accounts on mount
+  useEffect(() => {
+    async function go() {
+      setLoadingAccts(true);
+      try {
+        const res = await fetch('/api/accounts');
+        if (res.ok) setAccounts(await res.json());
+      } catch { console.error('accounts fetch failed'); }
+      setLoadingAccts(false);
+    }
+    go();
+  }, []);
+
+  // Load campaign groups when account changes
+  useEffect(() => {
+    if (!selectedAcctId) { setOwnGroups([]); setOwnCampaigns([]); return; }
+    setSelectedGroupIds([]); setSelectedCampIds([]);
+    async function go() {
+      try {
+        const res = await fetch('/api/campaigngroups', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountIds: [selectedAcctId] })
+        });
+        if (res.ok) setOwnGroups(await res.json());
+      } catch {}
+      try {
+        const res = await fetch('/api/campaigns', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountIds: [selectedAcctId] })
+        });
+        if (res.ok) setOwnCampaigns(await res.json());
+      } catch {}
+    }
+    go();
+  }, [selectedAcctId]);
+
+  // ── Build month ranges from preset or custom ──
+  function getMonthRanges() {
+    if (preset === 'custom') {
+      return customMonths
+        .sort()
+        .map(ym => {
+          const [y, m] = ym.split('-').map(Number);
+          const start = `${y}-${String(m).padStart(2, '0')}-01`;
+          const lastDay = new Date(y, m, 0).getDate();
+          const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+          const label = new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          return { label, start, end };
+        });
+    }
+    const n = parseInt(preset) || 6;
+    const ranges = [];
+    const now = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const start = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      ranges.push({ label, start, end });
+    }
+    return ranges;
+  }
+
+  // ── Fetch analytics per month ──
+  async function fetchAllMonths() {
+    if (!selectedAcctId) { setError('Select an account first.'); return; }
+    const ranges = getMonthRanges();
+    if (ranges.length === 0) { setError('No months selected.'); return; }
+    setLoading(true);
+    setError(null);
+    setMonthlyData([]);
+
+    try {
+      const results = await Promise.all(
+        ranges.map(async (r) => {
+          const payload = {
+            accountIds: [selectedAcctId],
+            campaignGroupIds: selectedGroupIds.length > 0 ? selectedGroupIds : null,
+            campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null,
+            adIds: null,
+            currentRange:  { start: r.start, end: r.end },
+            previousRange: { start: r.start, end: r.end }, // dummy, we don't need a comparison per-month
+            exchangeRate: parseFloat(fxRate) || 18.5,
+          };
+          const res = await fetch('/api/analytics', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error(`Analytics failed for ${r.label}`);
+          const data = await res.json();
+          return { label: r.label, start: r.start, end: r.end, metrics: data.current };
+        })
+      );
+      setMonthlyData(results);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to fetch monthly data.');
+    }
+    setLoading(false);
+  }
+
+  // ── Custom month picker helpers ──
+  function toggleMonth(ym) {
+    setCustomMonths(prev => prev.includes(ym) ? prev.filter(m => m !== ym) : [...prev, ym].sort());
+  }
+
+  function getAvailableMonths() {
+    const months = [];
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      months.push({ ym, label });
+    }
+    return months;
+  }
+
+  // ── Metric definitions for display ──
+  const METRICS = [
+    { key: 'impressions', label: 'Impressions', format: v => (v || 0).toLocaleString(), color: '#818cf8' },
+    { key: 'clicks',      label: 'Clicks',      format: v => (v || 0).toLocaleString(), color: '#f59e0b' },
+    { key: 'spent',       label: 'Spend (USD)',  format: v => `$${(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#3b82f6' },
+    { key: 'spentLocal',  label: `Spend (${fxCurrency})`, format: v => `${fxCurrency === 'ZAR' ? 'R' : 'KSh'} ${(v || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#22c55e' },
+    { key: 'ctr',         label: 'CTR %',        format: v => `${(v || 0).toFixed(2)}%`, color: '#4ade80' },
+    { key: 'cpm',         label: 'CPM (USD)',    format: v => `$${(v || 0).toFixed(2)}`, color: '#a78bfa' },
+    { key: 'cpc',         label: 'CPC (USD)',    format: v => `$${(v || 0).toFixed(2)}`, color: '#fb923c' },
+    { key: 'leads',       label: 'Leads',        format: v => (v || 0).toLocaleString(), color: '#f472b6' },
+    { key: 'cpl',         label: 'CPL (USD)',    format: v => v > 0 ? `$${(v || 0).toFixed(2)}` : '—', color: '#e879f9' },
+  ];
+
+  // ── Enrich monthly data with local currency ──
+  const enrichedData = monthlyData.map(m => ({
+    ...m,
+    metrics: {
+      ...m.metrics,
+      spentLocal: (m.metrics.spent || 0) * (parseFloat(fxRate) || 0),
+    }
+  }));
+
+  // ── Trend arrow for month-over-month ──
+  function trendIcon(current, previous, key) {
+    if (!previous || previous === 0) return null;
+    const pctChange = ((current - previous) / previous) * 100;
+    if (Math.abs(pctChange) < 0.5) return null;
+    // For cost metrics, down is good. For everything else, up is good.
+    const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
+    const isGood = costKeys.includes(key) ? pctChange < 0 : pctChange > 0;
+    return (
+      <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold ml-1 ${isGood ? 'text-emerald-400' : 'text-red-400'}`}>
+        {pctChange > 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(1)}%
+      </span>
+    );
+  }
+
+  // ── Simple bar chart (pure CSS) ──
+  function MiniChart({ data, metric }) {
+    const metaDef = METRICS.find(m => m.key === metric);
+    const vals = data.map(d => d.metrics[metric] || 0);
+    const max = Math.max(...vals, 0.0001);
+    return (
+      <div className="flex items-end gap-1.5" style={{ height: 120 }}>
+        {data.map((d, i) => {
+          const val = d.metrics[metric] || 0;
+          const h = max > 0 ? (val / max) * 100 : 0;
+          return (
+            <div key={i} className="flex flex-col items-center gap-1 flex-1 min-w-0">
+              <span className="text-[9px] text-slate-400 truncate w-full text-center">{metaDef?.format(val) || val}</span>
+              <div
+                className="w-full rounded-t-md transition-all duration-500 min-h-[2px]"
+                style={{ height: `${h}%`, background: metaDef?.color || '#818cf8', opacity: 0.85 }}
+              />
+              <span className="text-[9px] text-slate-500 truncate w-full text-center">{d.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const filteredAccounts = accounts.filter(a => !acctSearch || a.name?.toLowerCase().includes(acctSearch.toLowerCase()) || String(a.id).includes(acctSearch));
+  const selectedAcctName = accounts.find(a => String(a.id) === String(selectedAcctId))?.name || '';
+
+  return (
+    <div className="max-w-screen-2xl mx-auto p-6 space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white mb-1">Performance Over Time</h2>
+        <p className="text-sm text-slate-400">Month-by-month breakdown across your selected date range</p>
+      </div>
+
+      {/* ── Config Row ── */}
+      <div className="rounded-xl border border-[#1e3a5f] p-5 space-y-4" style={{ background: '#0a1628' }}>
+
+        {/* Account picker */}
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[250px]">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Account</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search accounts..."
+                value={acctSearch}
+                onChange={e => setAcctSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500"
+              />
+            </div>
+            {acctSearch && filteredAccounts.length > 0 && !selectedAcctId && (
+              <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-[#2a4a6e]" style={{ background: '#0f1f3d' }}>
+                {filteredAccounts.slice(0, 8).map(a => (
+                  <button key={a.id} onClick={() => { setSelectedAcctId(String(a.id)); setAcctSearch(a.name); }}
+                    className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[#1e3a5f] transition-colors">
+                    {a.name} <span className="text-xs text-slate-500 ml-1">ID: {a.id}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedAcctId && (
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-xs text-emerald-400 font-bold">{selectedAcctName}</span>
+                <button onClick={() => { setSelectedAcctId(null); setAcctSearch(''); setMonthlyData([]); }}
+                  className="text-xs text-red-400 hover:text-red-300 underline">Clear</button>
+              </div>
+            )}
+          </div>
+
+          {/* Period presets */}
+          <div>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Period</label>
+            <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
+              {[
+                { val: '3', label: 'Last 3 Mo' },
+                { val: '6', label: 'Last 6 Mo' },
+                { val: '12', label: 'Last 12 Mo' },
+                { val: 'custom', label: 'Custom' },
+              ].map(opt => (
+                <button key={opt.val}
+                  onClick={() => setPreset(opt.val)}
+                  className="px-3 py-2 text-xs font-bold transition-all"
+                  style={preset === opt.val
+                    ? { background: '#F6DC4E', color: '#0a1628' }
+                    : { background: 'transparent', color: '#64748b' }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* FX */}
+          <div>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">FX Rate</label>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
+                {[{ val: 'ZAR', label: 'ZAR' }, { val: 'KES', label: 'KES' }].map(opt => (
+                  <button key={opt.val}
+                    onClick={() => { setFxCurrency(opt.val); setFxRate(opt.val === 'ZAR' ? '18.50' : '130'); }}
+                    className="px-2.5 py-2 text-xs font-bold transition-all"
+                    style={fxCurrency === opt.val
+                      ? { background: '#F6DC4E', color: '#0a1628' }
+                      : { background: 'transparent', color: '#64748b' }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <input type="number" min="1" step="0.01" value={fxRate}
+                onChange={e => setFxRate(e.target.value)}
+                className="w-24 px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+            </div>
+          </div>
+
+          {/* Fetch button */}
+          <button onClick={fetchAllMonths} disabled={loading || !selectedAcctId}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#F6DC4E', color: '#272828' }}>
+            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
+            {loading ? 'Loading...' : 'Load Data'}
+          </button>
+        </div>
+
+        {/* Custom month picker */}
+        {preset === 'custom' && (
+          <div>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block">Select Months (click to toggle)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {getAvailableMonths().map(m => {
+                const isSelected = customMonths.includes(m.ym);
+                return (
+                  <button key={m.ym} onClick={() => toggleMonth(m.ym)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
+                    style={isSelected
+                      ? { background: '#F6DC4E', color: '#0a1628', borderColor: '#F6DC4E' }
+                      : { background: '#0f1f3d', color: '#64748b', borderColor: '#1e3a5f' }}>
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+            {customMonths.length > 0 && (
+              <p className="text-xs text-slate-500 mt-2">{customMonths.length} month{customMonths.length !== 1 ? 's' : ''} selected</p>
+            )}
+          </div>
+        )}
+
+        {/* Optional filters row */}
+        {selectedAcctId && (ownGroups.length > 0 || ownCampaigns.length > 0) && (
+          <div className="flex flex-wrap gap-4">
+            {ownGroups.length > 0 && (
+              <div className="min-w-[200px]">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Filter by Campaign (optional)</label>
+                <select multiple value={selectedGroupIds}
+                  onChange={e => setSelectedGroupIds(Array.from(e.target.selectedOptions, o => o.value))}
+                  className="w-full px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none max-h-24">
+                  {ownGroups.map(g => (
+                    <option key={g.id} value={String(g.id)}>{g.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-600 mt-0.5">Ctrl/Cmd+click to multi-select</p>
+              </div>
+            )}
+            {ownCampaigns.length > 0 && (
+              <div className="min-w-[200px]">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Filter by Ad Set (optional)</label>
+                <select multiple value={selectedCampIds}
+                  onChange={e => setSelectedCampIds(Array.from(e.target.selectedOptions, o => o.value))}
+                  className="w-full px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none max-h-24">
+                  {ownCampaigns.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-600 mt-0.5">Ctrl/Cmd+click to multi-select</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Error ── */}
+      {error && (
+        <div className="rounded-lg border border-red-900/50 bg-red-900/20 p-4 text-sm text-red-300">{error}</div>
+      )}
+
+      {/* ── Empty state ── */}
+      {!loading && monthlyData.length === 0 && !error && (
+        <div className="rounded-xl border border-[#1e3a5f] p-16 text-center" style={{ background: '#0f1f3d' }}>
+          <Calendar className="w-10 h-10 mx-auto mb-4 text-slate-600" />
+          <h3 className="text-lg font-bold text-white mb-2">No Data Yet</h3>
+          <p className="text-slate-500 text-sm">Select an account, choose a period, and click Load Data to see month-by-month performance.</p>
+        </div>
+      )}
+
+      {/* ── Chart ── */}
+      {enrichedData.length > 0 && (
+        <div className="rounded-xl border border-[#1e3a5f] p-5" style={{ background: '#0a1628' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-white">Monthly Trend</h3>
+            <div className="flex flex-wrap gap-1">
+              {METRICS.map(m => (
+                <button key={m.key} onClick={() => setChartMetric(m.key)}
+                  className="px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all"
+                  style={chartMetric === m.key
+                    ? { background: m.color, color: '#0a1628', borderColor: m.color }
+                    : { background: 'transparent', color: '#64748b', borderColor: '#1e3a5f' }}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <MiniChart data={enrichedData} metric={chartMetric} />
+        </div>
+      )}
+
+      {/* ── Data Table ── */}
+      {enrichedData.length > 0 && (
+        <div className="rounded-xl border border-[#1e3a5f] overflow-hidden" style={{ background: '#0a1628' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#1e3a5f]" style={{ background: '#0f1f3d' }}>
+                  <th className="text-left px-4 py-3 text-slate-400 font-bold uppercase tracking-wide sticky left-0 z-10" style={{ background: '#0f1f3d' }}>Month</th>
+                  {METRICS.map(m => (
+                    <th key={m.key} className="text-right px-4 py-3 text-slate-400 font-bold uppercase tracking-wide whitespace-nowrap">{m.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {enrichedData.map((row, idx) => (
+                  <tr key={row.label} className="border-b border-[#1e3a5f]/50 hover:bg-[#0f1f3d]/50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-white sticky left-0 z-10 whitespace-nowrap" style={{ background: '#0a1628' }}>
+                      {row.label}
+                    </td>
+                    {METRICS.map(m => {
+                      const val = row.metrics[m.key] || 0;
+                      const prevVal = idx > 0 ? (enrichedData[idx - 1].metrics[m.key] || 0) : null;
+                      return (
+                        <td key={m.key} className="text-right px-4 py-3 text-slate-200 whitespace-nowrap font-mono">
+                          {m.format(val)}
+                          {prevVal !== null && trendIcon(val, prevVal, m.key)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {/* Totals / Averages row */}
+                {enrichedData.length > 1 && (() => {
+                  const n = enrichedData.length;
+                  const totals = {};
+                  METRICS.forEach(m => {
+                    const sum = enrichedData.reduce((a, r) => a + (r.metrics[m.key] || 0), 0);
+                    // For rate metrics, show the average. For volume metrics, show the total.
+                    const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
+                    totals[m.key] = isRate ? (sum / n) : sum;
+                  });
+                  return (
+                    <tr className="border-t-2 border-yellow-500/30" style={{ background: 'rgba(246,220,78,0.04)' }}>
+                      <td className="px-4 py-3 font-bold text-yellow-400 sticky left-0 z-10" style={{ background: '#0a1628' }}>
+                        {['ctr', 'cpm', 'cpc', 'cpl'].some(k => true) ? 'Total / Avg' : 'Total'}
+                      </td>
+                      {METRICS.map(m => {
+                        const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
+                        return (
+                          <td key={m.key} className="text-right px-4 py-3 text-yellow-300 whitespace-nowrap font-mono font-bold">
+                            {m.format(totals[m.key])}
+                            {isRate && <span className="text-[9px] text-yellow-600 ml-1">(avg)</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Month-over-month change summary ── */}
+      {enrichedData.length >= 2 && (
+        <div className="rounded-xl border border-[#1e3a5f] p-5" style={{ background: '#0a1628' }}>
+          <h3 className="text-sm font-bold text-white mb-3">Month-over-Month Change Summary</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {METRICS.map(m => {
+              const first = enrichedData[0].metrics[m.key] || 0;
+              const last = enrichedData[enrichedData.length - 1].metrics[m.key] || 0;
+              const change = first > 0 ? ((last - first) / first) * 100 : 0;
+              const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
+              const isGood = costKeys.includes(m.key) ? change < 0 : change > 0;
+              return (
+                <div key={m.key} className="rounded-lg border border-[#1e3a5f] p-3" style={{ background: '#0f1f3d' }}>
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{m.label}</div>
+                  <div className="text-sm font-mono font-bold text-white mb-0.5">
+                    {m.format(last)}
+                  </div>
+                  {first > 0 && (
+                    <div className={`text-xs font-bold ${isGood ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {change > 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                      <span className="text-slate-600 font-normal ml-1">vs {enrichedData[0].label}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // BENCHMARK MANAGER  (developer-only tab)
 // ─────────────────────────────────────────────────────────────
 function BenchmarkManager() {
@@ -4433,6 +4936,7 @@ export default function Dashboard() {
                 { id: 'report',     label: 'Report Generator', icon: FileText },
                 { id: 'benchmarks', label: 'Benchmarks',       icon: Settings },
                 { id: 'objective',  label: 'Performance by Objective', icon: Layers },
+                { id: 'overtime',   label: 'Performance Over Time',    icon: Calendar },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeMainTab === tab.id;
@@ -4495,6 +4999,11 @@ export default function Dashboard() {
           <div className="max-w-screen-2xl mx-auto p-6">
             <ObjectiveTabs />
           </div>
+        )}
+
+        {/* ── Performance Over Time Tab ── */}
+        {activeMainTab === 'overtime' && (
+          <PerformanceOverTime session={session} />
         )}
 
         {/* ── Campaign Manager (developer only) ── */}
