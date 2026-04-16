@@ -1833,6 +1833,42 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [fxRate,     setFxRate]     = useState('18.50');
   const [fxCurrency, setFxCurrency] = useState('ZAR'); // 'ZAR' or 'KES'
 
+  // ─── Multi-rate FX (for reports spanning periods with different FX rates) ───
+  const [useMultiFx, setUseMultiFx] = useState(false);
+  const [fxPeriods, setFxPeriods] = useState([
+    { start: '', end: '', rate: '18.50' }
+  ]);
+
+  // Compute weighted blended FX rate across all defined sub-periods, by day count.
+  // Falls back to the single fxRate input when multi-rate is off or periods are incomplete.
+  const effectiveFxRate = (() => {
+    if (!useMultiFx) return parseFloat(fxRate) || 0;
+    const valid = fxPeriods.filter(p => p.start && p.end && parseFloat(p.rate) > 0);
+    if (valid.length === 0) return parseFloat(fxRate) || 0;
+    let totalDays = 0;
+    let weighted = 0;
+    for (const p of valid) {
+      const s = new Date(p.start + 'T00:00:00').getTime();
+      const e = new Date(p.end + 'T00:00:00').getTime();
+      if (isNaN(s) || isNaN(e) || e < s) continue;
+      const days = Math.floor((e - s) / 86400000) + 1;
+      totalDays += days;
+      weighted += days * parseFloat(p.rate);
+    }
+    return totalDays > 0 ? weighted / totalDays : (parseFloat(fxRate) || 0);
+  })();
+
+  // Keep the legacy fxRate state in sync with the blended rate so all existing
+  // calculations (server payloads, inline displays, report HTML) pick it up automatically.
+  useEffect(() => {
+    if (useMultiFx) {
+      const blended = effectiveFxRate;
+      if (blended > 0 && Math.abs(blended - (parseFloat(fxRate) || 0)) > 0.0001) {
+        setFxRate(blended.toFixed(4));
+      }
+    }
+  }, [useMultiFx, fxPeriods, effectiveFxRate]);
+
   // ─── Previous period (auto-calculated, user can override) ───
   const [useCompare, setUseCompare] = useState(false);
   const [prevStart, setPrevStart] = useState('');
@@ -3011,42 +3047,139 @@ ${buildChartScript(display, campaignNameMap)}
         </div>
 
         {/* Row 2: FX Rate */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
-            {/* Currency toggle */}
-            <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
-              {[{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
-                <button key={opt.val} onClick={() => {
-                  setFxCurrency(opt.val);
-                  setFxRate(opt.val === 'ZAR' ? '18.50' : '130');
-                }}
-                  className="px-3 py-1.5 text-xs font-bold transition-all"
-                  style={fxCurrency === opt.val
-                    ? {background:'#F6DC4E', color:'#0a1628'}
-                    : {background:'transparent', color:'#64748b'}}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {/* Rate input */}
-            <div className="relative">
-              <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
-                {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
+        <div className="flex flex-col gap-3 mb-6">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
+              {/* Currency toggle */}
+              <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
+                {[{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
+                  <button key={opt.val} onClick={() => {
+                    setFxCurrency(opt.val);
+                    if (!useMultiFx) setFxRate(opt.val === 'ZAR' ? '18.50' : '130');
+                  }}
+                    className="px-3 py-1.5 text-xs font-bold transition-all"
+                    style={fxCurrency === opt.val
+                      ? {background:'#F6DC4E', color:'#0a1628'}
+                      : {background:'transparent', color:'#64748b'}}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {/* Rate input (disabled in multi-rate mode — shows blended rate) */}
+              <div className="relative">
+                <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
+                  {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
+                </span>
+                <input type="number" min="1" step="0.01"
+                  placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
+                  value={fxRate}
+                  onChange={e => setFxRate(e.target.value)}
+                  disabled={useMultiFx}
+                  className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed" />
+              </div>
+              <span className="text-xs text-slate-500">
+                $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
+                {useMultiFx && <span className="ml-1 text-yellow-400">(blended)</span>}
               </span>
-              <input type="number" min="1" step="0.01"
-                placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
-                value={fxRate}
-                onChange={e => setFxRate(e.target.value)}
-                className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
             </div>
-            <span className="text-xs text-slate-500">
-              $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
-            </span>
+
+            {/* Multi-rate toggle */}
+            <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300">
+              <input type="checkbox" checked={useMultiFx}
+                onChange={e => {
+                  const on = e.target.checked;
+                  setUseMultiFx(on);
+                  if (on && (!fxPeriods[0].start || !fxPeriods[0].end)) {
+                    // Pre-fill first row with current date range if it's empty
+                    setFxPeriods([{ start: dateStart || '', end: dateEnd || '', rate: fxRate || (fxCurrency === 'ZAR' ? '18.50' : '130') }]);
+                  }
+                }}
+                className="w-4 h-4 accent-yellow-400" />
+              <span className="uppercase tracking-wide font-bold">Multiple FX Rates</span>
+            </label>
+
+            {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
+                Comparing <span className="text-slate-300">{dateStart} – {dateEnd}</span> vs <span className="text-slate-300">{prevStart} – {prevEnd}</span>
+              </div>
+            )}
           </div>
-          {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
-              Comparing <span className="text-slate-300">{dateStart} – {dateEnd}</span> vs <span className="text-slate-300">{prevStart} – {prevEnd}</span>
+
+          {/* Multi-rate period rows */}
+          {useMultiFx && (
+            <div className="rounded-lg border border-[#1e3a5f] p-4" style={{background:'#0f1f3d'}}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wide">FX Rate Periods</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Define the rate for each sub-period. The report uses a day-weighted blended rate.</div>
+                </div>
+                <button
+                  onClick={() => setFxPeriods(prev => [...prev, { start: '', end: '', rate: fxCurrency === 'ZAR' ? '18.50' : '130' }])}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1e3a5f] text-white hover:bg-[#2a4a6e] border border-[#2a4a6e] transition-colors">
+                  + Add Period
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {fxPeriods.map((p, idx) => {
+                  const s = p.start ? new Date(p.start + 'T00:00:00').getTime() : NaN;
+                  const e = p.end ? new Date(p.end + 'T00:00:00').getTime() : NaN;
+                  const days = (!isNaN(s) && !isNaN(e) && e >= s) ? Math.floor((e - s) / 86400000) + 1 : 0;
+                  const invalid = p.start && p.end && (isNaN(s) || isNaN(e) || e < s);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-slate-500 w-6 font-mono">#{idx + 1}</span>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Start</span>
+                        <input type="date" value={p.start}
+                          onChange={ev => setFxPeriods(prev => prev.map((r, i) => i === idx ? { ...r, start: ev.target.value } : r))}
+                          className="px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">End</span>
+                        <input type="date" value={p.end}
+                          onChange={ev => setFxPeriods(prev => prev.map((r, i) => i === idx ? { ...r, end: ev.target.value } : r))}
+                          className="px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Rate ({fxCurrency === 'ZAR' ? 'R' : 'KSh'})</span>
+                        <input type="number" min="0" step="0.01" value={p.rate}
+                          onChange={ev => setFxPeriods(prev => prev.map((r, i) => i === idx ? { ...r, rate: ev.target.value } : r))}
+                          className="w-24 px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Days</span>
+                        <span className={`text-xs px-2 py-1.5 font-mono rounded-lg border ${invalid ? 'border-red-500/50 text-red-400' : 'border-[#2a4a6e] text-slate-300'}`} style={{background:'#1e3a5f'}}>
+                          {invalid ? 'invalid' : days || '—'}
+                        </span>
+                      </div>
+                      {fxPeriods.length > 1 && (
+                        <button
+                          onClick={() => setFxPeriods(prev => prev.filter((_, i) => i !== idx))}
+                          className="self-end px-2 py-1.5 text-xs font-bold rounded-lg bg-red-900/40 text-red-300 hover:bg-red-900/60 border border-red-900/60 transition-colors">
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {(() => {
+                const valid = fxPeriods.filter(p => p.start && p.end && parseFloat(p.rate) > 0);
+                if (valid.length < 1) return null;
+                let totalDays = 0;
+                for (const p of valid) {
+                  const s = new Date(p.start + 'T00:00:00').getTime();
+                  const e = new Date(p.end + 'T00:00:00').getTime();
+                  if (!isNaN(s) && !isNaN(e) && e >= s) totalDays += Math.floor((e - s) / 86400000) + 1;
+                }
+                return (
+                  <div className="mt-3 pt-3 border-t border-[#1e3a5f] flex items-center gap-4 text-xs">
+                    <span className="text-slate-500">Total days: <span className="text-slate-200 font-mono">{totalDays}</span></span>
+                    <span className="text-slate-500">Blended rate: <span className="text-yellow-400 font-mono font-bold">{fxCurrency === 'ZAR' ? 'R' : 'KSh'} {effectiveFxRate.toFixed(4)}</span></span>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
