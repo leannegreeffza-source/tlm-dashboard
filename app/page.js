@@ -753,16 +753,135 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                 )}
               </div>
 
+              {/* Objective Analysis (NEW) */}
+              {report.objectiveAnalysis?.length > 0 && (
+                <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
+                  <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Performance by Objective</h2>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))',gap:'12px'}}>
+                    {report.objectiveAnalysis.map((obj, i) => {
+                      const perfColor = obj.performance === 'optimal' ? '#4caf50' : obj.performance === 'warning' ? '#ff9800' : '#ff5252';
+                      return (
+                        <div key={i} style={{background:'#f9f9f9',borderLeft:`4px solid ${perfColor}`,padding:'15px',borderRadius:'4px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+                            <h4 style={{color:'#0e1034',fontSize:'15px',fontWeight:700,margin:0}} contentEditable suppressContentEditableWarning>{obj.objective}</h4>
+                            <span style={{fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:perfColor,color:'white',textTransform:'uppercase'}}>{obj.performance}</span>
+                          </div>
+                          <p style={{color:'#666',fontSize:'12px',margin:'0 0 6px'}}>{obj.campaignCount} campaign{obj.campaignCount !== 1 ? 's' : ''}</p>
+                          <p style={{color:'#444',fontSize:'13px',lineHeight:'1.5',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>{obj.summary}</p>
+                          {obj.keyInsight && (
+                            <p style={{color:perfColor,fontSize:'12px',fontWeight:600,margin:0}} contentEditable suppressContentEditableWarning>💡 {obj.keyInsight}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Ad-Level Analysis (NEW — only shown when ads data exists) */}
+              {report.adAnalysis?.length > 0 && (
+                <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
+                  <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Ad-Level Performance</h2>
+
+                  {/* Ad performance table */}
+                  {metrics?.topAds?.length > 0 && (
+                    <div style={{overflowX:'auto',marginBottom:'20px'}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+                        <thead>
+                          <tr style={{background:'#f5f5f5'}}>
+                            <th style={{textAlign:'left',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Ad</th>
+                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Impressions</th>
+                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Clicks</th>
+                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>CTR</th>
+                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Spend</th>
+                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Leads</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metrics.topAds.map((a, i) => {
+                            const name = campaignNameMap?.[String(a.id)] || a.name || `Ad ${a.id}`;
+                            const ctr = a.impressions > 0 ? (a.clicks / a.impressions * 100).toFixed(2) : '0.00';
+                            return (
+                              <tr key={i} style={{borderBottom:'1px solid #eee'}}>
+                                <td style={{padding:'10px',fontWeight:600,color:'#0e1034'}}>{name} <span style={{fontSize:'10px',color:'#999'}}>({a.id})</span></td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{(a.impressions||0).toLocaleString()}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{(a.clicks||0).toLocaleString()}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{ctr}%</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>${(a.spent||0).toFixed(2)}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{a.leads||0}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* AI ad analysis cards */}
+                  {report.adAnalysis.map((ad, i) => {
+                    const perfColor = ad.performance === 'strong' ? '#4caf50' : ad.performance === 'weak' ? '#ff5252' : '#ff9800';
+                    return (
+                      <div key={i} style={{background:'#f9f9f9',borderLeft:`4px solid ${perfColor}`,padding:'15px',margin:'10px 0',borderRadius:'4px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}>
+                          <h4 style={{color:'#0e1034',fontSize:'14px',fontWeight:700,margin:0}} contentEditable suppressContentEditableWarning>
+                            {ad.name || `Ad ${ad.id}`}
+                          </h4>
+                          <span style={{fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:perfColor,color:'white',textTransform:'uppercase'}}>{ad.performance}</span>
+                        </div>
+                        <p style={{color:'#444',fontSize:'13px',margin:'0 0 4px'}} contentEditable suppressContentEditableWarning>{ad.insight}</p>
+                        {ad.recommendation && (
+                          <p style={{color:'#2196F3',fontSize:'12px',fontWeight:600,margin:0}} contentEditable suppressContentEditableWarning>→ {ad.recommendation}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Creative insights summary */}
+                  {report.adInsights && (
+                    <div style={{background:'#e3f2fd',borderLeft:'4px solid #2196F3',padding:'15px',margin:'15px 0',borderRadius:'4px'}}>
+                      <h4 style={{color:'#0e1034',fontSize:'15px',fontWeight:700,marginBottom:'10px'}}>Creative Insights</h4>
+                      {report.adInsights.topPerformer && (
+                        <p style={{color:'#444',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
+                          <strong style={{color:'#4caf50'}}>Best Performer:</strong> {report.adInsights.topPerformer}
+                        </p>
+                      )}
+                      {report.adInsights.worstPerformer && (
+                        <p style={{color:'#444',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
+                          <strong style={{color:'#ff5252'}}>Needs Attention:</strong> {report.adInsights.worstPerformer}
+                        </p>
+                      )}
+                      {report.adInsights.creativeRecommendations?.length > 0 && (
+                        <ul style={{listStyle:'none',padding:0,margin:'8px 0 0'}}>
+                          {report.adInsights.creativeRecommendations.map((rec, j) => (
+                            <li key={j} style={{padding:'4px 0',paddingLeft:'18px',position:'relative',color:'#444',fontSize:'13px'}} contentEditable suppressContentEditableWarning>
+                              <span style={{position:'absolute',left:0,color:'#2196F3'}}>→</span>{rec}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Optimization Recommendations */}
               <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
                 <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Optimization Recommendations</h2>
                 {report.campaignAnalysis?.map((analysis,i) => {
-                  const name = campaignNameMap?.[String(analysis.id)] || `Campaign ${analysis.id}`;
+                  const name = analysis.name || campaignNameMap?.[String(analysis.id)] || `Campaign ${analysis.id}`;
+                  const statusColor = analysis.status === 'optimal' ? '#4caf50' : analysis.status === 'warning' ? '#ff9800' : '#ff5252';
                   return (
-                    <div key={i} style={{background:'#f9f9f9',borderLeft:'4px solid #2196F3',padding:'15px',margin:'10px 0',borderRadius:'4px'}}>
-                      <h4 style={{color:'#0e1034',marginBottom:'10px',fontSize:'15px'}} contentEditable suppressContentEditableWarning>
+                    <div key={i} style={{background:'#f9f9f9',borderLeft:`4px solid ${statusColor}`,padding:'15px',margin:'10px 0',borderRadius:'4px'}}>
+                      <h4 style={{color:'#0e1034',marginBottom:'4px',fontSize:'15px'}} contentEditable suppressContentEditableWarning>
                         {name} <span style={{fontSize:'12px',color:'#999',fontFamily:'monospace'}}>(ID: {analysis.id})</span>
                       </h4>
+                      {analysis.objective && (
+                        <p style={{color:'#666',fontSize:'11px',margin:'0 0 8px',textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                          Objective: <strong>{analysis.objective}</strong>
+                          <span style={{marginLeft:'8px',fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:statusColor,color:'white'}}>{analysis.status}</span>
+                          <span style={{marginLeft:'6px',color:'#999'}}>Trend: {analysis.trend === 'up' ? '↑ Up' : analysis.trend === 'down' ? '↓ Down' : '→ Stable'}</span>
+                        </p>
+                      )}
                       <ul style={{listStyle:'none',padding:0}}>
                         {analysis.recommendations?.map((rec,j) => (
                           <li key={j} style={{padding:'5px 0',paddingLeft:'20px',position:'relative',color:'#444',fontSize:'14px'}} contentEditable suppressContentEditableWarning>
@@ -3257,26 +3376,48 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         }
       }
 
-      // Step 3: Generate the AI report using liveData.current (already scoped correctly)
+      // Step 3: Enrich campaigns with objective types from ownCampaigns
+      const enrichedCampaigns = topCampaigns.map(c => {
+        const meta = ownCampaigns.find(oc => String(oc.id) === String(c.id));
+        return {
+          ...c,
+          name: campaignNameMap[String(c.id)] || meta?.name || c.name || `Campaign ${c.id}`,
+          objectiveType: meta?.objectiveType || meta?.type || 'UNKNOWN',
+        };
+      });
+
+      // Step 4: If on Ads level, include per-ad performance data
+      let adsData = [];
+      if (reportLevel === 'ads' && liveData.topAds?.length > 0) {
+        adsData = liveData.topAds.map(a => ({
+          ...a,
+          name: campaignNameMap[String(a.id)] || a.name || `Ad ${a.id}`,
+        }));
+      }
+
+      // Step 5: Generate the AI report
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           current:           liveData.current,
           previous:          liveData.previous,
-          topCampaigns,
-          topAds:            liveData.topAds,
+          topCampaigns:      enrichedCampaigns,
+          topAds:            adsData,
           budgetPacing:      liveData.budgetPacing,
           currentRange:      { start: dateStart, end: dateEnd },
           previousRange:     payload.previousRange,
           selectedCampaigns: selectedCampIds.length > 0 ? selectedCampIds : selectedGroupIds,
           exchangeRate:      parseFloat(fxRate) || 18.5,
+          reportLevel,
+          selectedAdIds:     selectedAdIds.length > 0 ? selectedAdIds : [],
         })
       });
 
       if (res.ok) {
         const result = await res.json();
         if (!result.metrics) result.metrics = {};
-        result.metrics.topCampaigns = topCampaigns;
+        result.metrics.topCampaigns = enrichedCampaigns;
+        if (adsData.length > 0) result.metrics.topAds = adsData;
         setAiReportResult(result);
       } else {
         setAiReportResult({ error: 'Failed to generate AI report.' });
