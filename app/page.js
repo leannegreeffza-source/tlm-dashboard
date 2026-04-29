@@ -3462,6 +3462,26 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       }
 
       // Step 3: Enrich campaigns with objective types from ownCampaigns
+      // If topCampaigns is STILL empty after Step 2, build from liveData.current as a single entry
+      if (topCampaigns.length === 0 && liveData.current) {
+        console.log('[AI Report] topCampaigns empty after fetch, building from liveData.current');
+        // Use ownCampaigns metadata if available
+        const campMeta = ownCampaigns.length > 0 ? ownCampaigns[0] : null;
+        topCampaigns = [{
+          id: campMeta?.id || selectedCampIds[0] || selectedGroupIds[0] || 'all',
+          name: campMeta?.name || selectedNames[0] || accountName || 'All Campaigns',
+          impressions: liveData.current.impressions || 0,
+          clicks: liveData.current.clicks || 0,
+          ctr: liveData.current.ctr || 0,
+          spent: liveData.current.spent || 0,
+          leads: liveData.current.leads || 0,
+          engagements: liveData.current.engagements || 0,
+          objectiveType: campMeta?.objectiveType || campMeta?.type || 'UNKNOWN',
+        }];
+      }
+
+      console.log('[AI Report] topCampaigns count:', topCampaigns.length);
+
       const enrichedCampaigns = topCampaigns.map(c => {
         const meta = ownCampaigns.find(oc => String(oc.id) === String(c.id));
         return {
