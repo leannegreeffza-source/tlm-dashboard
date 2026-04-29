@@ -582,6 +582,15 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
   const report  = reportResult?.report;
   const rawMetrics = reportResult?.metrics;
   const metrics = rawMetrics || {};
+  
+  // Ensure topCampaigns is populated - fall back to reportData or API response
+  if ((!metrics.topCampaigns || metrics.topCampaigns.length === 0) && reportData?.topCampaigns?.length > 0) {
+    metrics.topCampaigns = reportData.topCampaigns;
+  }
+  // Ensure topAds is populated
+  if ((!metrics.topAds || metrics.topAds.length === 0) && reportData?.topAds?.length > 0) {
+    metrics.topAds = reportData.topAds;
+  }
   const fx      = parseFloat(fxRate) || 0;
   const fxSym   = fxCurrency === 'KES' ? 'KSh' : 'R';
   const fmtZar  = (v) => v > 0 ? `${fxSym} ${(v * fx).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}` : null;
@@ -812,11 +821,11 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                             return (
                               <tr key={i} style={{borderBottom:'1px solid #eee'}}>
                                 <td style={{padding:'10px',fontWeight:600,color:'#0e1034'}}>{name} <span style={{fontSize:'10px',color:'#999'}}>({a.id})</span></td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{(a.impressions||0).toLocaleString()}</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{(a.clicks||0).toLocaleString()}</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{ctr}%</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>${(a.spent||0).toFixed(2)}</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace'}}>{a.leads||0}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{(a.impressions||0).toLocaleString()}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{(a.clicks||0).toLocaleString()}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{ctr}%</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>${(a.spent||0).toFixed(2)}</td>
+                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{a.leads||0}</td>
                               </tr>
                             );
                           })}
@@ -836,7 +845,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                           </h4>
                           <span style={{fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:perfColor,color:'white',textTransform:'uppercase'}}>{ad.performance}</span>
                         </div>
-                        <p style={{color:'#444',fontSize:'13px',margin:'0 0 4px'}} contentEditable suppressContentEditableWarning>{ad.insight}</p>
+                        <p style={{color:'#111',fontSize:'13px',margin:'0 0 4px'}} contentEditable suppressContentEditableWarning>{ad.insight}</p>
                         {ad.recommendation && (
                           <p style={{color:'#2196F3',fontSize:'12px',fontWeight:600,margin:0}} contentEditable suppressContentEditableWarning>→ {ad.recommendation}</p>
                         )}
@@ -849,19 +858,19 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                     <div style={{background:'#e3f2fd',borderLeft:'4px solid #2196F3',padding:'15px',margin:'15px 0',borderRadius:'4px'}}>
                       <h4 style={{color:'#0e1034',fontSize:'15px',fontWeight:700,marginBottom:'10px'}}>Creative Insights</h4>
                       {report.adInsights.topPerformer && (
-                        <p style={{color:'#444',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
+                        <p style={{color:'#111',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
                           <strong style={{color:'#4caf50'}}>Best Performer:</strong> {report.adInsights.topPerformer}
                         </p>
                       )}
                       {report.adInsights.worstPerformer && (
-                        <p style={{color:'#444',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
+                        <p style={{color:'#111',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
                           <strong style={{color:'#ff5252'}}>Needs Attention:</strong> {report.adInsights.worstPerformer}
                         </p>
                       )}
                       {report.adInsights.creativeRecommendations?.length > 0 && (
                         <ul style={{listStyle:'none',padding:0,margin:'8px 0 0'}}>
                           {report.adInsights.creativeRecommendations.map((rec, j) => (
-                            <li key={j} style={{padding:'4px 0',paddingLeft:'18px',position:'relative',color:'#444',fontSize:'13px'}} contentEditable suppressContentEditableWarning>
+                            <li key={j} style={{padding:'4px 0',paddingLeft:'18px',position:'relative',color:'#111',fontSize:'13px'}} contentEditable suppressContentEditableWarning>
                               <span style={{position:'absolute',left:0,color:'#2196F3'}}>→</span>{rec}
                             </li>
                           ))}
@@ -1004,7 +1013,7 @@ ${report.objectiveAnalysis.map(obj => {
     <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col};color:white;text-transform:uppercase">${obj.performance}</span>
   </div>
   <p style="color:#666;font-size:12px;margin:0 0 6px">${obj.campaignCount} campaign${obj.campaignCount !== 1 ? 's' : ''}</p>
-  <p style="color:#444;font-size:13px;line-height:1.5;margin:0 0 6px">${obj.summary || ''}</p>
+  <p style="color:#111;font-size:13px;line-height:1.5;margin:0 0 6px">${obj.summary || ''}</p>
   ${obj.keyInsight ? `<p style="color:${col};font-size:12px;font-weight:600;margin:0">💡 ${obj.keyInsight}</p>` : ''}
 </div>`;
 }).join('')}
@@ -1038,16 +1047,16 @@ ${report.adAnalysis.map(ad => {
   const col = perfColor(ad.performance);
   return `<div class="rec" style="border-left:4px solid ${col}">
 <h4>${ad.name || 'Ad ' + ad.id} <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col};color:white;text-transform:uppercase;margin-left:6px">${ad.performance}</span></h4>
-<p style="color:#444;font-size:13px;margin:0 0 4px">${ad.insight || ''}</p>
+<p style="color:#111;font-size:13px;margin:0 0 4px">${ad.insight || ''}</p>
 ${ad.recommendation ? `<p style="color:#2196F3;font-size:12px;font-weight:600;margin:0">→ ${ad.recommendation}</p>` : ''}
 </div>`;
 }).join('')}` : ''}
 ${report?.adInsights ? `
 <div class="rec" style="border-left:4px solid #2196F3;background:#e3f2fd;margin-top:15px">
 <h4>Creative Insights</h4>
-${report.adInsights.topPerformer ? `<p style="color:#444;font-size:13px;margin:0 0 6px"><strong style="color:#4caf50">Best Performer:</strong> ${report.adInsights.topPerformer}</p>` : ''}
-${report.adInsights.worstPerformer ? `<p style="color:#444;font-size:13px;margin:0 0 6px"><strong style="color:#ff5252">Needs Attention:</strong> ${report.adInsights.worstPerformer}</p>` : ''}
-${report.adInsights.creativeRecommendations?.length > 0 ? `<ul style="list-style:none;padding:0;margin:8px 0 0">${report.adInsights.creativeRecommendations.map(r => `<li style="padding:4px 0 4px 18px;position:relative;color:#444;font-size:13px"><span style="position:absolute;left:0;color:#2196F3">→</span>${r}</li>`).join('')}</ul>` : ''}
+${report.adInsights.topPerformer ? `<p style="color:#111;font-size:13px;margin:0 0 6px"><strong style="color:#4caf50">Best Performer:</strong> ${report.adInsights.topPerformer}</p>` : ''}
+${report.adInsights.worstPerformer ? `<p style="color:#111;font-size:13px;margin:0 0 6px"><strong style="color:#ff5252">Needs Attention:</strong> ${report.adInsights.worstPerformer}</p>` : ''}
+${report.adInsights.creativeRecommendations?.length > 0 ? `<ul style="list-style:none;padding:0;margin:8px 0 0">${report.adInsights.creativeRecommendations.map(r => `<li style="padding:4px 0 4px 18px;position:relative;color:#111;font-size:13px"><span style="position:absolute;left:0;color:#2196F3">→</span>${r}</li>`).join('')}</ul>` : ''}
 </div>` : ''}
 </section>` : '';
 
@@ -1081,7 +1090,7 @@ canvas{max-height:280px!important}
 .rec{background:#f9f9f9;padding:15px;margin:10px 0;border-radius:4px}
 .rec h4{color:#0e1034;margin-bottom:10px;font-size:15px}
 .rec ul{list-style:none;padding:0}
-.rec li{padding:5px 0 5px 20px;position:relative;color:#444;font-size:14px}
+.rec li{padding:5px 0 5px 20px;position:relative;color:#111;font-size:14px}
 @media print { body{padding:10px} .no-print{display:none!important} }
 </style>
 </head>
@@ -1156,7 +1165,7 @@ ${[
 <ul>${(s.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
 </div>`).join('')}
 ${report?.budgetRecommendation?`<div class="rec" style="border-left:4px solid #4caf50;background:#e8f5e9">
-<h4>Budget Recommendation</h4><p style="color:#444;font-size:14px">${report.budgetRecommendation}</p></div>`:''}
+<h4>Budget Recommendation</h4><p style="color:#111;font-size:14px">${report.budgetRecommendation}</p></div>`:''}
 </section>
 </div>
 <script>
