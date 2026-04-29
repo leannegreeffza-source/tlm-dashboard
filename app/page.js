@@ -3561,17 +3561,30 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         if (!result.metrics) result.metrics = {};
         result.metrics.topCampaigns = enrichedCampaigns;
         result.metrics.topAds = adsData.length > 0 ? adsData : (result.metrics.topAds || []);
+        result.metrics.current = result.metrics.current || liveData.current;
+        result.metrics.previous = result.metrics.previous || liveData.previous;
         console.log('[AI Report] Success. Campaigns:', enrichedCampaigns.length, 'Ads:', result.metrics.topAds.length);
         setAiReportResult(result);
       } else {
         const errBody = await res.text();
         console.error('[AI Report] API failed:', res.status, errBody);
-        setAiReportResult({ error: 'Failed to generate AI report: ' + res.status });
+        // Still include campaign data so the modal can display it
+        setAiReportResult({
+          error: 'AI analysis failed, showing data only.',
+          report: { executiveSummary: 'Report generation encountered an error. Campaign data is shown below.', overallPerformance: 'warning', keyMetrics: {}, objectiveAnalysis: [], campaignAnalysis: [], topPerformers: [], areasForImprovement: [], strategicRecommendations: [], budgetRecommendation: '', immediateActions: [] },
+          metrics: { current: liveData.current, previous: liveData.previous, topCampaigns: enrichedCampaigns, topAds: adsData },
+          period: { currentRange: { start: dateStart, end: dateEnd }, previousRange: payload.previousRange },
+        });
       }
 
     } catch (err) {
       console.error('[generateAIReport]', err);
-      setAiReportResult({ error: 'Failed to generate AI report.' });
+      // Include whatever data we have so the modal isn't empty
+      setAiReportResult({
+        report: { executiveSummary: 'Report generation failed: ' + (err.message || 'Unknown error'), overallPerformance: 'warning', keyMetrics: {}, objectiveAnalysis: [], campaignAnalysis: [], topPerformers: [], areasForImprovement: [], strategicRecommendations: [], budgetRecommendation: '', immediateActions: [] },
+        metrics: { current: liveData?.current || {}, previous: liveData?.previous || {}, topCampaigns: liveData?.topCampaigns || [], topAds: liveData?.topAds || [] },
+        period: { currentRange: { start: dateStart, end: dateEnd }, previousRange: {} },
+      });
     }
 
     setGeneratingAIReport(false);
