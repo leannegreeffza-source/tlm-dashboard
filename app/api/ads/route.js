@@ -15,15 +15,10 @@ export async function POST(request) {
       return NextResponse.json([]);
     }
 
-    const v2Headers = {
+    // Use 202401 for EVERYTHING — 202504 is rejected by LinkedIn
+    const headers = {
       'Authorization': `Bearer ${token.accessToken}`,
       'LinkedIn-Version': '202401',
-      'X-RestLi-Protocol-Version': '2.0.0',
-    };
-
-    const restHeaders = {
-      'Authorization': `Bearer ${token.accessToken}`,
-      'Linkedin-Version': '202504',
       'X-RestLi-Protocol-Version': '2.0.0',
     };
 
@@ -35,26 +30,25 @@ export async function POST(request) {
       let strategyUsed = 'none';
       const campaignUrn = `urn:li:sponsoredCampaign:${campaignId}`;
 
-      // ── Strategy A: v2 /adCreativesV2?q=search with NON-encoded URN ──
-      // LinkedIn's v2 search finder for creatives often requires the raw URN
+      // ── Strategy A: /v2/adCreatives (NOT V2 suffix) with q=search ──
       try {
         let start = 0;
         const count = 100;
         while (true) {
           const url =
-            `https://api.linkedin.com/v2/adCreativesV2` +
+            `https://api.linkedin.com/v2/adCreatives` +
             `?q=search&search.campaign.values[0]=${campaignUrn}` +
             `&count=${count}&start=${start}`;
-          const res = await fetch(url, { headers: v2Headers });
+          const res = await fetch(url, { headers });
           if (!res.ok) {
             const errText = await res.text();
-            console.error(`[A] v2 raw URN failed for campaign ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
+            console.error(`[A] /v2/adCreatives q=search for ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
             break;
           }
           const data = await res.json();
           const batch = data.elements || [];
           elements = elements.concat(batch);
-          strategyUsed = 'A: v2 raw URN';
+          strategyUsed = 'A: /v2/adCreatives';
           if (batch.length < count) break;
           start += count;
           if (start > 2000) break;
@@ -63,7 +57,7 @@ export async function POST(request) {
         console.error(`[A] threw:`, err.message);
       }
 
-      // ── Strategy B: v2 /adCreativesV2?q=search with encoded URN ──
+      // ── Strategy B: /v2/adCreativesV2 with q=search ──
       if (elements.length === 0) {
         try {
           let start = 0;
@@ -71,18 +65,18 @@ export async function POST(request) {
           while (true) {
             const url =
               `https://api.linkedin.com/v2/adCreativesV2` +
-              `?q=search&search.campaign.values[0]=${encodeURIComponent(campaignUrn)}` +
+              `?q=search&search.campaign.values[0]=${campaignUrn}` +
               `&count=${count}&start=${start}`;
-            const res = await fetch(url, { headers: v2Headers });
+            const res = await fetch(url, { headers });
             if (!res.ok) {
               const errText = await res.text();
-              console.error(`[B] v2 encoded URN failed for campaign ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
+              console.error(`[B] /v2/adCreativesV2 q=search for ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
               break;
             }
             const data = await res.json();
             const batch = data.elements || [];
             elements = elements.concat(batch);
-            strategyUsed = 'B: v2 encoded URN';
+            strategyUsed = 'B: /v2/adCreativesV2';
             if (batch.length < count) break;
             start += count;
             if (start > 2000) break;
@@ -92,7 +86,7 @@ export async function POST(request) {
         }
       }
 
-      // ── Strategy C: REST /adCreatives?q=search with campaign filter ──
+      // ── Strategy C: /rest/adCreatives with q=search (version 202401) ──
       if (elements.length === 0) {
         try {
           let start = 0;
@@ -100,18 +94,18 @@ export async function POST(request) {
           while (true) {
             const url =
               `https://api.linkedin.com/rest/adCreatives` +
-              `?q=search&search=(campaign:(values:List(${encodeURIComponent(campaignUrn)})))` +
+              `?q=search&search.campaign.values[0]=${encodeURIComponent(campaignUrn)}` +
               `&count=${count}&start=${start}`;
-            const res = await fetch(url, { headers: restHeaders });
+            const res = await fetch(url, { headers });
             if (!res.ok) {
               const errText = await res.text();
-              console.error(`[C] REST Rest.li syntax failed for campaign ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
+              console.error(`[C] /rest/adCreatives for ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
               break;
             }
             const data = await res.json();
             const batch = data.elements || [];
             elements = elements.concat(batch);
-            strategyUsed = 'C: REST Rest.li';
+            strategyUsed = 'C: /rest/adCreatives';
             if (batch.length < count) break;
             start += count;
             if (start > 2000) break;
@@ -121,63 +115,51 @@ export async function POST(request) {
         }
       }
 
-      // ── Strategy D: REST /adCreatives with flat search params ──
+      // ── Strategy D: /v2/adCreatives with q=criteria ──
       if (elements.length === 0) {
         try {
           const url =
-            `https://api.linkedin.com/rest/adCreatives` +
-            `?q=search&search.campaign.values[0]=${encodeURIComponent(campaignUrn)}` +
+            `https://api.linkedin.com/v2/adCreatives` +
+            `?q=criteria&campaigns[0]=${encodeURIComponent(campaignUrn)}` +
             `&count=100`;
-          const res = await fetch(url, { headers: restHeaders });
+          const res = await fetch(url, { headers });
           if (!res.ok) {
             const errText = await res.text();
-            console.error(`[D] REST flat params failed for campaign ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
+            console.error(`[D] /v2/adCreatives q=criteria for ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
           } else {
             const data = await res.json();
             elements = data.elements || [];
-            strategyUsed = 'D: REST flat params';
+            if (elements.length > 0) strategyUsed = 'D: /v2/adCreatives q=criteria';
           }
         } catch (err) {
           console.error(`[D] threw:`, err.message);
         }
       }
 
-      // ── Strategy E: v2 /adCreativesV2 with campaigns param (no q=search) ──
+      // ── Strategy E: analytics pivot CREATIVE (last resort — guaranteed to find ads with impressions) ──
       if (elements.length === 0) {
+        console.log(`[E] Trying analytics pivot for campaign ${campaignId}...`);
         try {
-          const url =
-            `https://api.linkedin.com/v2/adCreativesV2` +
-            `?q=search&campaigns[0]=${encodeURIComponent(campaignUrn)}` +
-            `&count=100`;
-          const res = await fetch(url, { headers: v2Headers });
-          if (!res.ok) {
-            const errText = await res.text();
-            console.error(`[E] v2 campaigns param failed for campaign ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
-          } else {
-            const data = await res.json();
-            elements = data.elements || [];
-            strategyUsed = 'E: v2 campaigns param';
-          }
-        } catch (err) {
-          console.error(`[E] threw:`, err.message);
-        }
-      }
-
-      // ── Strategy F: analytics pivot CREATIVE to discover ad IDs that delivered ──
-      if (elements.length === 0) {
-        try {
-          const end = new Date();
-          const start = new Date(Date.now() - 90 * 86400000);
-          const fmt = d => `dateRange.start.year=${d.getFullYear()}&dateRange.start.month=${d.getMonth()+1}&dateRange.start.day=${d.getDate()}&dateRange.end.year=${end.getFullYear()}&dateRange.end.month=${end.getMonth()+1}&dateRange.end.day=${end.getDate()}`;
-          const url =
-            `https://api.linkedin.com/v2/adAnalyticsV2` +
-            `?q=analytics&pivot=CREATIVE&timeGranularity=ALL` +
-            `&${fmt(start)}` +
-            `&campaigns[0]=${encodeURIComponent(campaignUrn)}` +
-            `&fields=pivotValues,impressions`;
-          const res = await fetch(url, { headers: v2Headers });
+          const endD = new Date();
+          const startD = new Date(Date.now() - 90 * 86400000);
+          const params = new URLSearchParams({
+            q: 'analytics',
+            pivot: 'CREATIVE',
+            timeGranularity: 'ALL',
+            'dateRange.start.year': startD.getFullYear(),
+            'dateRange.start.month': startD.getMonth() + 1,
+            'dateRange.start.day': startD.getDate(),
+            'dateRange.end.year': endD.getFullYear(),
+            'dateRange.end.month': endD.getMonth() + 1,
+            'dateRange.end.day': endD.getDate(),
+            'campaigns[0]': campaignUrn,
+            fields: 'pivotValues,impressions',
+          });
+          const url = `https://api.linkedin.com/v2/adAnalyticsV2?${params.toString()}`;
+          const res = await fetch(url, { headers });
           if (res.ok) {
             const data = await res.json();
+            console.log(`[E] analytics pivot returned ${data.elements?.length || 0} elements`);
             const creativeIds = (data.elements || [])
               .map(el => el.pivotValues?.[0])
               .filter(Boolean)
@@ -190,14 +172,14 @@ export async function POST(request) {
                 name: `Ad ${id}`,
                 status: 'ACTIVE',
               }));
-              strategyUsed = 'F: analytics pivot';
+              strategyUsed = 'E: analytics pivot';
             }
           } else {
             const errText = await res.text();
-            console.error(`[F] analytics pivot failed for campaign ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
+            console.error(`[E] analytics pivot failed for ${campaignId}: ${res.status} :: ${errText.slice(0, 400)}`);
           }
         } catch (err) {
-          console.error(`[F] threw:`, err.message);
+          console.error(`[E] threw:`, err.message);
         }
       }
 
