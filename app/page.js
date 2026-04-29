@@ -563,10 +563,11 @@ function InlineCharts({ campaigns, campaignNameMap }) {
 function AIReportModal({ show, onClose, generatingReport, reportData, reportResult, currentRange, previousRange, campaignNameMap, fxRate, fxCurrency }) {
   const reportRef = useRef(null);
   const chartSuffix = useRef(Date.now());
+  const [includeAds, setIncludeAds] = useState(true);
 
   function downloadHTML() {
     if (!reportResult) return;
-    const html = generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap);
+    const html = generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap, includeAds);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -617,7 +618,14 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
             <span className="text-sm font-semibold text-gray-700">AI Campaign Report</span>
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Editable</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {report && !generatingReport && reportResult?.metrics?.topAds?.length > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none mr-2">
+                <input type="checkbox" checked={includeAds} onChange={e => setIncludeAds(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer" />
+                Include Ads
+              </label>
+            )}
             {report && !generatingReport && (
               <button onClick={downloadHTML}
                 className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 font-medium">
@@ -973,13 +981,75 @@ function ChartRenderer({ campaigns, campaignNameMap, suffix }) {
   return null;
 }
 
-function generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap) {
+function generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap, includeAds) {
   const report = reportResult?.report;
   const metrics = reportResult?.metrics;
   const campaigns = metrics?.topCampaigns || [];
+  const ads = includeAds ? (metrics?.topAds || []) : [];
   const statusColor = (s) => s === 'critical' ? '#ff5252' : s === 'warning' ? '#ff9800' : '#4caf50';
-  const trendArrow = (t) => t === 'up' ? 'up' : t === 'down' ? 'down' : 'stable';
+  const trendArrow = (t) => t === 'up' ? '↑ Up' : t === 'down' ? '↓ Down' : '→ Stable';
   const perfBadge = (p) => p?.includes('above') ? 'Above Benchmark' : p?.includes('below') ? 'Below Benchmark' : 'At Benchmark';
+  const perfColor = (p) => p === 'strong' ? '#4caf50' : p === 'weak' ? '#ff5252' : '#ff9800';
+
+  // Build objective analysis HTML
+  const objectiveHTML = report?.objectiveAnalysis?.length > 0 ? `
+<section>
+<h2>Performance by Objective</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+${report.objectiveAnalysis.map(obj => {
+  const col = statusColor(obj.performance);
+  return `<div style="background:#f9f9f9;border-left:4px solid ${col};padding:15px;border-radius:4px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <strong style="font-size:15px;color:#0e1034">${obj.objective}</strong>
+    <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col};color:white;text-transform:uppercase">${obj.performance}</span>
+  </div>
+  <p style="color:#666;font-size:12px;margin:0 0 6px">${obj.campaignCount} campaign${obj.campaignCount !== 1 ? 's' : ''}</p>
+  <p style="color:#444;font-size:13px;line-height:1.5;margin:0 0 6px">${obj.summary || ''}</p>
+  ${obj.keyInsight ? `<p style="color:${col};font-size:12px;font-weight:600;margin:0">💡 ${obj.keyInsight}</p>` : ''}
+</div>`;
+}).join('')}
+</div>
+</section>` : '';
+
+  // Build ads performance HTML
+  const adsTableHTML = ads.length > 0 ? `
+<section>
+<h2>Ad-Level Performance</h2>
+<table>
+<thead><tr>${['Ad','Impressions','Clicks','CTR','Spent (USD)','Leads','CPC'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+<tbody>
+${ads.map((a,i)=>{
+  const name = campaignNameMap?.[String(a.id)] || a.name || `Ad ${a.id}`;
+  const ctr = a.impressions > 0 ? (a.clicks / a.impressions * 100).toFixed(2) : '0.00';
+  const cpc = a.clicks > 0 ? (a.spent / a.clicks).toFixed(2) : '0.00';
+  return `<tr style="background:${i%2===0?'white':'#fafafa'}">
+<td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${a.id}</span></td>
+<td>${(a.impressions||0).toLocaleString()}</td>
+<td>${(a.clicks||0).toLocaleString()}</td>
+<td>${ctr}%</td>
+<td>$${(a.spent||0).toFixed(2)}</td>
+<td>${a.leads||0}</td>
+<td>$${cpc}</td></tr>`;
+}).join('')}
+</tbody></table>
+${report?.adAnalysis?.length > 0 ? `
+<h3 style="margin-top:20px;font-size:16px;color:#0e1034">AI Ad Analysis</h3>
+${report.adAnalysis.map(ad => {
+  const col = perfColor(ad.performance);
+  return `<div class="rec" style="border-left:4px solid ${col}">
+<h4>${ad.name || 'Ad ' + ad.id} <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col};color:white;text-transform:uppercase;margin-left:6px">${ad.performance}</span></h4>
+<p style="color:#444;font-size:13px;margin:0 0 4px">${ad.insight || ''}</p>
+${ad.recommendation ? `<p style="color:#2196F3;font-size:12px;font-weight:600;margin:0">→ ${ad.recommendation}</p>` : ''}
+</div>`;
+}).join('')}` : ''}
+${report?.adInsights ? `
+<div class="rec" style="border-left:4px solid #2196F3;background:#e3f2fd;margin-top:15px">
+<h4>Creative Insights</h4>
+${report.adInsights.topPerformer ? `<p style="color:#444;font-size:13px;margin:0 0 6px"><strong style="color:#4caf50">Best Performer:</strong> ${report.adInsights.topPerformer}</p>` : ''}
+${report.adInsights.worstPerformer ? `<p style="color:#444;font-size:13px;margin:0 0 6px"><strong style="color:#ff5252">Needs Attention:</strong> ${report.adInsights.worstPerformer}</p>` : ''}
+${report.adInsights.creativeRecommendations?.length > 0 ? `<ul style="list-style:none;padding:0;margin:8px 0 0">${report.adInsights.creativeRecommendations.map(r => `<li style="padding:4px 0 4px 18px;position:relative;color:#444;font-size:13px"><span style="position:absolute;left:0;color:#2196F3">→</span>${r}</li>`).join('')}</ul>` : ''}
+</div>` : ''}
+</section>` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1012,6 +1082,7 @@ canvas{max-height:280px!important}
 .rec h4{color:#0e1034;margin-bottom:10px;font-size:15px}
 .rec ul{list-style:none;padding:0}
 .rec li{padding:5px 0 5px 20px;position:relative;color:#444;font-size:14px}
+@media print { body{padding:10px} .no-print{display:none!important} }
 </style>
 </head>
 <body>
@@ -1034,21 +1105,24 @@ ${[
 <section>
 <h2>Campaign Performance Comparison</h2>
 <table>
-<thead><tr>${['Campaign','Impressions','Clicks','CTR','Spent (USD)','Leads','CPL','Performance','Trend'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+<thead><tr>${['Campaign','Objective','Impressions','Clicks','CTR','Spent (USD)','Leads','CPL','Status','Trend'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
 <tbody>
 ${campaigns.map((c,i)=>{
   const a=report?.campaignAnalysis?.find(x=>String(x.id)===String(c.id));
   const name=campaignNameMap?.[String(c.id)] || c.name || `Campaign ${c.id}`;
+  const objective = a?.objective || c.objectiveType || '';
   return `<tr style="background:${i%2===0?'white':'#fafafa'}">
 <td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${c.id}</span></td>
+<td style="font-size:11px;text-transform:uppercase;letter-spacing:0.3px">${objective}</td>
 <td>${(c.impressions||0).toLocaleString()}</td><td>${(c.clicks||0).toLocaleString()}</td><td>${parseFloat(c.ctr||0).toFixed(2)}%</td>
 <td>$${(c.spent||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
 <td>${c.leads||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
-<td style="color:${statusColor(a?.status)}">${perfBadge(a?.performance)}</td>
+<td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${statusColor(a?.status)};color:white">${a?.status || 'N/A'}</span></td>
 <td>${trendArrow(a?.trend)}</td></tr>`;
 }).join('')}
 </tbody></table>
 </section>
+${objectiveHTML}
 <section>
 <h2>Performance Charts</h2>
 <div class="chart-grid">
@@ -1058,12 +1132,14 @@ ${campaigns.map((c,i)=>{
 <div class="chart-box"><h3>Impressions by Campaign</h3><canvas id="impressionsChart"></canvas></div>
 </div>
 </section>
+${adsTableHTML}
 <section>
 <h2>Optimization Recommendations</h2>
 ${(report?.campaignAnalysis||[]).map(a=>{
-  const name=campaignNameMap?.[String(a.id)]||`Campaign ${a.id}`;
-  return `<div class="rec" style="border-left:4px solid #2196F3">
-<h4>${name} <span style="font-size:11px;color:#999">(ID: ${a.id})</span></h4>
+  const name= a.name || campaignNameMap?.[String(a.id)]||`Campaign ${a.id}`;
+  const col = statusColor(a.status);
+  return `<div class="rec" style="border-left:4px solid ${col}">
+<h4>${name} <span style="font-size:11px;color:#999">(ID: ${a.id})</span> ${a.objective ? `<span style="font-size:10px;color:#666;margin-left:6px">[${a.objective}]</span>` : ''}</h4>
 <ul>${(a.recommendations||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
 </div>`;
 }).join('')}
