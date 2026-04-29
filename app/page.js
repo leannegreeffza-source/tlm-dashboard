@@ -3462,13 +3462,46 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         };
       });
 
-      // Step 4: If on Ads level, include per-ad performance data
+      // Step 4: Include per-ad performance data (always, not just on Ads level)
       let adsData = [];
-      if (reportLevel === 'ads' && liveData.topAds?.length > 0) {
+
+      // First try: use topAds from liveData (comes from CREATIVE pivot in analytics)
+      if (liveData.topAds?.length > 0) {
         adsData = liveData.topAds.map(a => ({
           ...a,
           name: campaignNameMap[String(a.id)] || a.name || `Ad ${a.id}`,
         }));
+      }
+
+      // Second try: if topAds is empty but we have ownAds loaded, fetch per-ad analytics
+      if (adsData.length === 0 && ownAds.length > 0) {
+        try {
+          const adIdsToFetch = (selectedAdIds.length > 0 ? selectedAdIds : ownAds.slice(0, 20).map(a => String(a.id)));
+          const adPayload = {
+            accountIds: [selectedAcctId],
+            campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null,
+            adIds: adIdsToFetch,
+            currentRange: { start: dateStart, end: dateEnd },
+            previousRange: payload.previousRange,
+            exchangeRate: parseFloat(fxRate) || 18.5,
+          };
+          // Trigger a CREATIVE pivot fetch by sending adIds
+          const adRes = await fetch('/api/analytics', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(adPayload),
+          });
+          if (adRes.ok) {
+            const adData = await adRes.json();
+            if (adData.topAds?.length > 0) {
+              adsData = adData.topAds.map(a => ({
+                ...a,
+                name: campaignNameMap[String(a.id)] || ownAds.find(o => String(o.id) === String(a.id))?.name || `Ad ${a.id}`,
+              }));
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch ad-level data for AI report:', err);
+        }
       }
 
       // Step 5: Generate the AI report
@@ -3493,7 +3526,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         const result = await res.json();
         if (!result.metrics) result.metrics = {};
         result.metrics.topCampaigns = enrichedCampaigns;
-        if (adsData.length > 0) result.metrics.topAds = adsData;
+        result.metrics.topAds = adsData.length > 0 ? adsData : (result.metrics.topAds || []);
         setAiReportResult(result);
       } else {
         setAiReportResult({ error: 'Failed to generate AI report.' });
