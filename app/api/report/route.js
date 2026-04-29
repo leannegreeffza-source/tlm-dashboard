@@ -7,7 +7,6 @@ export const maxDuration = 60;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Map LinkedIn objective codes to human-readable names and relevant KPIs
 const OBJECTIVE_META = {
   LEAD_GENERATION:      { label: 'Lead Generation',     kpis: 'Leads, CPL, Form Fill Rate, CTR' },
   BRAND_AWARENESS:      { label: 'Brand Awareness',     kpis: 'Impressions, Reach, CPM, Frequency' },
@@ -16,118 +15,117 @@ const OBJECTIVE_META = {
   VIDEO_VIEWS:          { label: 'Video Views',         kpis: 'Video Views, View Rate, Cost Per View, Completion Rate' },
   WEBSITE_CONVERSIONS:  { label: 'Website Conversions', kpis: 'Conversions, CPA, Conversion Rate, CTR' },
   JOB_APPLICANTS:       { label: 'Job Applicants',      kpis: 'Applications, Cost Per Application, CTR' },
-  SPONSORED_UPDATES:    { label: 'Sponsored Content',   kpis: 'Engagement Rate, CTR, Impressions' },
-  SPONSORED_INMAILS:    { label: 'Sponsored InMail',    kpis: 'Open Rate, CTR, Leads, CPL' },
-  SPONSORED_VIDEO:      { label: 'Sponsored Video',     kpis: 'Video Views, Completion Rate, Cost Per View' },
 };
 
-function getObjectiveLabel(type) {
-  const upper = (type || '').toUpperCase();
-  return OBJECTIVE_META[upper]?.label || type || 'Unknown';
-}
-
-function getObjectiveKPIs(type) {
-  const upper = (type || '').toUpperCase();
-  return OBJECTIVE_META[upper]?.kpis || 'Impressions, Clicks, CTR, Spend';
-}
+function safe(v, fallback) { return v != null && v !== '' ? v : fallback; }
+function num(v) { return parseFloat(v) || 0; }
+function fmt(v) { return num(v).toFixed(2); }
+function fmtInt(v) { return (parseInt(v) || 0).toLocaleString(); }
+function getObjLabel(t) { return OBJECTIVE_META[(t||'').toUpperCase()]?.label || t || 'Unknown'; }
+function getObjKPIs(t) { return OBJECTIVE_META[(t||'').toUpperCase()]?.kpis || 'Impressions, Clicks, CTR, Spend'; }
 
 export async function POST(request) {
+  let current = {}, previous = {}, topCampaigns = [], topAds = [];
+  let currentRange = {start:'',end:''}, previousRange = {start:'',end:''};
+
   try {
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
     if (!token?.accessToken) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const {
-      current, previous, topCampaigns, topAds, budgetPacing,
-      currentRange, previousRange, selectedCampaigns, exchangeRate,
-      reportLevel, selectedAdIds,
-    } = await request.json();
+    const body = await request.json();
+    current = body.current || {};
+    previous = body.previous || {};
+    topCampaigns = body.topCampaigns || [];
+    topAds = body.topAds || [];
+    currentRange = body.currentRange || {start:'',end:''};
+    previousRange = body.previousRange || {start:'',end:''};
 
-    const avgCTR = (parseFloat(current.ctr) || 0).toFixed(2);
-    const avgCPL = (parseFloat(current.cpl) || 0).toFixed(2);
-    const avgCPM = (parseFloat(current.cpm) || 0).toFixed(2);
-    const avgCPC = (parseFloat(current.cpc) || 0).toFixed(2);
+    console.log('[Report] Received:', topCampaigns.length, 'campaigns,', topAds.length, 'ads');
 
     // Group campaigns by objective
     const byObjective = {};
-    for (const c of (topCampaigns || [])) {
-      const obj = getObjectiveLabel(c.objectiveType);
+    for (const c of topCampaigns) {
+      const obj = getObjLabel(c.objectiveType);
       if (!byObjective[obj]) byObjective[obj] = [];
       byObjective[obj].push(c);
     }
 
-    // Build objective breakdown for the prompt
-    const objectiveBreakdown = Object.entries(byObjective).map(([obj, camps]) => {
-      const totalImp = camps.reduce((s, c) => s + (c.impressions || 0), 0);
-      const totalClk = camps.reduce((s, c) => s + (c.clicks || 0), 0);
-      const totalSpd = camps.reduce((s, c) => s + (c.spent || 0), 0);
-      const totalLds = camps.reduce((s, c) => s + (c.leads || 0), 0);
-      const objType = camps[0]?.objectiveType || '';
-      const relevantKPIs = getObjectiveKPIs(objType);
+    // Build objective breakdown
+    let objectiveBreakdown = '';
+    try {
+      objectiveBreakdown = Object.entries(byObjective).map(([obj, camps]) => {
+        const totalImp = camps.reduce((s, c) => s + num(c.impressions), 0);
+        const totalClk = camps.reduce((s, c) => s + num(c.clicks), 0);
+        const totalSpd = camps.reduce((s, c) => s + num(c.spent), 0);
+        const totalLds = camps.reduce((s, c) => s + num(c.leads), 0);
+        const relevantKPIs = getObjKPIs(camps[0]?.objectiveType);
 
-      const campDetails = camps.map(c => {
-        const name = c.name || `Campaign ${c.id}`;
-        const ctr = c.impressions > 0 ? (c.clicks / c.impressions * 100).toFixed(2) : '0.00';
-        const cpc = c.clicks > 0 ? (c.spent / c.clicks).toFixed(2) : '0.00';
-        const cpl = c.leads > 0 ? (c.spent / c.leads).toFixed(2) : 'N/A';
-        return `    - ${name} (ID: ${c.id}): ${(c.impressions || 0).toLocaleString()} imp, ${(c.clicks || 0).toLocaleString()} clicks, ${ctr}% CTR, $${(c.spent || 0).toFixed(2)} spent, ${c.leads || 0} leads, CPC $${cpc}, CPL ${cpl !== 'N/A' ? '$' + cpl : 'N/A'}`;
-      }).join('\n');
+        const campDetails = camps.map(c => {
+          const name = c.name || `Campaign ${c.id}`;
+          const ctr = num(c.impressions) > 0 ? (num(c.clicks) / num(c.impressions) * 100).toFixed(2) : '0.00';
+          const cpc = num(c.clicks) > 0 ? (num(c.spent) / num(c.clicks)).toFixed(2) : '0.00';
+          const cpl = num(c.leads) > 0 ? '$' + (num(c.spent) / num(c.leads)).toFixed(2) : 'N/A';
+          return `    - ${name} (ID: ${c.id}): ${fmtInt(c.impressions)} imp, ${fmtInt(c.clicks)} clicks, ${ctr}% CTR, $${fmt(c.spent)} spent, ${safe(c.leads,0)} leads, CPC $${cpc}, CPL ${cpl}`;
+        }).join('\n');
 
-      return `OBJECTIVE: ${obj} (${camps.length} campaign${camps.length !== 1 ? 's' : ''})
-  Relevant KPIs for this objective: ${relevantKPIs}
-  Totals: ${totalImp.toLocaleString()} impressions, ${totalClk.toLocaleString()} clicks, $${totalSpd.toFixed(2)} spent, ${totalLds} leads
+        return `OBJECTIVE: ${obj} (${camps.length} campaign${camps.length !== 1 ? 's' : ''})
+  Relevant KPIs: ${relevantKPIs}
+  Totals: ${fmtInt(totalImp)} imp, ${fmtInt(totalClk)} clicks, $${fmt(totalSpd)} spent, ${totalLds} leads
   Campaigns:
 ${campDetails}`;
-    }).join('\n\n');
+      }).join('\n\n');
+    } catch (e) {
+      console.error('[Report] Error building objective breakdown:', e);
+      objectiveBreakdown = 'Error building objective breakdown';
+    }
 
-    // Build ads section if ads data is provided
-    const hasAds = topAds && topAds.length > 0;
-    const adsSection = hasAds
-      ? `\n\nAD-LEVEL PERFORMANCE (${topAds.length} ads):
+    // Build ads section
+    let adsSection = '';
+    const hasAds = topAds.length > 0;
+    try {
+      if (hasAds) {
+        adsSection = `\n\nAD-LEVEL PERFORMANCE (${topAds.length} ads):
 ${topAds.map(a => {
   const name = a.name || `Ad ${a.id}`;
-  const ctr = a.impressions > 0 ? (a.clicks / a.impressions * 100).toFixed(2) : '0.00';
-  const cpc = a.clicks > 0 ? (a.spent / a.clicks).toFixed(2) : '0.00';
-  return `- ${name} (ID: ${a.id}): ${(a.impressions || 0).toLocaleString()} imp, ${(a.clicks || 0).toLocaleString()} clicks, ${ctr}% CTR, $${(a.spent || 0).toFixed(2)} spent, ${a.leads || 0} leads, CPC $${cpc}`;
-}).join('\n')}`
-      : '';
+  const ctr = num(a.impressions) > 0 ? (num(a.clicks) / num(a.impressions) * 100).toFixed(2) : '0.00';
+  const cpc = num(a.clicks) > 0 ? (num(a.spent) / num(a.clicks)).toFixed(2) : '0.00';
+  return `- ${name} (ID: ${a.id}): ${fmtInt(a.impressions)} imp, ${fmtInt(a.clicks)} clicks, ${ctr}% CTR, $${fmt(a.spent)} spent, ${safe(a.leads,0)} leads, CPC $${cpc}`;
+}).join('\n')}`;
+      }
+    } catch (e) {
+      console.error('[Report] Error building ads section:', e);
+      adsSection = '';
+    }
 
-    // Determine which objectives are present
     const objectivesList = Object.keys(byObjective);
-    const hasLeadGen = objectivesList.some(o => o.includes('Lead'));
-    const hasAwareness = objectivesList.some(o => o.includes('Awareness'));
-    const hasWebsite = objectivesList.some(o => o.includes('Website'));
-    const hasEngagement = objectivesList.some(o => o.includes('Engagement'));
-    const hasVideo = objectivesList.some(o => o.includes('Video'));
 
     const prompt = `You are a LinkedIn Ads expert at a digital media agency. Analyze the following campaign data and return a JSON object ONLY — no markdown, no explanation, just raw JSON.
 
-IMPORTANT: These campaigns have DIFFERENT objectives. Do NOT evaluate all campaigns using Lead Generation metrics. Each campaign must be evaluated against the KPIs relevant to its specific objective:
-${objectivesList.map(o => `- ${o} campaigns: evaluate using ${getObjectiveKPIs(Object.entries(byObjective).find(([k]) => k === o)?.[1]?.[0]?.objectiveType || '')}`).join('\n')}
+IMPORTANT: These campaigns may have DIFFERENT objectives. Do NOT evaluate all campaigns using Lead Generation metrics. Each campaign must be evaluated against the KPIs relevant to its specific objective.
 
 OVERALL METRICS:
 - Period: ${currentRange.start} to ${currentRange.end}
 - Compare Period: ${previousRange.start} to ${previousRange.end}
-- Impressions: ${(current.impressions||0).toLocaleString()} (prev: ${(previous.impressions||0).toLocaleString()})
-- Clicks: ${(current.clicks||0).toLocaleString()} (prev: ${(previous.clicks||0).toLocaleString()})
-- CTR: ${avgCTR}% (prev: ${(parseFloat(previous.ctr)||0).toFixed(2)}%)
-- Spend: $${(parseFloat(current.spent)||0).toFixed(2)} (prev: $${(parseFloat(previous.spent)||0).toFixed(2)})
-- CPM: $${avgCPM} (prev: $${(parseFloat(previous.cpm)||0).toFixed(2)})
-- CPC: $${avgCPC} (prev: $${(parseFloat(previous.cpc)||0).toFixed(2)})
-- Leads: ${current.leads||0} (prev: ${previous.leads||0})
-- CPL: $${avgCPL} (prev: $${(parseFloat(previous.cpl)||0).toFixed(2)})
-- Engagement Rate: ${(parseFloat(current.engagementRate)||0).toFixed(2)}%
-- Engagements: ${current.engagements||0}
+- Impressions: ${fmtInt(current.impressions)} (prev: ${fmtInt(previous.impressions)})
+- Clicks: ${fmtInt(current.clicks)} (prev: ${fmtInt(previous.clicks)})
+- CTR: ${fmt(current.ctr)}% (prev: ${fmt(previous.ctr)}%)
+- Spend: $${fmt(current.spent)} (prev: $${fmt(previous.spent)})
+- CPM: $${fmt(current.cpm)} (prev: $${fmt(previous.cpm)})
+- CPC: $${fmt(current.cpc)} (prev: $${fmt(previous.cpc)})
+- Leads: ${safe(current.leads,0)} (prev: ${safe(previous.leads,0)})
+- CPL: $${fmt(current.cpl)} (prev: $${fmt(previous.cpl)})
+- Engagement Rate: ${fmt(current.engagementRate)}%
+- Engagements: ${safe(current.engagements,0)}
 
 CAMPAIGNS GROUPED BY OBJECTIVE:
 ${objectiveBreakdown || 'No campaign data available'}
 ${adsSection}
 
-Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST be based on its specific objective. A Brand Awareness campaign with high impressions but low leads is performing WELL. A Lead Gen campaign with high impressions but low leads is performing POORLY. Evaluate accordingly.
-
+Return this exact JSON structure:
 {
-  "executiveSummary": "2-3 sentence overview that acknowledges the different objectives being run and overall performance",
+  "executiveSummary": "2-3 sentence overview",
   "overallPerformance": "optimal|warning|critical",
   "keyMetrics": {
     "impressionsChange": "+X% or -X%",
@@ -142,7 +140,7 @@ Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST
       "campaignCount": 1,
       "performance": "optimal|warning|critical",
       "summary": "1-2 sentence assessment using the RIGHT KPIs for this objective",
-      "keyInsight": "most important finding for this objective type"
+      "keyInsight": "most important finding"
     }
   ],
   "campaignAnalysis": [
@@ -150,10 +148,10 @@ Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST
       "id": "campaign_id",
       "name": "campaign name",
       "objective": "campaign objective type",
-      "performance": "above|below|at benchmark for THIS objective type",
+      "performance": "above|below|at benchmark",
       "status": "optimal|warning|critical",
       "trend": "up|down|stable",
-      "recommendations": ["recommendation specific to this campaign's objective", "recommendation 2"]
+      "recommendations": ["rec 1", "rec 2"]
     }
   ],
   ${hasAds ? `"adAnalysis": [
@@ -162,26 +160,22 @@ Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST
       "name": "ad name",
       "performance": "strong|average|weak",
       "insight": "what makes this ad perform well or poorly",
-      "recommendation": "specific action to improve this ad"
+      "recommendation": "specific action"
     }
   ],
   "adInsights": {
     "topPerformer": "which ad performs best and why",
     "worstPerformer": "which ad underperforms and why",
-    "creativeRecommendations": ["creative recommendation 1", "creative recommendation 2", "creative recommendation 3"]
+    "creativeRecommendations": ["rec 1", "rec 2", "rec 3"]
   },` : ''}
-  "topPerformers": ["insight 1 — reference the campaign objective", "insight 2", "insight 3"],
-  "areasForImprovement": ["area 1 — with objective context", "area 2", "area 3"],
-  "strategicRecommendations": [
-    "recommendation 1 — specific to the objectives being run",
-    "recommendation 2",
-    "recommendation 3",
-    "recommendation 4",
-    "recommendation 5"
-  ],
-  "budgetRecommendation": "specific budget advice considering the mix of objectives — e.g. shift budget from underperforming awareness to high-performing lead gen",
+  "topPerformers": ["insight 1", "insight 2", "insight 3"],
+  "areasForImprovement": ["area 1", "area 2", "area 3"],
+  "strategicRecommendations": ["rec 1", "rec 2", "rec 3", "rec 4", "rec 5"],
+  "budgetRecommendation": "specific budget advice",
   "immediateActions": ["action 1", "action 2", "action 3"]
 }`;
+
+    console.log('[Report] Sending prompt to Claude, length:', prompt.length);
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
@@ -193,15 +187,15 @@ Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST
     try {
       const text = message.content[0].text.replace(/```json|```/g, '').trim();
       reportJson = JSON.parse(text);
+      console.log('[Report] Parsed JSON successfully');
     } catch (e) {
+      console.error('[Report] JSON parse failed:', e.message);
       reportJson = {
-        executiveSummary: message.content[0].text,
+        executiveSummary: message.content[0].text.substring(0, 500),
         overallPerformance: 'warning',
         keyMetrics: {},
         objectiveAnalysis: [],
         campaignAnalysis: [],
-        adAnalysis: [],
-        adInsights: null,
         topPerformers: [],
         areasForImprovement: [],
         strategicRecommendations: [],
@@ -210,6 +204,8 @@ Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST
       };
     }
 
+    console.log('[Report] Returning response with', topCampaigns.length, 'campaigns,', topAds.length, 'ads');
+
     return NextResponse.json({
       report: reportJson,
       metrics: { current, previous, topCampaigns, topAds },
@@ -217,7 +213,23 @@ Return this exact JSON structure. CRITICAL: Your analysis for each campaign MUST
     });
 
   } catch (error) {
-    console.error('Report generation error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Report] FATAL ERROR:', error.message, error.stack);
+    // Even on error, return the data we received so the frontend can display it
+    return NextResponse.json({
+      report: {
+        executiveSummary: 'Report generation failed: ' + (error.message || 'Unknown error'),
+        overallPerformance: 'warning',
+        keyMetrics: {},
+        objectiveAnalysis: [],
+        campaignAnalysis: [],
+        topPerformers: [],
+        areasForImprovement: [],
+        strategicRecommendations: [],
+        budgetRecommendation: '',
+        immediateActions: []
+      },
+      metrics: { current, previous, topCampaigns, topAds },
+      period: { currentRange, previousRange }
+    });
   }
 }
