@@ -10,10 +10,10 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const OBJECTIVE_META = {
   LEAD_GENERATION:      { label: 'Lead Generation',     kpis: 'Leads, CPL, Form Fill Rate, CTR' },
   BRAND_AWARENESS:      { label: 'Brand Awareness',     kpis: 'Impressions, Reach, CPM, Frequency' },
-  WEBSITE_VISITS:       { label: 'Website Visits',      kpis: 'Clicks, CPC, CTR, Landing Page Views' },
+  WEBSITE_VISITS:       { label: 'Website Visits',      kpis: 'Clicks, CPC, CTR, Landing Page Views, Website Conversions (Insight Tag), Cost Per Conversion' },
   ENGAGEMENT:           { label: 'Engagement',          kpis: 'Engagement Rate, Clicks, Likes, Shares, Comments' },
   VIDEO_VIEWS:          { label: 'Video Views',         kpis: 'Video Views, View Rate, Cost Per View, Completion Rate' },
-  WEBSITE_CONVERSIONS:  { label: 'Website Conversions', kpis: 'Conversions, CPA, Conversion Rate, CTR' },
+  WEBSITE_CONVERSIONS:  { label: 'Website Conversions', kpis: 'Website Conversions (Insight Tag), Cost Per Conversion, Conversion Rate, CTR, CPC' },
   JOB_APPLICANTS:       { label: 'Job Applicants',      kpis: 'Applications, Cost Per Application, CTR' },
 };
 
@@ -67,7 +67,7 @@ export async function POST(request) {
           const ctr = num(c.impressions) > 0 ? (num(c.clicks) / num(c.impressions) * 100).toFixed(2) : '0.00';
           const cpc = num(c.clicks) > 0 ? (num(c.spent) / num(c.clicks)).toFixed(2) : '0.00';
           const cpl = num(c.leads) > 0 ? '$' + (num(c.spent) / num(c.leads)).toFixed(2) : 'N/A';
-          return `    - ${name} (ID: ${c.id}): ${fmtInt(c.impressions)} imp, ${fmtInt(c.clicks)} clicks, ${ctr}% CTR, $${fmt(c.spent)} spent, ${safe(c.leads,0)} leads, CPC $${cpc}, CPL ${cpl}`;
+          return `    - ${name} (ID: ${c.id}): ${fmtInt(c.impressions)} imp, ${fmtInt(c.clicks)} clicks, ${ctr}% CTR, $${fmt(c.spent)} spent, ${safe(c.leads,0)} leads, ${safe(c.conversions,0)} conversions, CPC $${cpc}, CPL ${cpl}`;
         }).join('\n');
 
         return `OBJECTIVE: ${obj} (${camps.length} campaign${camps.length !== 1 ? 's' : ''})
@@ -91,7 +91,7 @@ ${topAds.map(a => {
   const name = a.name || `Ad ${a.id}`;
   const ctr = num(a.impressions) > 0 ? (num(a.clicks) / num(a.impressions) * 100).toFixed(2) : '0.00';
   const cpc = num(a.clicks) > 0 ? (num(a.spent) / num(a.clicks)).toFixed(2) : '0.00';
-  return `- ${name} (ID: ${a.id}): ${fmtInt(a.impressions)} imp, ${fmtInt(a.clicks)} clicks, ${ctr}% CTR, $${fmt(a.spent)} spent, ${safe(a.leads,0)} leads, CPC $${cpc}`;
+  return `- ${name} (ID: ${a.id}): ${fmtInt(a.impressions)} imp, ${fmtInt(a.clicks)} clicks, ${ctr}% CTR, $${fmt(a.spent)} spent, ${safe(a.leads,0)} leads, ${safe(a.conversions,0)} conversions, CPC $${cpc}`;
 }).join('\n')}`;
       }
     } catch (e) {
@@ -116,6 +116,9 @@ OVERALL METRICS:
 - CPC: $${fmt(current.cpc)} (prev: $${fmt(previous.cpc)})
 - Leads: ${safe(current.leads,0)} (prev: ${safe(previous.leads,0)})
 - CPL: $${fmt(current.cpl)} (prev: $${fmt(previous.cpl)})
+- Website Visits (Landing Page Clicks): ${safe(current.websiteVisits,0)} (prev: ${safe(previous.websiteVisits,0)})
+- Website Conversions (Insight Tag): ${safe(current.conversions,0)} (prev: ${safe(previous.conversions,0)})
+- Cost Per Conversion: $${fmt(current.costPerConversion)} (prev: $${fmt(previous.costPerConversion)})
 - Engagement Rate: ${fmt(current.engagementRate)}%
 - Engagements: ${safe(current.engagements,0)}
 
@@ -132,7 +135,9 @@ Return this exact JSON structure:
     "clicksChange": "+X% or -X%",
     "ctrChange": "+X% or -X%",
     "spendChange": "+X% or -X%",
-    "cplChange": "+X% or -X%"
+    "cplChange": "+X% or -X%",
+    "conversionsChange": "+X% or -X%",
+    "costPerConversionChange": "+X% or -X%"
   },
   "objectiveAnalysis": [
     {

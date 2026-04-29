@@ -10,7 +10,7 @@ function dateToObj(dateStr) {
 
 function calculateMetrics(elements) {
   let impressions = 0, clicks = 0, spent = 0, leads = 0,
-    engagements = 0, websiteVisits = 0;
+    engagements = 0, websiteVisits = 0, conversions = 0;
 
   for (const el of elements) {
     impressions += parseInt(el.impressions || 0);
@@ -18,8 +18,8 @@ function calculateMetrics(elements) {
     spent += parseFloat(el.costInLocalCurrency || 0);
     leads += parseInt(el.oneClickLeads || 0);
     engagements += parseInt(el.totalEngagements || 0);
-    // landingPageClicks = website visits / external clicks
-    websiteVisits += parseInt(el.landingPageClicks || el.externalWebsiteConversions || 0);
+    websiteVisits += parseInt(el.landingPageClicks || 0);
+    conversions += parseInt(el.externalWebsiteConversions || 0);
   }
 
   const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
@@ -27,8 +27,9 @@ function calculateMetrics(elements) {
   const cpc = clicks > 0 ? spent / clicks : 0;
   const cpl = leads > 0 ? spent / leads : 0;
   const engagementRate = impressions > 0 ? (engagements / impressions) * 100 : 0;
+  const costPerConversion = conversions > 0 ? spent / conversions : 0;
 
-  return { impressions, clicks, spent, leads, engagements, websiteVisits, ctr, cpm, cpc, cpl, engagementRate };
+  return { impressions, clicks, spent, leads, engagements, websiteVisits, conversions, ctr, cpm, cpc, cpl, engagementRate, costPerConversion };
 }
 
 export async function POST(request) {
@@ -49,8 +50,8 @@ export async function POST(request) {
     const previousStart = dateToObj(previousRange.start);
     const previousEnd = dateToObj(previousRange.end);
 
-    // Fields including landingPageClicks for website visits
-    const fields = 'dateRange,impressions,clicks,costInLocalCurrency,totalEngagements,oneClickLeads,landingPageClicks,externalWebsiteConversions';
+    // Fields including conversions
+    const fields = 'dateRange,impressions,clicks,costInLocalCurrency,totalEngagements,oneClickLeads,landingPageClicks,externalWebsiteConversions,externalWebsitePostClickConversions,externalWebsitePostViewConversions';
 
     async function fetchAnalytics(startDate, endDate, pivot = 'ACCOUNT') {
       const allElements = [];
@@ -248,13 +249,14 @@ export async function POST(request) {
       const id = typeof ref === 'string' ? ref.split(':').pop() : String(ref);
       if (!id || id === 'undefined') continue;
       if (!campaignMap[id]) {
-        campaignMap[id] = { id, impressions: 0, clicks: 0, spent: 0, leads: 0, websiteVisits: 0 };
+        campaignMap[id] = { id, impressions: 0, clicks: 0, spent: 0, leads: 0, websiteVisits: 0, conversions: 0 };
       }
       campaignMap[id].impressions += parseInt(el.impressions || 0);
       campaignMap[id].clicks += parseInt(el.clicks || 0);
       campaignMap[id].spent += parseFloat(el.costInLocalCurrency || 0);
       campaignMap[id].leads += parseInt(el.oneClickLeads || 0);
       campaignMap[id].websiteVisits += parseInt(el.landingPageClicks || 0);
+      campaignMap[id].conversions += parseInt(el.externalWebsiteConversions || 0);
     }
 
     const topCampaigns = Object.values(campaignMap)
@@ -273,12 +275,13 @@ export async function POST(request) {
       const id = typeof ref === 'string' ? ref.split(':').pop() : String(ref);
       if (!id || id === 'undefined') continue;
       if (!adMap[id]) {
-        adMap[id] = { id, impressions: 0, clicks: 0, spent: 0, leads: 0 };
+        adMap[id] = { id, impressions: 0, clicks: 0, spent: 0, leads: 0, conversions: 0 };
       }
       adMap[id].impressions += parseInt(el.impressions || 0);
       adMap[id].clicks += parseInt(el.clicks || 0);
       adMap[id].spent += parseFloat(el.costInLocalCurrency || 0);
       adMap[id].leads += parseInt(el.oneClickLeads || 0);
+      adMap[id].conversions += parseInt(el.externalWebsiteConversions || 0);
     }
 
     const topAds = Object.values(adMap)

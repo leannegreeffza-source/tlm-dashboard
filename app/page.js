@@ -680,8 +680,10 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                   { label:'Impressions',   value:(metrics?.current?.impressions||0).toLocaleString(),                                          sub:`${report.keyMetrics?.impressionsChange||''} vs previous` },
                   { label:'Clicks',        value:(metrics?.current?.clicks||0).toLocaleString(),                                               sub:`${report.keyMetrics?.clicksChange||''} vs previous` },
                   { label:'CTR',           value:`${(metrics?.current?.ctr||0).toFixed(2)}%`,                                                  sub:`${report.keyMetrics?.ctrChange||''} vs previous` },
-                  { label:'CPL',           value:`$${(cpl).toFixed(2)}`,                                                                       sub:`${report.keyMetrics?.cplChange||''} vs previous` },
                   { label:'Total Leads',   value:String(metrics?.current?.leads||0),                                                           sub:`vs ${metrics?.previous?.leads||0} prev period` },
+                  { label:'CPL',           value:`$${(cpl).toFixed(2)}`,                                                                       sub:`${report.keyMetrics?.cplChange||''} vs previous` },
+                  { label:'Website Conversions', value:String(metrics?.current?.conversions||0),                                               sub:`${report.keyMetrics?.conversionsChange||''} vs ${metrics?.previous?.conversions||0} prev` },
+                  { label:'Cost/Conversion',     value:`$${(metrics?.current?.costPerConversion||0).toFixed(2)}`,                               sub:`${report.keyMetrics?.costPerConversionChange||''} vs previous` },
                 ].map((card,i) => (
                   <div key={i} style={{background:'white',border:'1px solid #e0e0e0',borderRadius:'8px',padding:'20px',boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
                     <h3 style={{fontSize:'12px',color:'#666',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{card.label}</h3>
@@ -1107,14 +1109,16 @@ ${[
   { label: 'Impressions', value: metrics?.current?.impressions?.toLocaleString(), sub: `${report?.keyMetrics?.impressionsChange||''} vs previous` },
   { label: 'Clicks', value: metrics?.current?.clicks?.toLocaleString(), sub: `${report?.keyMetrics?.clicksChange||''} vs previous` },
   { label: 'CTR', value: `${metrics?.current?.ctr?.toFixed(2)}%`, sub: `${report?.keyMetrics?.ctrChange||''} vs previous` },
-  { label: 'CPL', value: `$${metrics?.current?.cpl?.toFixed(2)}`, sub: `${report?.keyMetrics?.cplChange||''} vs previous` },
   { label: 'Total Leads', value: metrics?.current?.leads, sub: `vs ${metrics?.previous?.leads} prev period` },
+  { label: 'CPL', value: `$${metrics?.current?.cpl?.toFixed(2)}`, sub: `${report?.keyMetrics?.cplChange||''} vs previous` },
+  { label: 'Conversions', value: metrics?.current?.conversions || 0, sub: `${report?.keyMetrics?.conversionsChange||''} vs ${metrics?.previous?.conversions||0} prev` },
+  { label: 'Cost/Conv', value: `$${(metrics?.current?.costPerConversion||0).toFixed(2)}`, sub: `${report?.keyMetrics?.costPerConversionChange||''} vs previous` },
 ].map(c => `<div class="card"><h3>${c.label}</h3><div class="value">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('')}
 </div>
 <section>
 <h2>Campaign Performance Comparison</h2>
 <table>
-<thead><tr>${['Campaign','Objective','Impressions','Clicks','CTR','Spent (USD)','Leads','CPL','Status','Trend'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+<thead><tr>${['Campaign','Objective','Impressions','Clicks','CTR','Spent (USD)','Leads','Conversions','CPL','Status','Trend'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
 <tbody>
 ${campaigns.map((c,i)=>{
   const a=report?.campaignAnalysis?.find(x=>String(x.id)===String(c.id));
@@ -1125,7 +1129,7 @@ ${campaigns.map((c,i)=>{
 <td style="font-size:11px;text-transform:uppercase;letter-spacing:0.3px">${objective}</td>
 <td>${(c.impressions||0).toLocaleString()}</td><td>${(c.clicks||0).toLocaleString()}</td><td>${parseFloat(c.ctr||0).toFixed(2)}%</td>
 <td>$${(c.spent||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-<td>${c.leads||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
+<td>${c.leads||0}</td><td>${c.conversions||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
 <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${statusColor(a?.status)};color:white">${a?.status || 'N/A'}</span></td>
 <td>${trendArrow(a?.trend)}</td></tr>`;
 }).join('')}
