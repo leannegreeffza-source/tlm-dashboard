@@ -44,10 +44,10 @@ export async function POST(request) {
       reportLevel, selectedAdIds,
     } = await request.json();
 
-    const avgCTR = current.ctr?.toFixed(2) || '0.00';
-    const avgCPL = current.cpl?.toFixed(2) || '0.00';
-    const avgCPM = current.cpm?.toFixed(2) || '0.00';
-    const avgCPC = current.cpc?.toFixed(2) || '0.00';
+    const avgCTR = (parseFloat(current.ctr) || 0).toFixed(2);
+    const avgCPL = (parseFloat(current.cpl) || 0).toFixed(2);
+    const avgCPM = (parseFloat(current.cpm) || 0).toFixed(2);
+    const avgCPC = (parseFloat(current.cpc) || 0).toFixed(2);
 
     // Group campaigns by objective
     const byObjective = {};
@@ -109,16 +109,16 @@ ${objectivesList.map(o => `- ${o} campaigns: evaluate using ${getObjectiveKPIs(O
 OVERALL METRICS:
 - Period: ${currentRange.start} to ${currentRange.end}
 - Compare Period: ${previousRange.start} to ${previousRange.end}
-- Impressions: ${current.impressions?.toLocaleString()} (prev: ${previous.impressions?.toLocaleString()})
-- Clicks: ${current.clicks?.toLocaleString()} (prev: ${previous.clicks?.toLocaleString()})
-- CTR: ${avgCTR}% (prev: ${previous.ctr?.toFixed(2)}%)
-- Spend: $${current.spent?.toFixed(2)} (prev: $${previous.spent?.toFixed(2)})
-- CPM: $${avgCPM} (prev: $${previous.cpm?.toFixed(2)})
-- CPC: $${avgCPC} (prev: $${previous.cpc?.toFixed(2)})
-- Leads: ${current.leads} (prev: ${previous.leads})
-- CPL: $${avgCPL} (prev: $${previous.cpl?.toFixed(2)})
-- Engagement Rate: ${current.engagementRate?.toFixed(2)}%
-- Engagements: ${current.engagements}
+- Impressions: ${(current.impressions||0).toLocaleString()} (prev: ${(previous.impressions||0).toLocaleString()})
+- Clicks: ${(current.clicks||0).toLocaleString()} (prev: ${(previous.clicks||0).toLocaleString()})
+- CTR: ${avgCTR}% (prev: ${(parseFloat(previous.ctr)||0).toFixed(2)}%)
+- Spend: $${(parseFloat(current.spent)||0).toFixed(2)} (prev: $${(parseFloat(previous.spent)||0).toFixed(2)})
+- CPM: $${avgCPM} (prev: $${(parseFloat(previous.cpm)||0).toFixed(2)})
+- CPC: $${avgCPC} (prev: $${(parseFloat(previous.cpc)||0).toFixed(2)})
+- Leads: ${current.leads||0} (prev: ${previous.leads||0})
+- CPL: $${avgCPL} (prev: $${(parseFloat(previous.cpl)||0).toFixed(2)})
+- Engagement Rate: ${(parseFloat(current.engagementRate)||0).toFixed(2)}%
+- Engagements: ${current.engagements||0}
 
 CAMPAIGNS GROUPED BY OBJECTIVE:
 ${objectiveBreakdown || 'No campaign data available'}
