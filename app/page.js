@@ -2957,22 +2957,31 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     go();
   }, [reportLevel]);
 
-  // ─── 4. Load ads when campaigns are selected ───
+  // ─── 4. Load ads when campaigns are selected OR when switching to Ads level ───
   useEffect(() => {
-    if (selectedCampIds.length === 0) { setOwnAds([]); setSelectedAdIds([]); return; }
+    // Determine which campaign IDs to use for fetching ads:
+    // If user has manually selected ad sets, use those.
+    // If user switched to Ads level with no selection but has loaded ad sets, use all of them.
+    const idsToFetch = selectedCampIds.length > 0
+      ? selectedCampIds
+      : (reportLevel === 'ads' && ownCampaigns.length > 0)
+        ? ownCampaigns.slice(0, 50).map(c => String(c.id))
+        : [];
+
+    if (idsToFetch.length === 0) { setOwnAds([]); setSelectedAdIds([]); return; }
     async function go() {
       setLoadingAds(true);
       try {
         const res = await fetch('/api/ads', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ campaignIds: selectedCampIds })
+          body: JSON.stringify({ campaignIds: idsToFetch })
         });
         if (res.ok) setOwnAds(await res.json());
       } catch { console.error('ads fetch failed'); }
       setLoadingAds(false);
     }
     go();
-  }, [selectedCampIds.join(',')]);
+  }, [selectedCampIds.join(','), reportLevel, ownCampaigns.length]);
 
   // ─── Compute which IDs to send to analytics based on level ───
   function getAnalyticsPayload() {
@@ -4226,9 +4235,9 @@ ${buildChartScript(display, campaignNameMap)}
           {/* ── Level: Ads ── */}
           {reportLevel === 'ads' && (
             <div>
-              {selectedCampIds.length === 0 && (
+              {ownCampaigns.length === 0 && selectedCampIds.length === 0 && !loadingAds && (
                 <div className="mb-3 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(246,220,78,0.06)',borderColor:'rgba(246,220,78,0.2)',color:'#F6DC4E'}}>
-                  ⓘ Switch to the Campaigns level first and select the campaigns whose ads you want to report on. Ads will load automatically.
+                  ⓘ No ad sets loaded yet. Make sure an account is selected — ads will load automatically from all available ad sets. You can also switch to the Ad Sets level to select specific ones.
                 </div>
               )}
               <LevelSelector
@@ -4242,7 +4251,7 @@ ${buildChartScript(display, campaignNameMap)}
                 onSearch={setAdSearch}
                 loading={loadingAds}
                 placeholder="Search ads by name or ID..."
-                emptyMsg={selectedCampIds.length > 0 ? 'No ads found for selected campaigns.' : 'Select campaigns first to load ads.'}
+                emptyMsg={loadingAds ? 'Loading ads...' : (ownCampaigns.length > 0 || selectedCampIds.length > 0) ? 'No ads found for this account\'s ad sets.' : 'Select an account first to load ads.'}
                 onImport={() => { setIdImportLevel('ads'); setShowIdImport(v => !v); }}
                 showImport={showIdImport && idImportLevel === 'ads'}
               />
