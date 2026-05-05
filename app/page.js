@@ -563,11 +563,10 @@ function InlineCharts({ campaigns, campaignNameMap }) {
 function AIReportModal({ show, onClose, generatingReport, reportData, reportResult, currentRange, previousRange, campaignNameMap, fxRate, fxCurrency }) {
   const reportRef = useRef(null);
   const chartSuffix = useRef(Date.now());
-  const [includeAds, setIncludeAds] = useState(true);
 
   function downloadHTML() {
     if (!reportResult) return;
-    const html = generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap, includeAds);
+    const html = generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -582,15 +581,6 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
   const report  = reportResult?.report;
   const rawMetrics = reportResult?.metrics;
   const metrics = rawMetrics || {};
-  
-  // Ensure topCampaigns is populated - fall back to reportData or API response
-  if ((!metrics.topCampaigns || metrics.topCampaigns.length === 0) && reportData?.topCampaigns?.length > 0) {
-    metrics.topCampaigns = reportData.topCampaigns;
-  }
-  // Ensure topAds is populated
-  if ((!metrics.topAds || metrics.topAds.length === 0) && reportData?.topAds?.length > 0) {
-    metrics.topAds = reportData.topAds;
-  }
   const fx      = parseFloat(fxRate) || 0;
   const fxSym   = fxCurrency === 'KES' ? 'KSh' : 'R';
   const fmtZar  = (v) => v > 0 ? `${fxSym} ${(v * fx).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}` : null;
@@ -627,14 +617,7 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
             <span className="text-sm font-semibold text-gray-700">AI Campaign Report</span>
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Editable</span>
           </div>
-          <div className="flex gap-2 items-center">
-            {report && !generatingReport && reportResult?.metrics?.topAds?.length > 0 && (
-              <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none mr-2">
-                <input type="checkbox" checked={includeAds} onChange={e => setIncludeAds(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer" />
-                Include Ads
-              </label>
-            )}
+          <div className="flex gap-2">
             {report && !generatingReport && (
               <button onClick={downloadHTML}
                 className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 font-medium">
@@ -680,10 +663,8 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                   { label:'Impressions',   value:(metrics?.current?.impressions||0).toLocaleString(),                                          sub:`${report.keyMetrics?.impressionsChange||''} vs previous` },
                   { label:'Clicks',        value:(metrics?.current?.clicks||0).toLocaleString(),                                               sub:`${report.keyMetrics?.clicksChange||''} vs previous` },
                   { label:'CTR',           value:`${(metrics?.current?.ctr||0).toFixed(2)}%`,                                                  sub:`${report.keyMetrics?.ctrChange||''} vs previous` },
-                  { label:'Total Leads',   value:String(metrics?.current?.leads||0),                                                           sub:`vs ${metrics?.previous?.leads||0} prev period` },
                   { label:'CPL',           value:`$${(cpl).toFixed(2)}`,                                                                       sub:`${report.keyMetrics?.cplChange||''} vs previous` },
-                  { label:'Website Conversions', value:String(metrics?.current?.conversions||0),                                               sub:`${report.keyMetrics?.conversionsChange||''} vs ${metrics?.previous?.conversions||0} prev` },
-                  { label:'Cost/Conversion',     value:`$${(metrics?.current?.costPerConversion||0).toFixed(2)}`,                               sub:`${report.keyMetrics?.costPerConversionChange||''} vs previous` },
+                  { label:'Total Leads',   value:String(metrics?.current?.leads||0),                                                           sub:`vs ${metrics?.previous?.leads||0} prev period` },
                 ].map((card,i) => (
                   <div key={i} style={{background:'white',border:'1px solid #e0e0e0',borderRadius:'8px',padding:'20px',boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
                     <h3 style={{fontSize:'12px',color:'#666',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'0.5px'}}>{card.label}</h3>
@@ -772,135 +753,16 @@ function AIReportModal({ show, onClose, generatingReport, reportData, reportResu
                 )}
               </div>
 
-              {/* Objective Analysis (NEW) */}
-              {report.objectiveAnalysis?.length > 0 && (
-                <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
-                  <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Performance by Objective</h2>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))',gap:'12px'}}>
-                    {report.objectiveAnalysis.map((obj, i) => {
-                      const perfColor = obj.performance === 'optimal' ? '#4caf50' : obj.performance === 'warning' ? '#ff9800' : '#ff5252';
-                      return (
-                        <div key={i} style={{background:'#f9f9f9',borderLeft:`4px solid ${perfColor}`,padding:'15px',borderRadius:'4px'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-                            <h4 style={{color:'#0e1034',fontSize:'15px',fontWeight:700,margin:0}} contentEditable suppressContentEditableWarning>{obj.objective}</h4>
-                            <span style={{fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:perfColor,color:'white',textTransform:'uppercase'}}>{obj.performance}</span>
-                          </div>
-                          <p style={{color:'#666',fontSize:'12px',margin:'0 0 6px'}}>{obj.campaignCount} campaign{obj.campaignCount !== 1 ? 's' : ''}</p>
-                          <p style={{color:'#444',fontSize:'13px',lineHeight:'1.5',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>{obj.summary}</p>
-                          {obj.keyInsight && (
-                            <p style={{color:perfColor,fontSize:'12px',fontWeight:600,margin:0}} contentEditable suppressContentEditableWarning>💡 {obj.keyInsight}</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Ad-Level Analysis (NEW — only shown when ads data exists) */}
-              {report.adAnalysis?.length > 0 && (
-                <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
-                  <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Ad-Level Performance</h2>
-
-                  {/* Ad performance table */}
-                  {metrics?.topAds?.length > 0 && (
-                    <div style={{overflowX:'auto',marginBottom:'20px'}}>
-                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
-                        <thead>
-                          <tr style={{background:'#f5f5f5'}}>
-                            <th style={{textAlign:'left',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Ad</th>
-                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Impressions</th>
-                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Clicks</th>
-                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>CTR</th>
-                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Spend</th>
-                            <th style={{textAlign:'right',padding:'10px',borderBottom:'2px solid #ddd',color:'#666',fontSize:'11px',textTransform:'uppercase'}}>Leads</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {metrics.topAds.map((a, i) => {
-                            const name = campaignNameMap?.[String(a.id)] || a.name || `Ad ${a.id}`;
-                            const ctr = a.impressions > 0 ? (a.clicks / a.impressions * 100).toFixed(2) : '0.00';
-                            return (
-                              <tr key={i} style={{borderBottom:'1px solid #eee'}}>
-                                <td style={{padding:'10px',fontWeight:600,color:'#0e1034'}}>{name} <span style={{fontSize:'10px',color:'#999'}}>({a.id})</span></td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{(a.impressions||0).toLocaleString()}</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{(a.clicks||0).toLocaleString()}</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{ctr}%</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>${(a.spent||0).toFixed(2)}</td>
-                                <td style={{textAlign:'right',padding:'10px',fontFamily:'monospace',color:'#111'}}>{a.leads||0}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* AI ad analysis cards */}
-                  {report.adAnalysis.map((ad, i) => {
-                    const perfColor = ad.performance === 'strong' ? '#4caf50' : ad.performance === 'weak' ? '#ff5252' : '#ff9800';
-                    return (
-                      <div key={i} style={{background:'#f9f9f9',borderLeft:`4px solid ${perfColor}`,padding:'15px',margin:'10px 0',borderRadius:'4px'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}>
-                          <h4 style={{color:'#0e1034',fontSize:'14px',fontWeight:700,margin:0}} contentEditable suppressContentEditableWarning>
-                            {ad.name || `Ad ${ad.id}`}
-                          </h4>
-                          <span style={{fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:perfColor,color:'white',textTransform:'uppercase'}}>{ad.performance}</span>
-                        </div>
-                        <p style={{color:'#111',fontSize:'13px',margin:'0 0 4px'}} contentEditable suppressContentEditableWarning>{ad.insight}</p>
-                        {ad.recommendation && (
-                          <p style={{color:'#2196F3',fontSize:'12px',fontWeight:600,margin:0}} contentEditable suppressContentEditableWarning>→ {ad.recommendation}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Creative insights summary */}
-                  {report.adInsights && (
-                    <div style={{background:'#e3f2fd',borderLeft:'4px solid #2196F3',padding:'15px',margin:'15px 0',borderRadius:'4px'}}>
-                      <h4 style={{color:'#0e1034',fontSize:'15px',fontWeight:700,marginBottom:'10px'}}>Creative Insights</h4>
-                      {report.adInsights.topPerformer && (
-                        <p style={{color:'#111',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
-                          <strong style={{color:'#4caf50'}}>Best Performer:</strong> {report.adInsights.topPerformer}
-                        </p>
-                      )}
-                      {report.adInsights.worstPerformer && (
-                        <p style={{color:'#111',fontSize:'13px',margin:'0 0 6px'}} contentEditable suppressContentEditableWarning>
-                          <strong style={{color:'#ff5252'}}>Needs Attention:</strong> {report.adInsights.worstPerformer}
-                        </p>
-                      )}
-                      {report.adInsights.creativeRecommendations?.length > 0 && (
-                        <ul style={{listStyle:'none',padding:0,margin:'8px 0 0'}}>
-                          {report.adInsights.creativeRecommendations.map((rec, j) => (
-                            <li key={j} style={{padding:'4px 0',paddingLeft:'18px',position:'relative',color:'#111',fontSize:'13px'}} contentEditable suppressContentEditableWarning>
-                              <span style={{position:'absolute',left:0,color:'#2196F3'}}>→</span>{rec}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Optimization Recommendations */}
               <div style={{padding:'30px',borderTop:'1px solid #e0e0e0'}}>
                 <h2 style={{fontSize:'22px',marginBottom:'20px',color:'#0e1034'}}>Optimization Recommendations</h2>
                 {report.campaignAnalysis?.map((analysis,i) => {
-                  const name = analysis.name || campaignNameMap?.[String(analysis.id)] || `Campaign ${analysis.id}`;
-                  const statusColor = analysis.status === 'optimal' ? '#4caf50' : analysis.status === 'warning' ? '#ff9800' : '#ff5252';
+                  const name = campaignNameMap?.[String(analysis.id)] || `Campaign ${analysis.id}`;
                   return (
-                    <div key={i} style={{background:'#f9f9f9',borderLeft:`4px solid ${statusColor}`,padding:'15px',margin:'10px 0',borderRadius:'4px'}}>
-                      <h4 style={{color:'#0e1034',marginBottom:'4px',fontSize:'15px'}} contentEditable suppressContentEditableWarning>
+                    <div key={i} style={{background:'#f9f9f9',borderLeft:'4px solid #2196F3',padding:'15px',margin:'10px 0',borderRadius:'4px'}}>
+                      <h4 style={{color:'#0e1034',marginBottom:'10px',fontSize:'15px'}} contentEditable suppressContentEditableWarning>
                         {name} <span style={{fontSize:'12px',color:'#999',fontFamily:'monospace'}}>(ID: {analysis.id})</span>
                       </h4>
-                      {analysis.objective && (
-                        <p style={{color:'#666',fontSize:'11px',margin:'0 0 8px',textTransform:'uppercase',letterSpacing:'0.5px'}}>
-                          Objective: <strong>{analysis.objective}</strong>
-                          <span style={{marginLeft:'8px',fontSize:'10px',fontWeight:700,padding:'2px 8px',borderRadius:'10px',background:statusColor,color:'white'}}>{analysis.status}</span>
-                          <span style={{marginLeft:'6px',color:'#999'}}>Trend: {analysis.trend === 'up' ? '↑ Up' : analysis.trend === 'down' ? '↓ Down' : '→ Stable'}</span>
-                        </p>
-                      )}
                       <ul style={{listStyle:'none',padding:0}}>
                         {analysis.recommendations?.map((rec,j) => (
                           <li key={j} style={{padding:'5px 0',paddingLeft:'20px',position:'relative',color:'#444',fontSize:'14px'}} contentEditable suppressContentEditableWarning>
@@ -992,75 +854,13 @@ function ChartRenderer({ campaigns, campaignNameMap, suffix }) {
   return null;
 }
 
-function generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap, includeAds) {
+function generateFullHTML(reportResult, reportData, currentRange, previousRange, campaignNameMap) {
   const report = reportResult?.report;
   const metrics = reportResult?.metrics;
   const campaigns = metrics?.topCampaigns || [];
-  const ads = includeAds ? (metrics?.topAds || []) : [];
   const statusColor = (s) => s === 'critical' ? '#ff5252' : s === 'warning' ? '#ff9800' : '#4caf50';
-  const trendArrow = (t) => t === 'up' ? '↑ Up' : t === 'down' ? '↓ Down' : '→ Stable';
+  const trendArrow = (t) => t === 'up' ? 'up' : t === 'down' ? 'down' : 'stable';
   const perfBadge = (p) => p?.includes('above') ? 'Above Benchmark' : p?.includes('below') ? 'Below Benchmark' : 'At Benchmark';
-  const perfColor = (p) => p === 'strong' ? '#4caf50' : p === 'weak' ? '#ff5252' : '#ff9800';
-
-  // Build objective analysis HTML
-  const objectiveHTML = report?.objectiveAnalysis?.length > 0 ? `
-<section>
-<h2>Performance by Objective</h2>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
-${report.objectiveAnalysis.map(obj => {
-  const col = statusColor(obj.performance);
-  return `<div style="background:#f9f9f9;border-left:4px solid ${col};padding:15px;border-radius:4px">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <strong style="font-size:15px;color:#0e1034">${obj.objective}</strong>
-    <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col};color:white;text-transform:uppercase">${obj.performance}</span>
-  </div>
-  <p style="color:#666;font-size:12px;margin:0 0 6px">${obj.campaignCount} campaign${obj.campaignCount !== 1 ? 's' : ''}</p>
-  <p style="color:#111;font-size:13px;line-height:1.5;margin:0 0 6px">${obj.summary || ''}</p>
-  ${obj.keyInsight ? `<p style="color:${col};font-size:12px;font-weight:600;margin:0">💡 ${obj.keyInsight}</p>` : ''}
-</div>`;
-}).join('')}
-</div>
-</section>` : '';
-
-  // Build ads performance HTML
-  const adsTableHTML = ads.length > 0 ? `
-<section>
-<h2>Ad-Level Performance</h2>
-<table>
-<thead><tr>${['Ad','Impressions','Clicks','CTR','Spent (USD)','Leads','CPC'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-<tbody>
-${ads.map((a,i)=>{
-  const name = campaignNameMap?.[String(a.id)] || a.name || `Ad ${a.id}`;
-  const ctr = a.impressions > 0 ? (a.clicks / a.impressions * 100).toFixed(2) : '0.00';
-  const cpc = a.clicks > 0 ? (a.spent / a.clicks).toFixed(2) : '0.00';
-  return `<tr style="background:${i%2===0?'white':'#fafafa'}">
-<td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${a.id}</span></td>
-<td>${(a.impressions||0).toLocaleString()}</td>
-<td>${(a.clicks||0).toLocaleString()}</td>
-<td>${ctr}%</td>
-<td>$${(a.spent||0).toFixed(2)}</td>
-<td>${a.leads||0}</td>
-<td>$${cpc}</td></tr>`;
-}).join('')}
-</tbody></table>
-${report?.adAnalysis?.length > 0 ? `
-<h3 style="margin-top:20px;font-size:16px;color:#0e1034">AI Ad Analysis</h3>
-${report.adAnalysis.map(ad => {
-  const col = perfColor(ad.performance);
-  return `<div class="rec" style="border-left:4px solid ${col}">
-<h4>${ad.name || 'Ad ' + ad.id} <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col};color:white;text-transform:uppercase;margin-left:6px">${ad.performance}</span></h4>
-<p style="color:#111;font-size:13px;margin:0 0 4px">${ad.insight || ''}</p>
-${ad.recommendation ? `<p style="color:#2196F3;font-size:12px;font-weight:600;margin:0">→ ${ad.recommendation}</p>` : ''}
-</div>`;
-}).join('')}` : ''}
-${report?.adInsights ? `
-<div class="rec" style="border-left:4px solid #2196F3;background:#e3f2fd;margin-top:15px">
-<h4>Creative Insights</h4>
-${report.adInsights.topPerformer ? `<p style="color:#111;font-size:13px;margin:0 0 6px"><strong style="color:#4caf50">Best Performer:</strong> ${report.adInsights.topPerformer}</p>` : ''}
-${report.adInsights.worstPerformer ? `<p style="color:#111;font-size:13px;margin:0 0 6px"><strong style="color:#ff5252">Needs Attention:</strong> ${report.adInsights.worstPerformer}</p>` : ''}
-${report.adInsights.creativeRecommendations?.length > 0 ? `<ul style="list-style:none;padding:0;margin:8px 0 0">${report.adInsights.creativeRecommendations.map(r => `<li style="padding:4px 0 4px 18px;position:relative;color:#111;font-size:13px"><span style="position:absolute;left:0;color:#2196F3">→</span>${r}</li>`).join('')}</ul>` : ''}
-</div>` : ''}
-</section>` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1092,8 +892,7 @@ canvas{max-height:280px!important}
 .rec{background:#f9f9f9;padding:15px;margin:10px 0;border-radius:4px}
 .rec h4{color:#0e1034;margin-bottom:10px;font-size:15px}
 .rec ul{list-style:none;padding:0}
-.rec li{padding:5px 0 5px 20px;position:relative;color:#111;font-size:14px}
-@media print { body{padding:10px} .no-print{display:none!important} }
+.rec li{padding:5px 0 5px 20px;position:relative;color:#444;font-size:14px}
 </style>
 </head>
 <body>
@@ -1109,33 +908,28 @@ ${[
   { label: 'Impressions', value: metrics?.current?.impressions?.toLocaleString(), sub: `${report?.keyMetrics?.impressionsChange||''} vs previous` },
   { label: 'Clicks', value: metrics?.current?.clicks?.toLocaleString(), sub: `${report?.keyMetrics?.clicksChange||''} vs previous` },
   { label: 'CTR', value: `${metrics?.current?.ctr?.toFixed(2)}%`, sub: `${report?.keyMetrics?.ctrChange||''} vs previous` },
-  { label: 'Total Leads', value: metrics?.current?.leads, sub: `vs ${metrics?.previous?.leads} prev period` },
   { label: 'CPL', value: `$${metrics?.current?.cpl?.toFixed(2)}`, sub: `${report?.keyMetrics?.cplChange||''} vs previous` },
-  { label: 'Conversions', value: metrics?.current?.conversions || 0, sub: `${report?.keyMetrics?.conversionsChange||''} vs ${metrics?.previous?.conversions||0} prev` },
-  { label: 'Cost/Conv', value: `$${(metrics?.current?.costPerConversion||0).toFixed(2)}`, sub: `${report?.keyMetrics?.costPerConversionChange||''} vs previous` },
+  { label: 'Total Leads', value: metrics?.current?.leads, sub: `vs ${metrics?.previous?.leads} prev period` },
 ].map(c => `<div class="card"><h3>${c.label}</h3><div class="value">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('')}
 </div>
 <section>
 <h2>Campaign Performance Comparison</h2>
 <table>
-<thead><tr>${['Campaign','Objective','Impressions','Clicks','CTR','Spent (USD)','Leads','Conversions','CPL','Status','Trend'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+<thead><tr>${['Campaign','Impressions','Clicks','CTR','Spent (USD)','Leads','CPL','Performance','Trend'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
 <tbody>
 ${campaigns.map((c,i)=>{
   const a=report?.campaignAnalysis?.find(x=>String(x.id)===String(c.id));
   const name=campaignNameMap?.[String(c.id)] || c.name || `Campaign ${c.id}`;
-  const objective = a?.objective || c.objectiveType || '';
   return `<tr style="background:${i%2===0?'white':'#fafafa'}">
 <td><strong>${name}</strong><br/><span style="font-size:11px;color:#999;font-family:monospace">ID: ${c.id}</span></td>
-<td style="font-size:11px;text-transform:uppercase;letter-spacing:0.3px">${objective}</td>
 <td>${(c.impressions||0).toLocaleString()}</td><td>${(c.clicks||0).toLocaleString()}</td><td>${parseFloat(c.ctr||0).toFixed(2)}%</td>
 <td>$${(c.spent||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-<td>${c.leads||0}</td><td>${c.conversions||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
-<td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${statusColor(a?.status)};color:white">${a?.status || 'N/A'}</span></td>
+<td>${c.leads||0}</td><td>${c.leads>0?`$${(c.spent/c.leads).toFixed(2)}`:'-'}</td>
+<td style="color:${statusColor(a?.status)}">${perfBadge(a?.performance)}</td>
 <td>${trendArrow(a?.trend)}</td></tr>`;
 }).join('')}
 </tbody></table>
 </section>
-${objectiveHTML}
 <section>
 <h2>Performance Charts</h2>
 <div class="chart-grid">
@@ -1145,14 +939,12 @@ ${objectiveHTML}
 <div class="chart-box"><h3>Impressions by Campaign</h3><canvas id="impressionsChart"></canvas></div>
 </div>
 </section>
-${adsTableHTML}
 <section>
 <h2>Optimization Recommendations</h2>
 ${(report?.campaignAnalysis||[]).map(a=>{
-  const name= a.name || campaignNameMap?.[String(a.id)]||`Campaign ${a.id}`;
-  const col = statusColor(a.status);
-  return `<div class="rec" style="border-left:4px solid ${col}">
-<h4>${name} <span style="font-size:11px;color:#999">(ID: ${a.id})</span> ${a.objective ? `<span style="font-size:10px;color:#666;margin-left:6px">[${a.objective}]</span>` : ''}</h4>
+  const name=campaignNameMap?.[String(a.id)]||`Campaign ${a.id}`;
+  return `<div class="rec" style="border-left:4px solid #2196F3">
+<h4>${name} <span style="font-size:11px;color:#999">(ID: ${a.id})</span></h4>
 <ul>${(a.recommendations||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
 </div>`;
 }).join('')}
@@ -1169,7 +961,7 @@ ${[
 <ul>${(s.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
 </div>`).join('')}
 ${report?.budgetRecommendation?`<div class="rec" style="border-left:4px solid #4caf50;background:#e8f5e9">
-<h4>Budget Recommendation</h4><p style="color:#111;font-size:14px">${report.budgetRecommendation}</p></div>`:''}
+<h4>Budget Recommendation</h4><p style="color:#444;font-size:14px">${report.budgetRecommendation}</p></div>`:''}
 </section>
 </div>
 <script>
@@ -1610,978 +1402,6 @@ function fmtDate(d) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PERFORMANCE OVER TIME  (month-by-month breakdown tab)
-// ─────────────────────────────────────────────────────────────
-function PerformanceOverTime({ session }) {
-  // ── Accounts (same fetch as Report Generator) ──
-  const [accounts, setAccounts]         = useState([]);
-  const [selectedAcctId, setSelectedAcctId] = useState(null);
-  const [acctSearch, setAcctSearch]     = useState('');
-  const [loadingAccts, setLoadingAccts] = useState(false);
-
-  // ── Campaign groups & ad sets for filtering ──
-  const [ownGroups, setOwnGroups]           = useState([]);
-  const [selectedGroupIds, setSelectedGroupIds] = useState([]);
-  const [ownCampaigns, setOwnCampaigns]     = useState([]);
-  const [selectedCampIds, setSelectedCampIds] = useState([]);
-
-  // ── Month picker ──
-  const [preset, setPreset]       = useState('6');       // '3','6','12','custom'
-  const [customMonths, setCustomMonths] = useState([]);  // ['2026-01','2025-12',...]
-
-  // ── FX ──
-  const [fxCurrency, setFxCurrency] = useState('ZAR');
-  const [fxRate, setFxRate]         = useState('18.50');
-
-  // ── Data ──
-  const [monthlyData, setMonthlyData] = useState([]); // [{ label, start, end, metrics }]
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState(null);
-
-  // ── Chart metric selector ──
-  const [chartMetric, setChartMetric] = useState('impressions');
-
-  // ── AI Analysis ──
-  const [aiLoading, setAiLoading]     = useState(false);
-  const [aiText, setAiText]           = useState(null);
-  const [aiError, setAiError]         = useState(null);
-
-  // ── AI Report (structured modal report via /api/report) ──
-  const [showAIReport, setShowAIReport]             = useState(false);
-  const [aiReportResult, setAiReportResult]         = useState(null);
-  const [generatingAIReport, setGeneratingAIReport] = useState(false);
-
-  // ── AI Trend Analysis function ──
-  async function getAITrendInsights() {
-    if (!enrichedData.length) return;
-    setAiLoading(true); setAiError(null); setAiText(null);
-
-    const sym = fxCurrency === 'ZAR' ? 'R' : 'KSh';
-    const acctName = selectedAcctName || 'Unknown Account';
-
-    // Build per-month data summary for the prompt
-    const monthBreakdown = enrichedData.map((row, idx) => {
-      const m = row.metrics;
-      const prev = idx > 0 ? enrichedData[idx - 1].metrics : null;
-      const pctChange = (key) => {
-        if (!prev || !prev[key]) return '';
-        const change = ((m[key] - prev[key]) / prev[key]) * 100;
-        return ` (${change > 0 ? '+' : ''}${change.toFixed(1)}% MoM)`;
-      };
-      return `${row.label}:
-  - Impressions: ${(m.impressions || 0).toLocaleString()}${pctChange('impressions')}
-  - Clicks: ${(m.clicks || 0).toLocaleString()}${pctChange('clicks')}
-  - CTR: ${(m.ctr || 0).toFixed(2)}%${pctChange('ctr')}
-  - Spend: $${(m.spent || 0).toFixed(2)} / ${sym} ${((m.spentLocal || 0)).toFixed(2)}${pctChange('spent')}
-  - CPM: $${(m.cpm || 0).toFixed(2)}${pctChange('cpm')}
-  - CPC: $${(m.cpc || 0).toFixed(2)}${pctChange('cpc')}
-  - Leads: ${m.leads || 0}${pctChange('leads')}
-  - CPL: ${m.cpl > 0 ? '$' + m.cpl.toFixed(2) : 'N/A'}${m.cpl > 0 ? pctChange('cpl') : ''}`;
-    }).join('\n\n');
-
-    // Overall period summary
-    const n = enrichedData.length;
-    const first = enrichedData[0].metrics;
-    const last = enrichedData[n - 1].metrics;
-    const totalSpend = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0);
-    const totalImpr = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0);
-    const totalClicks = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0);
-    const totalLeads = enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0);
-
-    const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this ${n}-month LinkedIn performance trend data and provide specific, data-driven, actionable recommendations focused on month-over-month trends and trajectory.
-
-CLIENT: ${acctName}
-PERIOD: ${enrichedData[0].label} – ${enrichedData[n - 1].label} (${n} months)
-FX RATE: $1 = ${sym}${parseFloat(fxRate) || 0}
-
-MONTHLY BREAKDOWN:
-${monthBreakdown}
-
-PERIOD TOTALS:
-- Total Impressions: ${totalImpr.toLocaleString()}
-- Total Clicks: ${totalClicks.toLocaleString()}
-- Total Spend: $${totalSpend.toFixed(2)} / ${sym} ${(totalSpend * (parseFloat(fxRate) || 0)).toFixed(2)}
-- Total Leads: ${totalLeads}
-- Overall CTR: ${totalImpr > 0 ? (totalClicks / totalImpr * 100).toFixed(2) : '0'}%
-- Overall CPC: ${totalClicks > 0 ? '$' + (totalSpend / totalClicks).toFixed(2) : 'N/A'}
-- Overall CPL: ${totalLeads > 0 ? '$' + (totalSpend / totalLeads).toFixed(2) : 'N/A'}
-
-TRENDS (first month → last month):
-- Impressions: ${(first.impressions || 0).toLocaleString()} → ${(last.impressions || 0).toLocaleString()} (${first.impressions > 0 ? ((last.impressions - first.impressions) / first.impressions * 100).toFixed(1) : '0'}%)
-- CTR: ${(first.ctr || 0).toFixed(2)}% → ${(last.ctr || 0).toFixed(2)}%
-- CPC: $${(first.cpc || 0).toFixed(2)} → $${(last.cpc || 0).toFixed(2)}
-- Spend: $${(first.spent || 0).toFixed(2)} → $${(last.spent || 0).toFixed(2)}
-
-Respond with EXACTLY these seven sections. Use "## " to start each header. Use "- " for bullet points. Focus on trends, trajectory, seasonality, and month-over-month changes rather than single-month snapshots.
-
-## Executive Summary
-## Trend Analysis (what the numbers show month-over-month)
-## What's Working (improving metrics)
-## Concerning Trends (declining or worsening metrics)
-## Budget & Spend Efficiency Over Time
-## Seasonality & Timing Insights
-## Next 30-Day Action Plan Based on Trajectory`;
-
-    try {
-      const res = await fetch('/api/ai-recommendations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
-      if (!res.ok) throw new Error('AI request failed');
-      const data = await res.json();
-      setAiText(data.text || data.recommendations || data.content || JSON.stringify(data));
-    } catch (err) {
-      console.error('AI trend analysis error:', err);
-      setAiError('Failed to generate AI analysis. Please try again.');
-    }
-    setAiLoading(false);
-  }
-
-  // ── AI Report (structured report via /api/report, opens in AIReportModal) ──
-  async function generateOTAIReport() {
-    if (!enrichedData.length || !selectedAcctId) return;
-    setGeneratingAIReport(true);
-    setShowAIReport(true);
-    setAiReportResult(null);
-
-    try {
-      // Aggregate all months into a single "current" metrics object
-      const totalImpressions = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0);
-      const totalClicks      = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0);
-      const totalSpent       = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0);
-      const totalLeads       = enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0);
-      const totalEngagements = enrichedData.reduce((a, r) => a + (r.metrics.engagements || 0), 0);
-      const totalWebsiteVisits = enrichedData.reduce((a, r) => a + (r.metrics.websiteVisits || 0), 0);
-
-      const current = {
-        impressions: totalImpressions,
-        clicks: totalClicks,
-        spent: totalSpent,
-        leads: totalLeads,
-        engagements: totalEngagements,
-        websiteVisits: totalWebsiteVisits,
-        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-        cpm: totalImpressions > 0 ? (totalSpent / totalImpressions) * 1000 : 0,
-        cpc: totalClicks > 0 ? totalSpent / totalClicks : 0,
-        cpl: totalLeads > 0 ? totalSpent / totalLeads : 0,
-        engagementRate: totalImpressions > 0 ? (totalEngagements / totalImpressions) * 100 : 0,
-      };
-
-      // Use the first half as "previous" for comparison (if enough months)
-      const mid = Math.floor(enrichedData.length / 2);
-      const prevSlice = enrichedData.slice(0, mid);
-      const prevImpr   = prevSlice.reduce((a, r) => a + (r.metrics.impressions || 0), 0);
-      const prevClicks = prevSlice.reduce((a, r) => a + (r.metrics.clicks || 0), 0);
-      const prevSpent  = prevSlice.reduce((a, r) => a + (r.metrics.spent || 0), 0);
-      const prevLeads  = prevSlice.reduce((a, r) => a + (r.metrics.leads || 0), 0);
-
-      const previous = {
-        impressions: prevImpr,
-        clicks: prevClicks,
-        spent: prevSpent,
-        leads: prevLeads,
-        ctr: prevImpr > 0 ? (prevClicks / prevImpr) * 100 : 0,
-        cpm: prevImpr > 0 ? (prevSpent / prevImpr) * 1000 : 0,
-        cpc: prevClicks > 0 ? prevSpent / prevClicks : 0,
-        cpl: prevLeads > 0 ? prevSpent / prevLeads : 0,
-      };
-
-      // Build topCampaigns from monthly data (one entry per month, treated as "campaigns")
-      const topCampaigns = enrichedData.map(row => ({
-        id: row.label.replace(/\s/g, '-'),
-        name: row.label,
-        impressions: row.metrics.impressions || 0,
-        clicks: row.metrics.clicks || 0,
-        ctr: row.metrics.ctr ? row.metrics.ctr.toFixed(2) : '0.00',
-        spent: row.metrics.spent || 0,
-        leads: row.metrics.leads || 0,
-      }));
-
-      const firstMonth = enrichedData[0];
-      const lastMonth = enrichedData[enrichedData.length - 1];
-
-      const res = await fetch('/api/report', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          current,
-          previous,
-          topCampaigns,
-          topAds: [],
-          budgetPacing: {
-            spent: totalSpent,
-            dayOfMonth: new Date().getDate(),
-            daysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
-            projectedMonthly: totalSpent / enrichedData.length,
-          },
-          currentRange:  { start: firstMonth.start, end: lastMonth.end },
-          previousRange: { start: firstMonth.start, end: enrichedData[mid > 0 ? mid - 1 : 0].end },
-          selectedCampaigns: [],
-          exchangeRate: parseFloat(fxRate) || 18.5,
-        })
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        if (!result.metrics) result.metrics = {};
-        result.metrics.topCampaigns = topCampaigns;
-        result.metrics.current = current;
-        setAiReportResult(result);
-      } else {
-        setAiReportResult({ error: 'Failed to generate AI report.' });
-      }
-    } catch (err) {
-      console.error('[generateOTAIReport]', err);
-      setAiReportResult({ error: 'Failed to generate AI report.' });
-    }
-
-    setGeneratingAIReport(false);
-  }
-
-  // Load accounts on mount
-  useEffect(() => {
-    async function go() {
-      setLoadingAccts(true);
-      try {
-        const res = await fetch('/api/accounts');
-        if (res.ok) setAccounts(await res.json());
-      } catch { console.error('accounts fetch failed'); }
-      setLoadingAccts(false);
-    }
-    go();
-  }, []);
-
-  // Load campaign groups when account changes
-  useEffect(() => {
-    if (!selectedAcctId) { setOwnGroups([]); setOwnCampaigns([]); return; }
-    setSelectedGroupIds([]); setSelectedCampIds([]);
-    async function go() {
-      try {
-        const res = await fetch('/api/campaigngroups', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accountIds: [selectedAcctId] })
-        });
-        if (res.ok) setOwnGroups(await res.json());
-      } catch {}
-      try {
-        const res = await fetch('/api/campaigns', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accountIds: [selectedAcctId] })
-        });
-        if (res.ok) setOwnCampaigns(await res.json());
-      } catch {}
-    }
-    go();
-  }, [selectedAcctId]);
-
-  // ── Build month ranges from preset or custom ──
-  function getMonthRanges() {
-    if (preset === 'custom') {
-      return customMonths
-        .sort()
-        .map(ym => {
-          const [y, m] = ym.split('-').map(Number);
-          const start = `${y}-${String(m).padStart(2, '0')}-01`;
-          const lastDay = new Date(y, m, 0).getDate();
-          const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-          const label = new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          return { label, start, end };
-        });
-    }
-    const n = parseInt(preset) || 6;
-    const ranges = [];
-    const now = new Date();
-    for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const y = d.getFullYear();
-      const m = d.getMonth() + 1;
-      const start = `${y}-${String(m).padStart(2, '0')}-01`;
-      const lastDay = new Date(y, m, 0).getDate();
-      const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      ranges.push({ label, start, end });
-    }
-    return ranges;
-  }
-
-  // ── Fetch analytics per month ──
-  async function fetchAllMonths() {
-    if (!selectedAcctId) { setError('Select an account first.'); return; }
-    const ranges = getMonthRanges();
-    if (ranges.length === 0) { setError('No months selected.'); return; }
-    setLoading(true);
-    setError(null);
-    setMonthlyData([]);
-
-    try {
-      const results = await Promise.all(
-        ranges.map(async (r) => {
-          const payload = {
-            accountIds: [selectedAcctId],
-            campaignGroupIds: selectedGroupIds.length > 0 ? selectedGroupIds : null,
-            campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null,
-            adIds: null,
-            currentRange:  { start: r.start, end: r.end },
-            previousRange: { start: r.start, end: r.end }, // dummy, we don't need a comparison per-month
-            exchangeRate: parseFloat(fxRate) || 18.5,
-          };
-          const res = await fetch('/api/analytics', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (!res.ok) throw new Error(`Analytics failed for ${r.label}`);
-          const data = await res.json();
-          return { label: r.label, start: r.start, end: r.end, metrics: data.current };
-        })
-      );
-      setMonthlyData(results);
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Failed to fetch monthly data.');
-    }
-    setLoading(false);
-  }
-
-  // ── Custom month picker helpers ──
-  function toggleMonth(ym) {
-    setCustomMonths(prev => prev.includes(ym) ? prev.filter(m => m !== ym) : [...prev, ym].sort());
-  }
-
-  function getAvailableMonths() {
-    const months = [];
-    const now = new Date();
-    for (let i = 0; i < 24; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      months.push({ ym, label });
-    }
-    return months;
-  }
-
-  // ── Metric definitions for display ──
-  const METRICS = [
-    { key: 'impressions', label: 'Impressions', format: v => (v || 0).toLocaleString(), color: '#818cf8' },
-    { key: 'clicks',      label: 'Clicks',      format: v => (v || 0).toLocaleString(), color: '#f59e0b' },
-    { key: 'spent',       label: 'Spend (USD)',  format: v => `$${(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#3b82f6' },
-    { key: 'spentLocal',  label: `Spend (${fxCurrency})`, format: v => `${fxCurrency === 'ZAR' ? 'R' : 'KSh'} ${(v || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#22c55e' },
-    { key: 'ctr',         label: 'CTR %',        format: v => `${(v || 0).toFixed(2)}%`, color: '#4ade80' },
-    { key: 'cpm',         label: 'CPM (USD)',    format: v => `$${(v || 0).toFixed(2)}`, color: '#a78bfa' },
-    { key: 'cpc',         label: 'CPC (USD)',    format: v => `$${(v || 0).toFixed(2)}`, color: '#fb923c' },
-    { key: 'leads',       label: 'Leads',        format: v => (v || 0).toLocaleString(), color: '#f472b6' },
-    { key: 'cpl',         label: 'CPL (USD)',    format: v => v > 0 ? `$${(v || 0).toFixed(2)}` : '—', color: '#e879f9' },
-  ];
-
-  // ── Enrich monthly data with local currency ──
-  const enrichedData = monthlyData.map(m => ({
-    ...m,
-    metrics: {
-      ...m.metrics,
-      spentLocal: (m.metrics.spent || 0) * (parseFloat(fxRate) || 0),
-    }
-  }));
-
-  // ── Trend arrow for month-over-month ──
-  function trendIcon(current, previous, key) {
-    if (!previous || previous === 0) return null;
-    const pctChange = ((current - previous) / previous) * 100;
-    if (Math.abs(pctChange) < 0.5) return null;
-    // For cost metrics, down is good. For everything else, up is good.
-    const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
-    const isGood = costKeys.includes(key) ? pctChange < 0 : pctChange > 0;
-    return (
-      <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold ml-1 ${isGood ? 'text-emerald-400' : 'text-red-400'}`}>
-        {pctChange > 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(1)}%
-      </span>
-    );
-  }
-
-  // ── Simple bar chart (pure CSS) ──
-  function MiniChart({ data, metric }) {
-    const metaDef = METRICS.find(m => m.key === metric);
-    const vals = data.map(d => d.metrics[metric] || 0);
-    const max = Math.max(...vals, 0.0001);
-    return (
-      <div className="flex items-end gap-1.5" style={{ height: 120 }}>
-        {data.map((d, i) => {
-          const val = d.metrics[metric] || 0;
-          const h = max > 0 ? (val / max) * 100 : 0;
-          return (
-            <div key={i} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-              <span className="text-[9px] text-slate-400 truncate w-full text-center">{metaDef?.format(val) || val}</span>
-              <div
-                className="w-full rounded-t-md transition-all duration-500 min-h-[2px]"
-                style={{ height: `${h}%`, background: metaDef?.color || '#818cf8', opacity: 0.85 }}
-              />
-              <span className="text-[9px] text-slate-500 truncate w-full text-center">{d.label}</span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  const filteredAccounts = accounts.filter(a => !acctSearch || a.name?.toLowerCase().includes(acctSearch.toLowerCase()) || String(a.id).includes(acctSearch));
-  const selectedAcctName = accounts.find(a => String(a.id) === String(selectedAcctId))?.name || '';
-
-  return (
-    <div className="max-w-screen-2xl mx-auto p-6 space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-white mb-1">Performance Over Time</h2>
-        <p className="text-sm text-slate-400">Month-by-month breakdown across your selected date range</p>
-      </div>
-
-      {/* ── Config Row ── */}
-      <div className="rounded-xl border border-[#1e3a5f] p-5 space-y-4" style={{ background: '#0a1628' }}>
-
-        {/* Account picker */}
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[250px]">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Account</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search accounts..."
-                value={acctSearch}
-                onChange={e => setAcctSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500"
-              />
-            </div>
-            {acctSearch && filteredAccounts.length > 0 && !selectedAcctId && (
-              <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-[#2a4a6e]" style={{ background: '#0f1f3d' }}>
-                {filteredAccounts.slice(0, 8).map(a => (
-                  <button key={a.id} onClick={() => { setSelectedAcctId(String(a.id)); setAcctSearch(a.name); }}
-                    className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[#1e3a5f] transition-colors">
-                    {a.name} <span className="text-xs text-slate-500 ml-1">ID: {a.id}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedAcctId && (
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-xs text-emerald-400 font-bold">{selectedAcctName}</span>
-                <button onClick={() => { setSelectedAcctId(null); setAcctSearch(''); setMonthlyData([]); }}
-                  className="text-xs text-red-400 hover:text-red-300 underline">Clear</button>
-              </div>
-            )}
-          </div>
-
-          {/* Period presets */}
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Period</label>
-            <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
-              {[
-                { val: '3', label: 'Last 3 Mo' },
-                { val: '6', label: 'Last 6 Mo' },
-                { val: '12', label: 'Last 12 Mo' },
-                { val: 'custom', label: 'Custom' },
-              ].map(opt => (
-                <button key={opt.val}
-                  onClick={() => setPreset(opt.val)}
-                  className="px-3 py-2 text-xs font-bold transition-all"
-                  style={preset === opt.val
-                    ? { background: '#F6DC4E', color: '#0a1628' }
-                    : { background: 'transparent', color: '#64748b' }}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* FX */}
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">FX Rate</label>
-            <div className="flex items-center gap-2">
-              <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
-                {[{ val: 'ZAR', label: 'ZAR' }, { val: 'KES', label: 'KES' }].map(opt => (
-                  <button key={opt.val}
-                    onClick={() => { setFxCurrency(opt.val); setFxRate(opt.val === 'ZAR' ? '18.50' : '130'); }}
-                    className="px-2.5 py-2 text-xs font-bold transition-all"
-                    style={fxCurrency === opt.val
-                      ? { background: '#F6DC4E', color: '#0a1628' }
-                      : { background: 'transparent', color: '#64748b' }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <input type="number" min="1" step="0.01" value={fxRate}
-                onChange={e => setFxRate(e.target.value)}
-                className="w-24 px-2 py-2 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
-            </div>
-          </div>
-
-          {/* Fetch button */}
-          <button onClick={fetchAllMonths} disabled={loading || !selectedAcctId}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: '#F6DC4E', color: '#272828' }}>
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
-            {loading ? 'Loading...' : 'Load Data'}
-          </button>
-        </div>
-
-        {/* Custom month picker */}
-        {preset === 'custom' && (
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block">Select Months (click to toggle)</label>
-            <div className="flex flex-wrap gap-1.5">
-              {getAvailableMonths().map(m => {
-                const isSelected = customMonths.includes(m.ym);
-                return (
-                  <button key={m.ym} onClick={() => toggleMonth(m.ym)}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
-                    style={isSelected
-                      ? { background: '#F6DC4E', color: '#0a1628', borderColor: '#F6DC4E' }
-                      : { background: '#0f1f3d', color: '#64748b', borderColor: '#1e3a5f' }}>
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-            {customMonths.length > 0 && (
-              <p className="text-xs text-slate-500 mt-2">{customMonths.length} month{customMonths.length !== 1 ? 's' : ''} selected</p>
-            )}
-          </div>
-        )}
-
-        {/* Optional filters row */}
-        {selectedAcctId && (ownGroups.length > 0 || ownCampaigns.length > 0) && (
-          <div className="flex flex-wrap gap-4">
-            {ownGroups.length > 0 && (
-              <div className="min-w-[200px]">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Filter by Campaign (optional)</label>
-                <select multiple value={selectedGroupIds}
-                  onChange={e => setSelectedGroupIds(Array.from(e.target.selectedOptions, o => o.value))}
-                  className="w-full px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none max-h-24">
-                  {ownGroups.map(g => (
-                    <option key={g.id} value={String(g.id)}>{g.name}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-600 mt-0.5">Ctrl/Cmd+click to multi-select</p>
-              </div>
-            )}
-            {ownCampaigns.length > 0 && (
-              <div className="min-w-[200px]">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Filter by Ad Set (optional)</label>
-                <select multiple value={selectedCampIds}
-                  onChange={e => setSelectedCampIds(Array.from(e.target.selectedOptions, o => o.value))}
-                  className="w-full px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none max-h-24">
-                  {ownCampaigns.map(c => (
-                    <option key={c.id} value={String(c.id)}>{c.name}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-600 mt-0.5">Ctrl/Cmd+click to multi-select</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Error ── */}
-      {error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-900/20 p-4 text-sm text-red-300">{error}</div>
-      )}
-
-      {/* ── Empty state ── */}
-      {!loading && monthlyData.length === 0 && !error && (
-        <div className="rounded-xl border border-[#1e3a5f] p-16 text-center" style={{ background: '#0f1f3d' }}>
-          <Calendar className="w-10 h-10 mx-auto mb-4 text-slate-600" />
-          <h3 className="text-lg font-bold text-white mb-2">No Data Yet</h3>
-          <p className="text-slate-500 text-sm">Select an account, choose a period, and click Load Data to see month-by-month performance.</p>
-        </div>
-      )}
-
-      {/* ── Chart ── */}
-      {enrichedData.length > 0 && (
-        <div className="rounded-xl border border-[#1e3a5f] p-5" style={{ background: '#0a1628' }}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-white">Monthly Trend</h3>
-            <div className="flex flex-wrap gap-1">
-              {METRICS.map(m => (
-                <button key={m.key} onClick={() => setChartMetric(m.key)}
-                  className="px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all"
-                  style={chartMetric === m.key
-                    ? { background: m.color, color: '#0a1628', borderColor: m.color }
-                    : { background: 'transparent', color: '#64748b', borderColor: '#1e3a5f' }}>
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <MiniChart data={enrichedData} metric={chartMetric} />
-        </div>
-      )}
-
-      {/* ── Data Table ── */}
-      {enrichedData.length > 0 && (
-        <div className="rounded-xl border border-[#1e3a5f] overflow-hidden" style={{ background: '#0a1628' }}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-[#1e3a5f]" style={{ background: '#0f1f3d' }}>
-                  <th className="text-left px-4 py-3 text-slate-400 font-bold uppercase tracking-wide sticky left-0 z-10" style={{ background: '#0f1f3d' }}>Month</th>
-                  {METRICS.map(m => (
-                    <th key={m.key} className="text-right px-4 py-3 text-slate-400 font-bold uppercase tracking-wide whitespace-nowrap">{m.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {enrichedData.map((row, idx) => (
-                  <tr key={row.label} className="border-b border-[#1e3a5f]/50 hover:bg-[#0f1f3d]/50 transition-colors">
-                    <td className="px-4 py-3 font-bold text-white sticky left-0 z-10 whitespace-nowrap" style={{ background: '#0a1628' }}>
-                      {row.label}
-                    </td>
-                    {METRICS.map(m => {
-                      const val = row.metrics[m.key] || 0;
-                      const prevVal = idx > 0 ? (enrichedData[idx - 1].metrics[m.key] || 0) : null;
-                      return (
-                        <td key={m.key} className="text-right px-4 py-3 text-slate-200 whitespace-nowrap font-mono">
-                          {m.format(val)}
-                          {prevVal !== null && trendIcon(val, prevVal, m.key)}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                {/* Totals / Averages row */}
-                {enrichedData.length > 1 && (() => {
-                  const n = enrichedData.length;
-                  const totals = {};
-                  METRICS.forEach(m => {
-                    const sum = enrichedData.reduce((a, r) => a + (r.metrics[m.key] || 0), 0);
-                    // For rate metrics, show the average. For volume metrics, show the total.
-                    const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
-                    totals[m.key] = isRate ? (sum / n) : sum;
-                  });
-                  return (
-                    <tr className="border-t-2 border-yellow-500/30" style={{ background: 'rgba(246,220,78,0.04)' }}>
-                      <td className="px-4 py-3 font-bold text-yellow-400 sticky left-0 z-10" style={{ background: '#0a1628' }}>
-                        {['ctr', 'cpm', 'cpc', 'cpl'].some(k => true) ? 'Total / Avg' : 'Total'}
-                      </td>
-                      {METRICS.map(m => {
-                        const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
-                        return (
-                          <td key={m.key} className="text-right px-4 py-3 text-yellow-300 whitespace-nowrap font-mono font-bold">
-                            {m.format(totals[m.key])}
-                            {isRate && <span className="text-[9px] text-yellow-600 ml-1">(avg)</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })()}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Month-over-month change summary ── */}
-      {enrichedData.length >= 2 && (
-        <div className="rounded-xl border border-[#1e3a5f] p-5" style={{ background: '#0a1628' }}>
-          <h3 className="text-sm font-bold text-white mb-3">Month-over-Month Change Summary</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {METRICS.map(m => {
-              const first = enrichedData[0].metrics[m.key] || 0;
-              const last = enrichedData[enrichedData.length - 1].metrics[m.key] || 0;
-              const change = first > 0 ? ((last - first) / first) * 100 : 0;
-              const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
-              const isGood = costKeys.includes(m.key) ? change < 0 : change > 0;
-              return (
-                <div key={m.key} className="rounded-lg border border-[#1e3a5f] p-3" style={{ background: '#0f1f3d' }}>
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{m.label}</div>
-                  <div className="text-sm font-mono font-bold text-white mb-0.5">
-                    {m.format(last)}
-                  </div>
-                  {first > 0 && (
-                    <div className={`text-xs font-bold ${isGood ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {change > 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
-                      <span className="text-slate-600 font-normal ml-1">vs {enrichedData[0].label}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Export & AI Buttons ── */}
-      {enrichedData.length > 0 && (
-        <div className="flex gap-3 flex-wrap">
-          <button onClick={getAITrendInsights} disabled={aiLoading}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            style={{ background: '#F6DC4E', color: '#272828' }}>
-            {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {aiLoading ? 'Analysing...' : 'AI Recommendations'}
-          </button>
-          <button onClick={generateOTAIReport} disabled={generatingAIReport}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            style={{ background: '#7c3aed', color: 'white', border: '1px solid #6d28d9' }}>
-            {generatingAIReport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>✦</span>}
-            {generatingAIReport ? 'Generating...' : `AI Report (${enrichedData.length} months)`}
-          </button>
-          <button onClick={() => {
-            const html = buildOverTimeHTML(false);
-            if (!html) return;
-            const blob = new Blob([html], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `TLM-Performance-Over-Time-${selectedAcctName.replace(/\s+/g, '-') || 'report'}.html`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
-            <ExternalLink className="w-4 h-4" /> Export HTML
-          </button>
-          <button onClick={() => {
-            const html = buildOverTimeHTML(true);
-            if (!html) return;
-            const w = window.open('', '_blank');
-            if (w) { w.document.write(html); w.document.close(); }
-          }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
-            <FileText className="w-4 h-4" /> Export PDF
-          </button>
-        </div>
-      )}
-
-      {/* ── AI Recommendations Display ── */}
-      {(aiLoading || aiText || aiError) && (
-        <div className="rounded-xl border border-[#1e3a5f] overflow-hidden" style={{ background: '#0a1628' }}>
-          <div className="flex items-center gap-3 px-5 py-3 border-b border-[#1e3a5f]" style={{ background: '#0f1f3d' }}>
-            <Sparkles className="w-4 h-4 text-yellow-400" />
-            <div className="font-bold text-white text-sm">Claude AI Trend Analysis</div>
-            {aiText && !aiLoading && (
-              <button onClick={getAITrendInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-[#2a4a6e] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
-                Regenerate
-              </button>
-            )}
-          </div>
-          <div className="p-5">
-            {aiLoading && (
-              <div className="flex items-center gap-3 text-slate-400 text-sm">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Analysing {enrichedData.length} months of performance data...</span>
-              </div>
-            )}
-            {aiError && (
-              <div className="text-red-400 text-sm">{aiError}</div>
-            )}
-            {aiText && !aiLoading && (() => {
-              const sections = aiText.split(/^## /m).filter(Boolean);
-              return (
-                <div className="space-y-5">
-                  {sections.map((section, idx) => {
-                    const lines = section.trim().split('\n');
-                    const title = lines[0].trim();
-                    const body = lines.slice(1).join('\n').trim();
-                    return (
-                      <div key={idx}>
-                        <h4 className="text-sm font-bold text-yellow-400 mb-2">{title}</h4>
-                        <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-                          {body.split('\n').map((line, li) => {
-                            if (line.startsWith('- ')) {
-                              return <div key={li} className="pl-3 mb-1">• {line.slice(2)}</div>;
-                            }
-                            return <div key={li} className="mb-1">{line}</div>;
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* ── AI Report Modal ── */}
-      <AIReportModal
-        show={showAIReport}
-        onClose={() => setShowAIReport(false)}
-        generatingReport={generatingAIReport}
-        reportData={enrichedData.length > 0 ? {
-          current: {
-            impressions: enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0),
-            clicks: enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0),
-            spent: enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0),
-            leads: enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0),
-            ctr: (() => { const i = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0); const c = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0); return i > 0 ? (c/i*100) : 0; })(),
-            cpm: (() => { const i = enrichedData.reduce((a, r) => a + (r.metrics.impressions || 0), 0); const s = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0); return i > 0 ? (s/i*1000) : 0; })(),
-            cpc: (() => { const c = enrichedData.reduce((a, r) => a + (r.metrics.clicks || 0), 0); const s = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0); return c > 0 ? (s/c) : 0; })(),
-            cpl: (() => { const l = enrichedData.reduce((a, r) => a + (r.metrics.leads || 0), 0); const s = enrichedData.reduce((a, r) => a + (r.metrics.spent || 0), 0); return l > 0 ? (s/l) : 0; })(),
-          },
-          topCampaigns: enrichedData.map(row => ({
-            id: row.label.replace(/\s/g, '-'),
-            name: row.label,
-            impressions: row.metrics.impressions || 0,
-            clicks: row.metrics.clicks || 0,
-            ctr: row.metrics.ctr ? row.metrics.ctr.toFixed(2) : '0.00',
-            spent: row.metrics.spent || 0,
-            leads: row.metrics.leads || 0,
-          })),
-        } : null}
-        reportResult={aiReportResult}
-        currentRange={enrichedData.length > 0 ? { start: enrichedData[0].start, end: enrichedData[enrichedData.length - 1].end } : { start: '', end: '' }}
-        previousRange={enrichedData.length > 0 ? { start: enrichedData[0].start, end: enrichedData[Math.floor(enrichedData.length / 2)].end } : { start: '', end: '' }}
-        campaignNameMap={Object.fromEntries(enrichedData.map(r => [r.label.replace(/\s/g, '-'), r.label]))}
-        fxRate={fxRate}
-        fxCurrency={fxCurrency}
-      />
-    </div>
-  );
-
-  // ── Build standalone HTML for Performance Over Time ──
-  function buildOverTimeHTML(forPrint) {
-    if (!enrichedData.length) return null;
-    const sym = fxCurrency === 'ZAR' ? 'R' : 'KSh';
-    const acctName = selectedAcctName || 'Unknown Account';
-    const periodLabel = enrichedData[0].label + ' – ' + enrichedData[enrichedData.length - 1].label;
-
-    // Totals / averages
-    const n = enrichedData.length;
-    const totals = {};
-    METRICS.forEach(m => {
-      const sum = enrichedData.reduce((a, r) => a + (r.metrics[m.key] || 0), 0);
-      const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
-      totals[m.key] = isRate ? (sum / n) : sum;
-    });
-
-    const trendArrow = (current, previous, key) => {
-      if (!previous || previous === 0) return '';
-      const pct = ((current - previous) / previous) * 100;
-      if (Math.abs(pct) < 0.5) return '';
-      const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
-      const isGood = costKeys.includes(key) ? pct < 0 : pct > 0;
-      const color = isGood ? '#10b981' : '#ef4444';
-      const arrow = pct > 0 ? '▲' : '▼';
-      return ` <span style="color:${color};font-size:10px;font-weight:700">${arrow} ${Math.abs(pct).toFixed(1)}%</span>`;
-    };
-
-    // Build rows
-    const dataRows = enrichedData.map((row, idx) => {
-      const cells = METRICS.map(m => {
-        const val = row.metrics[m.key] || 0;
-        const prev = idx > 0 ? (enrichedData[idx - 1].metrics[m.key] || 0) : null;
-        return `<td style="text-align:right;padding:10px 14px;font-family:monospace;font-size:13px;border-bottom:1px solid #eee">${m.format(val)}${prev !== null ? trendArrow(val, prev, m.key) : ''}</td>`;
-      }).join('');
-      return `<tr><td style="padding:10px 14px;font-weight:700;border-bottom:1px solid #eee;white-space:nowrap">${row.label}</td>${cells}</tr>`;
-    }).join('');
-
-    const totalCells = METRICS.map(m => {
-      const isRate = ['ctr', 'cpm', 'cpc', 'cpl'].includes(m.key);
-      return `<td style="text-align:right;padding:10px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#b45309">${m.format(totals[m.key])}${isRate ? ' <span style="font-size:9px;color:#999;font-weight:400">(avg)</span>' : ''}</td>`;
-    }).join('');
-
-    const headerCells = METRICS.map(m =>
-      `<th style="text-align:right;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#666;border-bottom:2px solid #ddd;white-space:nowrap">${m.label}</th>`
-    ).join('');
-
-    // Summary cards
-    const summaryCards = METRICS.map(m => {
-      const first = enrichedData[0].metrics[m.key] || 0;
-      const last = enrichedData[enrichedData.length - 1].metrics[m.key] || 0;
-      const change = first > 0 ? ((last - first) / first) * 100 : 0;
-      const costKeys = ['cpm', 'cpc', 'cpl', 'spent', 'spentLocal'];
-      const isGood = costKeys.includes(m.key) ? change < 0 : change > 0;
-      const color = isGood ? '#10b981' : '#ef4444';
-      const arrow = change > 0 ? '▲' : '▼';
-      return `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;min-width:140px;flex:1">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#999;margin-bottom:4px">${m.label}</div>
-        <div style="font-size:16px;font-weight:700;font-family:monospace;margin-bottom:2px">${m.format(last)}</div>
-        ${first > 0 ? `<div style="font-size:12px;font-weight:700;color:${color}">${arrow} ${Math.abs(change).toFixed(1)}% <span style="color:#999;font-weight:400;font-size:11px">vs ${enrichedData[0].label}</span></div>` : ''}
-      </div>`;
-    }).join('');
-
-    const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8">
-<title>Performance Over Time — ${acctName}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 40px; color: #0a1628; background: #fff; }
-  @media print {
-    body { padding: 20px; }
-    .no-print { display: none !important; }
-    table { page-break-inside: auto; }
-    tr { page-break-inside: avoid; }
-  }
-</style>
-</head><body>
-<div style="max-width:1200px;margin:0 auto">
-
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #F6DC4E">
-    <div>
-      <h1 style="font-size:24px;font-weight:800;margin:0">Performance Over Time</h1>
-      <p style="font-size:14px;color:#666;margin:4px 0 0">${acctName} · ${periodLabel} · FX: $1 = ${sym}${parseFloat(fxRate) || 0}</p>
-    </div>
-  </div>
-
-  <h2 style="font-size:16px;font-weight:700;margin:24px 0 12px">Monthly Breakdown</h2>
-  <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="background:#f9fafb">
-          <th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#666;border-bottom:2px solid #ddd">Month</th>
-          ${headerCells}
-        </tr>
-      </thead>
-      <tbody>
-        ${dataRows}
-        <tr style="background:rgba(251,191,36,0.08);border-top:2px solid #f59e0b">
-          <td style="padding:10px 14px;font-weight:700;color:#b45309">Total / Avg</td>
-          ${totalCells}
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  ${enrichedData.length >= 2 ? `
-  <h2 style="font-size:16px;font-weight:700;margin:32px 0 12px">Period Change Summary</h2>
-  <p style="font-size:12px;color:#999;margin-bottom:12px">${enrichedData[0].label} → ${enrichedData[enrichedData.length - 1].label}</p>
-  <div style="display:flex;flex-wrap:wrap;gap:10px">
-    ${summaryCards}
-  </div>
-  ` : ''}
-
-  ${aiText ? `
-  <div style="margin-top:32px;padding:24px;border:2px solid #F6DC4E;border-radius:12px;background:#fffef5">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-      <span style="font-size:18px">✦</span>
-      <h2 style="font-size:16px;font-weight:700;margin:0;color:#0a1628">Claude AI Trend Analysis</h2>
-    </div>
-    ${aiText.split(/^## /m).filter(Boolean).map(section => {
-      const lines = section.trim().split('\n');
-      const title = lines[0].trim();
-      const body = lines.slice(1).join('\n').trim();
-      const bodyHtml = body.split('\n').map(line => {
-        if (line.startsWith('- ')) return `<div style="padding-left:12px;margin-bottom:4px">• ${line.slice(2)}</div>`;
-        return `<div style="margin-bottom:4px">${line}</div>`;
-      }).join('');
-      return `<div style="margin-bottom:16px">
-        <h3 style="font-size:14px;font-weight:700;color:#b45309;margin:0 0 8px">${title}</h3>
-        <div style="font-size:13px;color:#374151;line-height:1.6">${bodyHtml}</div>
-      </div>`;
-    }).join('')}
-  </div>
-  ` : ''}
-
-  <div style="margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center">
-    <p>Turn Left Media · LinkedIn Campaign Platform</p>
-    <p style="margin-top:4px">Generated ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}${aiText ? ' · AI analysis powered by Claude' : ''}</p>
-  </div>
-
-</div>
-${forPrint ? '<scr' + 'ipt>window.onload=function(){window.print();}</' + 'scr' + 'ipt>' : ''}
-</body></html>`;
-
-    return html;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
 // BENCHMARK MANAGER  (developer-only tab)
 // ─────────────────────────────────────────────────────────────
 function BenchmarkManager() {
@@ -3013,42 +1833,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   const [fxRate,     setFxRate]     = useState('18.50');
   const [fxCurrency, setFxCurrency] = useState('ZAR'); // 'ZAR' or 'KES'
 
-  // ─── Multi-rate FX (for reports spanning periods with different FX rates) ───
-  const [useMultiFx, setUseMultiFx] = useState(false);
-  const [fxPeriods, setFxPeriods] = useState([
-    { start: '', end: '', rate: '18.50' }
-  ]);
-
-  // Compute weighted blended FX rate across all defined sub-periods, by day count.
-  // Falls back to the single fxRate input when multi-rate is off or periods are incomplete.
-  const effectiveFxRate = (() => {
-    if (!useMultiFx) return parseFloat(fxRate) || 0;
-    const valid = fxPeriods.filter(p => p.start && p.end && parseFloat(p.rate) > 0);
-    if (valid.length === 0) return parseFloat(fxRate) || 0;
-    let totalDays = 0;
-    let weighted = 0;
-    for (const p of valid) {
-      const s = new Date(p.start + 'T00:00:00').getTime();
-      const e = new Date(p.end + 'T00:00:00').getTime();
-      if (isNaN(s) || isNaN(e) || e < s) continue;
-      const days = Math.floor((e - s) / 86400000) + 1;
-      totalDays += days;
-      weighted += days * parseFloat(p.rate);
-    }
-    return totalDays > 0 ? weighted / totalDays : (parseFloat(fxRate) || 0);
-  })();
-
-  // Keep the legacy fxRate state in sync with the blended rate so all existing
-  // calculations (server payloads, inline displays, report HTML) pick it up automatically.
-  useEffect(() => {
-    if (useMultiFx) {
-      const blended = effectiveFxRate;
-      if (blended > 0 && Math.abs(blended - (parseFloat(fxRate) || 0)) > 0.0001) {
-        setFxRate(blended.toFixed(4));
-      }
-    }
-  }, [useMultiFx, fxPeriods, effectiveFxRate]);
-
   // ─── Previous period (auto-calculated, user can override) ───
   const [useCompare, setUseCompare] = useState(false);
   const [prevStart, setPrevStart] = useState('');
@@ -3165,31 +1949,22 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     go();
   }, [reportLevel]);
 
-  // ─── 4. Load ads when campaigns are selected OR when switching to Ads level ───
+  // ─── 4. Load ads when campaigns are selected ───
   useEffect(() => {
-    // Determine which campaign IDs to use for fetching ads:
-    // If user has manually selected ad sets, use those.
-    // If user switched to Ads level with no selection but has loaded ad sets, use all of them.
-    const idsToFetch = selectedCampIds.length > 0
-      ? selectedCampIds
-      : (reportLevel === 'ads' && ownCampaigns.length > 0)
-        ? ownCampaigns.slice(0, 50).map(c => String(c.id))
-        : [];
-
-    if (idsToFetch.length === 0) { setOwnAds([]); setSelectedAdIds([]); return; }
+    if (selectedCampIds.length === 0) { setOwnAds([]); setSelectedAdIds([]); return; }
     async function go() {
       setLoadingAds(true);
       try {
         const res = await fetch('/api/ads', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ campaignIds: idsToFetch })
+          body: JSON.stringify({ campaignIds: selectedCampIds })
         });
         if (res.ok) setOwnAds(await res.json());
       } catch { console.error('ads fetch failed'); }
       setLoadingAds(false);
     }
     go();
-  }, [selectedCampIds.join(','), reportLevel, ownCampaigns.length]);
+  }, [selectedCampIds.join(',')]);
 
   // ─── Compute which IDs to send to analytics based on level ───
   function getAnalyticsPayload() {
@@ -3273,6 +2048,16 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   // campIds alias used throughout report building (send the right IDs for the level)
   const campIds = reportLevel === 'campaigns' ? selectedCampIds : reportLevel === 'ads' ? selectedCampIds : [];
 
+  // Determine if any selected/loaded campaigns have a Website Visits objective
+  const WEBSITE_OBJ_TYPES = ['WEBSITE_VISITS', 'WEBSITE_CONVERSIONS', 'WEBSITE_VISIT'];
+  const hasWebsiteObjective = (() => {
+    const sourceCamps = campIds.length > 0
+      ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
+      : ownCampaigns;
+    if (sourceCamps.length === 0) return true; // no metadata — show by default
+    return sourceCamps.some(c => WEBSITE_OBJ_TYPES.includes((c.objectiveType || c.type || '').toUpperCase()));
+  })();
+
     // ── Build aggregated metrics from live LinkedIn data ──
   function buildAgg() {
     if (!liveData) return null;
@@ -3347,7 +2132,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       ffr:         clk > 0 ? lds / clk : 0,
       engRate,
       engagements: eng,
-      reach:       current.reach || current.totalReach || Math.round(imp * 0.82),
+      reach:       current.reach || current.totalReach || (hasWebsiteObjective ? Math.round(imp * 0.82) : 0),
       cpm:         current.cpm   || (imp > 0 ? (spd / imp) * 1000 : 0),
       cpc:         current.cpc   || (clk > 0 ? spd / clk : 0),
       prev:        prevObj,
@@ -3465,150 +2250,34 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         }
       }
 
-      // Step 3: Enrich campaigns with objective types from ownCampaigns
-      // If topCampaigns is STILL empty after Step 2, build from liveData.current as a single entry
-      if (topCampaigns.length === 0 && liveData.current) {
-        console.log('[AI Report] topCampaigns empty after fetch, building from liveData.current');
-        // Use ownCampaigns metadata if available
-        const campMeta = ownCampaigns.length > 0 ? ownCampaigns[0] : null;
-        topCampaigns = [{
-          id: campMeta?.id || selectedCampIds[0] || selectedGroupIds[0] || 'all',
-          name: campMeta?.name || selectedNames[0] || accountName || 'All Campaigns',
-          impressions: liveData.current.impressions || 0,
-          clicks: liveData.current.clicks || 0,
-          ctr: liveData.current.ctr || 0,
-          spent: liveData.current.spent || 0,
-          leads: liveData.current.leads || 0,
-          engagements: liveData.current.engagements || 0,
-          objectiveType: campMeta?.objectiveType || campMeta?.type || 'UNKNOWN',
-        }];
-      }
-
-      console.log('[AI Report] topCampaigns count:', topCampaigns.length);
-
-      const enrichedCampaigns = topCampaigns.map(c => {
-        const meta = ownCampaigns.find(oc => String(oc.id) === String(c.id));
-        return {
-          ...c,
-          name: campaignNameMap[String(c.id)] || meta?.name || c.name || `Campaign ${c.id}`,
-          objectiveType: meta?.objectiveType || meta?.type || 'UNKNOWN',
-        };
-      });
-
-      // Step 4: Always fetch per-ad performance data via a dedicated analytics call.
-      // liveData.topAds is often empty because the initial Load LinkedIn Data call
-      // doesn't pass campaignIds (which the analytics route requires for CREATIVE pivot).
-      // So we always do a fresh fetch here using the campaign IDs we already have.
-      let adsData = [];
-
-      // Use liveData.topAds if it already has data
-      if (liveData.topAds?.length > 0) {
-        adsData = liveData.topAds.map(a => ({
-          ...a,
-          name: campaignNameMap[String(a.id)] || a.name || `Ad ${a.id}`,
-        }));
-      }
-
-      // If empty, force-fetch using the campaign IDs from enrichedCampaigns
-      if (adsData.length === 0 && enrichedCampaigns.length > 0) {
-        try {
-          const campIdsForAds = enrichedCampaigns.map(c => String(c.id));
-          console.log('[AI Report] Fetching ad data for campaigns:', campIdsForAds);
-          const adRes = await fetch('/api/analytics', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              accountIds: [selectedAcctId],
-              campaignIds: campIdsForAds,
-              adIds: null,
-              currentRange: { start: dateStart, end: dateEnd },
-              previousRange: payload.previousRange,
-              exchangeRate: parseFloat(fxRate) || 18.5,
-            }),
-          });
-          if (adRes.ok) {
-            const adData = await adRes.json();
-            if (adData.topAds?.length > 0) {
-              adsData = adData.topAds.map(a => ({
-                ...a,
-                name: campaignNameMap[String(a.id)] || ownAds.find(o => String(o.id) === String(a.id))?.name || `Ad ${a.id}`,
-              }));
-              console.log('[AI Report] Got', adsData.length, 'ads from analytics');
-            } else {
-              console.log('[AI Report] Analytics returned no topAds');
-            }
-          }
-        } catch (err) {
-          console.error('[AI Report] Failed to fetch ad data:', err);
-        }
-      }
-
-      // Last resort: if still empty and ownAds is loaded, include them as placeholders
-      if (adsData.length === 0 && ownAds.length > 0) {
-        adsData = ownAds.slice(0, 20).map(a => ({
-          id: a.id,
-          name: a.name || `Ad ${a.id}`,
-          impressions: a.impressions || 0,
-          clicks: a.clicks || 0,
-          spent: a.spent || 0,
-          leads: a.leads || 0,
-          status: a.status || 'UNKNOWN',
-        }));
-        console.log('[AI Report] Using ownAds as fallback:', adsData.length);
-      }
-
-      // Step 5: Generate the AI report
-      console.log('[AI Report] Sending to /api/report:', {
-        campaignsCount: enrichedCampaigns.length,
-        adsCount: adsData.length,
-        reportLevel,
-        hasCurrentData: !!liveData.current,
-      });
+      // Step 3: Generate the AI report using liveData.current (already scoped correctly)
       const res = await fetch('/api/report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           current:           liveData.current,
           previous:          liveData.previous,
-          topCampaigns:      enrichedCampaigns,
-          topAds:            adsData,
+          topCampaigns,
+          topAds:            liveData.topAds,
           budgetPacing:      liveData.budgetPacing,
           currentRange:      { start: dateStart, end: dateEnd },
           previousRange:     payload.previousRange,
           selectedCampaigns: selectedCampIds.length > 0 ? selectedCampIds : selectedGroupIds,
           exchangeRate:      parseFloat(fxRate) || 18.5,
-          reportLevel,
-          selectedAdIds:     selectedAdIds.length > 0 ? selectedAdIds : [],
         })
       });
 
       if (res.ok) {
         const result = await res.json();
         if (!result.metrics) result.metrics = {};
-        result.metrics.topCampaigns = enrichedCampaigns;
-        result.metrics.topAds = adsData.length > 0 ? adsData : (result.metrics.topAds || []);
-        result.metrics.current = result.metrics.current || liveData.current;
-        result.metrics.previous = result.metrics.previous || liveData.previous;
-        console.log('[AI Report] Success. Campaigns:', enrichedCampaigns.length, 'Ads:', result.metrics.topAds.length);
+        result.metrics.topCampaigns = topCampaigns;
         setAiReportResult(result);
       } else {
-        const errBody = await res.text();
-        console.error('[AI Report] API failed:', res.status, errBody);
-        // Still include campaign data so the modal can display it
-        setAiReportResult({
-          error: 'AI analysis failed, showing data only.',
-          report: { executiveSummary: 'Report generation encountered an error. Campaign data is shown below.', overallPerformance: 'warning', keyMetrics: {}, objectiveAnalysis: [], campaignAnalysis: [], topPerformers: [], areasForImprovement: [], strategicRecommendations: [], budgetRecommendation: '', immediateActions: [] },
-          metrics: { current: liveData.current, previous: liveData.previous, topCampaigns: enrichedCampaigns, topAds: adsData },
-          period: { currentRange: { start: dateStart, end: dateEnd }, previousRange: payload.previousRange },
-        });
+        setAiReportResult({ error: 'Failed to generate AI report.' });
       }
 
     } catch (err) {
       console.error('[generateAIReport]', err);
-      // Include whatever data we have so the modal isn't empty
-      setAiReportResult({
-        report: { executiveSummary: 'Report generation failed: ' + (err.message || 'Unknown error'), overallPerformance: 'warning', keyMetrics: {}, objectiveAnalysis: [], campaignAnalysis: [], topPerformers: [], areasForImprovement: [], strategicRecommendations: [], budgetRecommendation: '', immediateActions: [] },
-        metrics: { current: liveData?.current || {}, previous: liveData?.previous || {}, topCampaigns: liveData?.topCampaigns || [], topAds: liveData?.topAds || [] },
-        period: { currentRange: { start: dateStart, end: dateEnd }, previousRange: {} },
-      });
+      setAiReportResult({ error: 'Failed to generate AI report.' });
     }
 
     setGeneratingAIReport(false);
@@ -4352,139 +3021,42 @@ ${buildChartScript(display, campaignNameMap)}
         </div>
 
         {/* Row 2: FX Rate */}
-        <div className="flex flex-col gap-3 mb-6">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
-              {/* Currency toggle */}
-              <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
-                {[{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
-                  <button key={opt.val} onClick={() => {
-                    setFxCurrency(opt.val);
-                    if (!useMultiFx) setFxRate(opt.val === 'ZAR' ? '18.50' : '130');
-                  }}
-                    className="px-3 py-1.5 text-xs font-bold transition-all"
-                    style={fxCurrency === opt.val
-                      ? {background:'#F6DC4E', color:'#0a1628'}
-                      : {background:'transparent', color:'#64748b'}}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              {/* Rate input (disabled in multi-rate mode — shows blended rate) */}
-              <div className="relative">
-                <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
-                  {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
-                </span>
-                <input type="number" min="1" step="0.01"
-                  placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
-                  value={fxRate}
-                  onChange={e => setFxRate(e.target.value)}
-                  disabled={useMultiFx}
-                  className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed" />
-              </div>
-              <span className="text-xs text-slate-500">
-                $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
-                {useMultiFx && <span className="ml-1 text-yellow-400">(blended)</span>}
-              </span>
-            </div>
-
-            {/* Multi-rate toggle */}
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300">
-              <input type="checkbox" checked={useMultiFx}
-                onChange={e => {
-                  const on = e.target.checked;
-                  setUseMultiFx(on);
-                  if (on && (!fxPeriods[0].start || !fxPeriods[0].end)) {
-                    // Pre-fill first row with current date range if it's empty
-                    setFxPeriods([{ start: dateStart || '', end: dateEnd || '', rate: fxRate || (fxCurrency === 'ZAR' ? '18.50' : '130') }]);
-                  }
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
+            {/* Currency toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
+              {[{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
+                <button key={opt.val} onClick={() => {
+                  setFxCurrency(opt.val);
+                  setFxRate(opt.val === 'ZAR' ? '18.50' : '130');
                 }}
-                className="w-4 h-4 accent-yellow-400" />
-              <span className="uppercase tracking-wide font-bold">Multiple FX Rates</span>
-            </label>
-
-            {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
-                Comparing <span className="text-slate-300">{dateStart} – {dateEnd}</span> vs <span className="text-slate-300">{prevStart} – {prevEnd}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Multi-rate period rows */}
-          {useMultiFx && (
-            <div className="rounded-lg border border-[#1e3a5f] p-4" style={{background:'#0f1f3d'}}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wide">FX Rate Periods</div>
-                  <div className="text-xs text-slate-500 mt-0.5">Define the rate for each sub-period. The report uses a day-weighted blended rate.</div>
-                </div>
-                <button
-                  onClick={() => setFxPeriods(prev => [...prev, { start: '', end: '', rate: fxCurrency === 'ZAR' ? '18.50' : '130' }])}
-                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1e3a5f] text-white hover:bg-[#2a4a6e] border border-[#2a4a6e] transition-colors">
-                  + Add Period
+                  className="px-3 py-1.5 text-xs font-bold transition-all"
+                  style={fxCurrency === opt.val
+                    ? {background:'#F6DC4E', color:'#0a1628'}
+                    : {background:'transparent', color:'#64748b'}}>
+                  {opt.label}
                 </button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {fxPeriods.map((p, idx) => {
-                  const s = p.start ? new Date(p.start + 'T00:00:00').getTime() : NaN;
-                  const e = p.end ? new Date(p.end + 'T00:00:00').getTime() : NaN;
-                  const days = (!isNaN(s) && !isNaN(e) && e >= s) ? Math.floor((e - s) / 86400000) + 1 : 0;
-                  const invalid = p.start && p.end && (isNaN(s) || isNaN(e) || e < s);
-                  return (
-                    <div key={idx} className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-slate-500 w-6 font-mono">#{idx + 1}</span>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Start</span>
-                        <input type="date" value={p.start}
-                          onChange={ev => setFxPeriods(prev => prev.map((r, i) => i === idx ? { ...r, start: ev.target.value } : r))}
-                          className="px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">End</span>
-                        <input type="date" value={p.end}
-                          onChange={ev => setFxPeriods(prev => prev.map((r, i) => i === idx ? { ...r, end: ev.target.value } : r))}
-                          className="px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Rate ({fxCurrency === 'ZAR' ? 'R' : 'KSh'})</span>
-                        <input type="number" min="0" step="0.01" value={p.rate}
-                          onChange={ev => setFxPeriods(prev => prev.map((r, i) => i === idx ? { ...r, rate: ev.target.value } : r))}
-                          className="w-24 px-2 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-xs text-white focus:outline-none focus:border-yellow-500" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Days</span>
-                        <span className={`text-xs px-2 py-1.5 font-mono rounded-lg border ${invalid ? 'border-red-500/50 text-red-400' : 'border-[#2a4a6e] text-slate-300'}`} style={{background:'#1e3a5f'}}>
-                          {invalid ? 'invalid' : days || '—'}
-                        </span>
-                      </div>
-                      {fxPeriods.length > 1 && (
-                        <button
-                          onClick={() => setFxPeriods(prev => prev.filter((_, i) => i !== idx))}
-                          className="self-end px-2 py-1.5 text-xs font-bold rounded-lg bg-red-900/40 text-red-300 hover:bg-red-900/60 border border-red-900/60 transition-colors">
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {(() => {
-                const valid = fxPeriods.filter(p => p.start && p.end && parseFloat(p.rate) > 0);
-                if (valid.length < 1) return null;
-                let totalDays = 0;
-                for (const p of valid) {
-                  const s = new Date(p.start + 'T00:00:00').getTime();
-                  const e = new Date(p.end + 'T00:00:00').getTime();
-                  if (!isNaN(s) && !isNaN(e) && e >= s) totalDays += Math.floor((e - s) / 86400000) + 1;
-                }
-                return (
-                  <div className="mt-3 pt-3 border-t border-[#1e3a5f] flex items-center gap-4 text-xs">
-                    <span className="text-slate-500">Total days: <span className="text-slate-200 font-mono">{totalDays}</span></span>
-                    <span className="text-slate-500">Blended rate: <span className="text-yellow-400 font-mono font-bold">{fxCurrency === 'ZAR' ? 'R' : 'KSh'} {effectiveFxRate.toFixed(4)}</span></span>
-                  </div>
-                );
-              })()}
+              ))}
+            </div>
+            {/* Rate input */}
+            <div className="relative">
+              <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
+                {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
+              </span>
+              <input type="number" min="1" step="0.01"
+                placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
+                value={fxRate}
+                onChange={e => setFxRate(e.target.value)}
+                className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
+            </div>
+            <span className="text-xs text-slate-500">
+              $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
+            </span>
+          </div>
+          {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
+              Comparing <span className="text-slate-300">{dateStart} – {dateEnd}</span> vs <span className="text-slate-300">{prevStart} – {prevEnd}</span>
             </div>
           )}
         </div>
@@ -4559,9 +3131,9 @@ ${buildChartScript(display, campaignNameMap)}
           {/* ── Level: Ads ── */}
           {reportLevel === 'ads' && (
             <div>
-              {ownCampaigns.length === 0 && selectedCampIds.length === 0 && !loadingAds && (
+              {selectedCampIds.length === 0 && (
                 <div className="mb-3 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(246,220,78,0.06)',borderColor:'rgba(246,220,78,0.2)',color:'#F6DC4E'}}>
-                  ⓘ No ad sets loaded yet. Make sure an account is selected — ads will load automatically from all available ad sets. You can also switch to the Ad Sets level to select specific ones.
+                  ⓘ Switch to the Campaigns level first and select the campaigns whose ads you want to report on. Ads will load automatically.
                 </div>
               )}
               <LevelSelector
@@ -4575,7 +3147,7 @@ ${buildChartScript(display, campaignNameMap)}
                 onSearch={setAdSearch}
                 loading={loadingAds}
                 placeholder="Search ads by name or ID..."
-                emptyMsg={loadingAds ? 'Loading ads...' : (ownCampaigns.length > 0 || selectedCampIds.length > 0) ? 'No ads found for this account\'s ad sets.' : 'Select an account first to load ads.'}
+                emptyMsg={selectedCampIds.length > 0 ? 'No ads found for selected campaigns.' : 'Select campaigns first to load ads.'}
                 onImport={() => { setIdImportLevel('ads'); setShowIdImport(v => !v); }}
                 showImport={showIdImport && idImportLevel === 'ads'}
               />
@@ -4681,7 +3253,6 @@ ${buildChartScript(display, campaignNameMap)}
               className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#2a4a6e] transition-colors border border-[#2a4a6e]">
               Export PDF
             </button>
-          )}
         </div>
       </div>
 
@@ -4817,11 +3388,11 @@ ${buildChartScript(display, campaignNameMap)}
               },
               {
                 label: 'Website Visits',
-                val:   fmtNum(agg.reach),
-                sub:   `Unique members reached`,
+                val:   hasWebsiteObjective ? fmtNum(agg.reach) : '—',
+                sub:   hasWebsiteObjective ? `Unique members reached` : 'No website visits objective',
                 zar:   null,
                 bench: null,
-                mom:   momBadge(mom(agg.reach, p.reach), false),
+                mom:   hasWebsiteObjective ? momBadge(mom(agg.reach, p.reach), false) : null,
               },
               {
                 label: 'Leads',
@@ -5738,7 +4309,6 @@ export default function Dashboard() {
                 { id: 'report',     label: 'Report Generator', icon: FileText },
                 { id: 'benchmarks', label: 'Benchmarks',       icon: Settings },
                 { id: 'objective',  label: 'Performance by Objective', icon: Layers },
-                { id: 'overtime',   label: 'Performance Over Time',    icon: Calendar },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeMainTab === tab.id;
@@ -5801,11 +4371,6 @@ export default function Dashboard() {
           <div className="max-w-screen-2xl mx-auto p-6">
             <ObjectiveTabs />
           </div>
-        )}
-
-        {/* ── Performance Over Time Tab ── */}
-        {activeMainTab === 'overtime' && (
-          <PerformanceOverTime session={session} />
         )}
 
         {/* ── Campaign Manager (developer only) ── */}
