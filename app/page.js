@@ -2261,7 +2261,9 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           currentRange:      { start: dateStart, end: dateEnd },
           previousRange:     payload.previousRange,
           selectedCampaigns: selectedCampIds.length > 0 ? selectedCampIds : selectedGroupIds,
-          exchangeRate:      parseFloat(fxRate) || 18.5,
+          exchangeRate:      parseFloat(fxRate) || 0,
+          currency:          fxCurrency !== 'NONE' ? fxCurrency : 'USD',
+          currencySymbol:    fxCurrency === 'ZAR' ? 'R' : fxCurrency === 'KES' ? 'KSh' : '$',
         })
       });
 
@@ -2311,6 +2313,12 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       }).join('\n\n');
     })();
 
+    const fx = parseFloat(fxRate) || 0;
+    const fxSym = fxCurrency === 'KES' ? 'KSh' : fxCurrency === 'ZAR' ? 'R' : null;
+    const hasFx = fxSym && fx > 0;
+    const fmtLocal = (usd) => hasFx ? `${fxSym}${(usd * fx).toLocaleString('en-ZA', {minimumFractionDigits:2,maximumFractionDigits:2})} (${fmtCur(usd)})` : fmtCur(usd);
+    const fmtLocalBench = (usd) => hasFx ? `${fxSym}${(usd * fx).toLocaleString('en-ZA', {minimumFractionDigits:2,maximumFractionDigits:2})}` : fmtCur(usd);
+
     const prompt = `You are a senior LinkedIn advertising strategist at Turn Left Media, a South African digital media agency. Analyse this LinkedIn campaign performance report and provide specific, data-driven, actionable recommendations.
 
 CLIENT: ${accountName}
@@ -2318,17 +2326,18 @@ CAMPAIGNS: ${selectedNames.join(', ')}
 PERIOD: ${fmtDate(dateStart)} – ${fmtDate(dateEnd)}
 BENCHMARK REGION: ${benchDisplayName} (LinkedIn Q1 2026)
 REPORT LEVEL: ${reportLevel.toUpperCase()}
+${hasFx ? `CURRENCY: All costs shown in ${fxCurrency} (${fxSym}) at rate $1 = ${fxSym}${fx}. When discussing costs, use ${fxCurrency} values primarily.` : 'CURRENCY: USD'}
 
 OVERALL PERFORMANCE:
 - Impressions: ${fmtNum(agg.impressions)}
 - Clicks: ${fmtNum(agg.clicks)}
 - Leads: ${agg.leads}
-- Total Spend: ${fmtCur(agg.spend)}
+- Total Spend: ${fmtLocal(agg.spend)}
 - CTR: ${fmtPct(agg.ctr)} | Benchmark median: ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : 'N/A'}
 - Engagement Rate: ${fmtPct(agg.engRate)} | Benchmark median: ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : 'N/A'}
 - Form Fill Rate: ${fmtPct(agg.ffr)} | Benchmark median: ${b['Lead Gen Form Fill Rate'] ? fmtPct(b['Lead Gen Form Fill Rate'].median) : 'N/A'}
-- Cost Per Lead: ${fmtCur(agg.cpl)} | Benchmark median: ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].median) : 'N/A'}
-- CPM: ${fmtCur(agg.cpm)} | CPC: ${fmtCur(agg.cpc)}
+- Cost Per Lead: ${fmtLocal(agg.cpl)} | Benchmark median: ${b['Cost Per Lead ($)'] ? fmtLocalBench(b['Cost Per Lead ($)'].median) : 'N/A'}
+- CPM: ${fmtLocal(agg.cpm)} | CPC: ${fmtLocal(agg.cpc)}
 
 PER-CAMPAIGN BREAKDOWN:
 ${campaignBreakdown || 'No individual campaign data available.'}
@@ -2336,10 +2345,10 @@ ${campaignBreakdown || 'No individual campaign data available.'}
 BENCHMARKS (${benchDisplayName} Q1 2026):
 - Sponsored CTR: Low ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].low) : '—'} | Median ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : '—'} | High ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].high) : '—'}
 - Engagement Rate: Low ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].low) : '—'} | Median ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : '—'} | High ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].high) : '—'}
-- Cost Per Lead: Low ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].low) : '—'} | Median ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].median) : '—'} | High ${b['Cost Per Lead ($)'] ? fmtCur(b['Cost Per Lead ($)'].high) : '—'}
-- CPC: ${b['CPC ($)'] ? fmtCur(b['CPC ($)'].median) : '—'} | CPM: ${b['CPM ($)'] ? fmtCur(b['CPM ($)'].median) : '—'}
+- Cost Per Lead: Low ${b['Cost Per Lead ($)'] ? fmtLocalBench(b['Cost Per Lead ($)'].low) : '—'} | Median ${b['Cost Per Lead ($)'] ? fmtLocalBench(b['Cost Per Lead ($)'].median) : '—'} | High ${b['Cost Per Lead ($)'] ? fmtLocalBench(b['Cost Per Lead ($)'].high) : '—'}
+- CPC: ${b['CPC ($)'] ? fmtLocalBench(b['CPC ($)'].median) : '—'} | CPM: ${b['CPM ($)'] ? fmtLocalBench(b['CPM ($)'].median) : '—'}
 
-Respond with EXACTLY these seven sections. Use "## " to start each header. Use "- " for bullet points. Be specific, reference the benchmark numbers, and name individual campaigns where relevant.
+Respond with EXACTLY these seven sections. Use "## " to start each header. Use "- " for bullet points. Be specific, reference the benchmark numbers, and name individual campaigns where relevant.${hasFx ? ` Always refer to costs in ${fxCurrency} (e.g. "${fxSym}9,983" not "$539").` : ''}
 
 ## Executive Summary
 ## What's Working
