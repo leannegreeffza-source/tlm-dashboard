@@ -2048,14 +2048,13 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   // campIds alias used throughout report building (send the right IDs for the level)
   const campIds = reportLevel === 'campaigns' ? selectedCampIds : reportLevel === 'ads' ? selectedCampIds : [];
 
-  // Determine if any selected/loaded campaigns have a Website Visits objective
-  const WEBSITE_OBJ_TYPES = ['WEBSITE_VISITS', 'WEBSITE_CONVERSIONS', 'WEBSITE_VISIT'];
+  // Website Visits should only show when LinkedIn API returns real reach data
+  // The API only returns non-zero reach for campaigns with Website Visits objective
+  // We check this after data loads using liveData.current.reach
   const hasWebsiteObjective = (() => {
-    const sourceCamps = campIds.length > 0
-      ? ownCampaigns.filter(c => campIds.includes(String(c.id)))
-      : ownCampaigns;
-    if (sourceCamps.length === 0) return true; // no metadata — show by default
-    return sourceCamps.some(c => WEBSITE_OBJ_TYPES.includes((c.objectiveType || c.type || '').toUpperCase()));
+    if (!liveData?.current) return false;
+    const apiReach = liveData.current.reach || liveData.current.totalReach || 0;
+    return apiReach > 0;
   })();
 
     // ── Build aggregated metrics from live LinkedIn data ──
@@ -2132,7 +2131,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       ffr:         clk > 0 ? lds / clk : 0,
       engRate,
       engagements: eng,
-      reach:       current.reach || current.totalReach || (hasWebsiteObjective ? Math.round(imp * 0.82) : 0),
+      reach:       current.reach || current.totalReach || 0,
       cpm:         current.cpm   || (imp > 0 ? (spd / imp) * 1000 : 0),
       cpc:         current.cpc   || (clk > 0 ? spd / clk : 0),
       prev:        prevObj,
