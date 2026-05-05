@@ -3024,10 +3024,10 @@ ${buildChartScript(display, campaignNameMap)}
           <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-[#1e3a5f]" style={{background:'#0f1f3d'}}>
             {/* Currency toggle */}
             <div className="flex rounded-lg overflow-hidden border border-[#2a4a6e]">
-              {[{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
+              {[{val:'NONE',label:'USD only'},{val:'ZAR',label:'USD → ZAR'},{val:'KES',label:'USD → KES'}].map(opt => (
                 <button key={opt.val} onClick={() => {
                   setFxCurrency(opt.val);
-                  setFxRate(opt.val === 'ZAR' ? '18.50' : '130');
+                  setFxRate(opt.val === 'ZAR' ? '18.50' : opt.val === 'KES' ? '130' : '0');
                 }}
                   className="px-3 py-1.5 text-xs font-bold transition-all"
                   style={fxCurrency === opt.val
@@ -3037,20 +3037,24 @@ ${buildChartScript(display, campaignNameMap)}
                 </button>
               ))}
             </div>
-            {/* Rate input */}
-            <div className="relative">
-              <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
-                {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
-              </span>
-              <input type="number" min="1" step="0.01"
-                placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
-                value={fxRate}
-                onChange={e => setFxRate(e.target.value)}
-                className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
-            </div>
-            <span className="text-xs text-slate-500">
-              $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
-            </span>
+            {/* Rate input — hidden when USD only */}
+            {fxCurrency !== 'NONE' && (
+              <>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-mono">
+                    {fxCurrency === 'ZAR' ? 'R' : 'KSh'}
+                  </span>
+                  <input type="number" min="1" step="0.01"
+                    placeholder={fxCurrency === 'ZAR' ? '18.50' : '130'}
+                    value={fxRate}
+                    onChange={e => setFxRate(e.target.value)}
+                    className="w-28 pl-7 pr-3 py-1.5 bg-[#1e3a5f] border border-[#2a4a6e] rounded-lg text-sm text-white focus:outline-none focus:border-yellow-500" />
+                </div>
+                <span className="text-xs text-slate-500">
+                  $1 = {fxCurrency === 'ZAR' ? 'R' : 'KSh'}{parseFloat(fxRate)||0}
+                </span>
+              </>
+            )}
           </div>
           {useCompare && prevStart && prevEnd && dateStart && dateEnd && (
             <div className="flex items-center gap-2 text-xs text-slate-500">
