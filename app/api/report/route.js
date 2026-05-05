@@ -42,6 +42,22 @@ export async function POST(request) {
     currentRange = body.currentRange || {start:'',end:''};
     previousRange = body.previousRange || {start:'',end:''};
 
+    // Currency conversion
+    const exchangeRate = parseFloat(body.exchangeRate) || 0;
+    const currency = body.currency || 'USD';
+    const currencySymbol = body.currencySymbol || '$';
+    const hasFx = exchangeRate > 0 && currency !== 'USD';
+
+    // Format a USD value in local currency
+    function fmtMoney(usdVal) {
+      const v = num(usdVal);
+      if (hasFx) {
+        const local = v * exchangeRate;
+        return `${currencySymbol}${local.toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+      }
+      return `$${fmt(v)}`;
+    }
+
     console.log('[Report] Received:', topCampaigns.length, 'campaigns,', topAds.length, 'ads');
 
     // Group campaigns by objective
@@ -66,13 +82,13 @@ export async function POST(request) {
           const name = c.name || `Campaign ${c.id}`;
           const ctr = num(c.impressions) > 0 ? (num(c.clicks) / num(c.impressions) * 100).toFixed(2) : '0.00';
           const cpc = num(c.clicks) > 0 ? (num(c.spent) / num(c.clicks)).toFixed(2) : '0.00';
-          const cpl = num(c.leads) > 0 ? '$' + (num(c.spent) / num(c.leads)).toFixed(2) : 'N/A';
-          return `    - ${name} (ID: ${c.id}): ${fmtInt(c.impressions)} imp, ${fmtInt(c.clicks)} clicks, ${ctr}% CTR, $${fmt(c.spent)} spent, ${safe(c.leads,0)} leads, ${safe(c.conversions,0)} conversions, CPC $${cpc}, CPL ${cpl}`;
+          const cpl = num(c.leads) > 0 ? fmtMoney(num(c.spent) / num(c.leads)) : 'N/A';
+          return `    - ${name} (ID: ${c.id}): ${fmtInt(c.impressions)} imp, ${fmtInt(c.clicks)} clicks, ${ctr}% CTR, ${fmtMoney(c.spent)} spent, ${safe(c.leads,0)} leads, ${safe(c.conversions,0)} conversions, CPC ${fmtMoney(num(c.spent)/Math.max(num(c.clicks),1))}, CPL ${cpl}`;
         }).join('\n');
 
         return `OBJECTIVE: ${obj} (${camps.length} campaign${camps.length !== 1 ? 's' : ''})
   Relevant KPIs: ${relevantKPIs}
-  Totals: ${fmtInt(totalImp)} imp, ${fmtInt(totalClk)} clicks, $${fmt(totalSpd)} spent, ${totalLds} leads
+  Totals: ${fmtInt(totalImp)} imp, ${fmtInt(totalClk)} clicks, ${fmtMoney(totalSpd)} spent, ${totalLds} leads
   Campaigns:
 ${campDetails}`;
       }).join('\n\n');
@@ -91,7 +107,7 @@ ${topAds.map(a => {
   const name = a.name || `Ad ${a.id}`;
   const ctr = num(a.impressions) > 0 ? (num(a.clicks) / num(a.impressions) * 100).toFixed(2) : '0.00';
   const cpc = num(a.clicks) > 0 ? (num(a.spent) / num(a.clicks)).toFixed(2) : '0.00';
-  return `- ${name} (ID: ${a.id}): ${fmtInt(a.impressions)} imp, ${fmtInt(a.clicks)} clicks, ${ctr}% CTR, $${fmt(a.spent)} spent, ${safe(a.leads,0)} leads, ${safe(a.conversions,0)} conversions, CPC $${cpc}`;
+  return `- ${name} (ID: ${a.id}): ${fmtInt(a.impressions)} imp, ${fmtInt(a.clicks)} clicks, ${ctr}% CTR, ${fmtMoney(a.spent)} spent, ${safe(a.leads,0)} leads, ${safe(a.conversions,0)} conversions, CPC ${fmtMoney(num(a.spent)/Math.max(num(a.clicks),1))}`;
 }).join('\n')}`;
       }
     } catch (e) {
@@ -104,6 +120,7 @@ ${topAds.map(a => {
     const prompt = `You are a LinkedIn Ads expert at a digital media agency. Analyze the following campaign data and return a JSON object ONLY — no markdown, no explanation, just raw JSON.
 
 IMPORTANT: These campaigns may have DIFFERENT objectives. Do NOT evaluate all campaigns using Lead Generation metrics. Each campaign must be evaluated against the KPIs relevant to its specific objective.
+${hasFx ? `CURRENCY: All monetary values are in ${currency} (${currencySymbol}). Use ${currency} values throughout your analysis — do NOT use USD ($) symbols.` : 'CURRENCY: USD'}
 
 OVERALL METRICS:
 - Period: ${currentRange.start} to ${currentRange.end}
@@ -111,14 +128,14 @@ OVERALL METRICS:
 - Impressions: ${fmtInt(current.impressions)} (prev: ${fmtInt(previous.impressions)})
 - Clicks: ${fmtInt(current.clicks)} (prev: ${fmtInt(previous.clicks)})
 - CTR: ${fmt(current.ctr)}% (prev: ${fmt(previous.ctr)}%)
-- Spend: $${fmt(current.spent)} (prev: $${fmt(previous.spent)})
-- CPM: $${fmt(current.cpm)} (prev: $${fmt(previous.cpm)})
-- CPC: $${fmt(current.cpc)} (prev: $${fmt(previous.cpc)})
+- Spend: ${fmtMoney(current.spent)} (prev: ${fmtMoney(previous.spent)})
+- CPM: ${fmtMoney(current.cpm)} (prev: ${fmtMoney(previous.cpm)})
+- CPC: ${fmtMoney(current.cpc)} (prev: ${fmtMoney(previous.cpc)})
 - Leads: ${safe(current.leads,0)} (prev: ${safe(previous.leads,0)})
-- CPL: $${fmt(current.cpl)} (prev: $${fmt(previous.cpl)})
+- CPL: ${fmtMoney(current.cpl)} (prev: ${fmtMoney(previous.cpl)})
 - Website Visits (Landing Page Clicks): ${safe(current.websiteVisits,0)} (prev: ${safe(previous.websiteVisits,0)})
 - Website Conversions (Insight Tag): ${safe(current.conversions,0)} (prev: ${safe(previous.conversions,0)})
-- Cost Per Conversion: $${fmt(current.costPerConversion)} (prev: $${fmt(previous.costPerConversion)})
+- Cost Per Conversion: ${fmtMoney(current.costPerConversion)} (prev: ${fmtMoney(previous.costPerConversion)})
 - Engagement Rate: ${fmt(current.engagementRate)}%
 - Engagements: ${safe(current.engagements,0)}
 
