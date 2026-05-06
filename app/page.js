@@ -1709,7 +1709,7 @@ function WeeklyBreakdown({ campaign: c, bench, region, campaignNameMap }) {
 // ─────────────────────────────────────────────────────────────
 // LEVEL SELECTOR — reusable checkbox list with search + import
 // ─────────────────────────────────────────────────────────────
-function LevelSelector({ label, items, allItems, selectedIds, onToggle, onClear, search, onSearch, loading, placeholder, emptyMsg, onImport, showImport }) {
+function LevelSelector({ label, items, allItems, selectedIds, onToggle, onClear, onSelectAll, search, onSearch, loading, placeholder, emptyMsg, onImport, showImport }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -1723,6 +1723,13 @@ function LevelSelector({ label, items, allItems, selectedIds, onToggle, onClear,
           <span className="text-xs text-slate-500">(leave empty = all {label.toLowerCase()})</span>
         </div>
         <div className="flex items-center gap-2">
+          {allItems.length > 0 && selectedIds.length < allItems.length && (
+            <button onClick={onSelectAll}
+              className="text-xs px-2 py-1 rounded border border-[#1e3a5f] transition-colors"
+              style={{color:'#F6DC4E',borderColor:'rgba(246,220,78,0.3)'}}>
+              Select all
+            </button>
+          )}
           {selectedIds.length > 0 && (
             <button onClick={onClear}
               className="text-xs text-slate-400 hover:text-red-400 px-2 py-1 rounded border border-[#1e3a5f] hover:border-red-800 transition-colors">
@@ -3116,6 +3123,7 @@ ${buildChartScript(display, campaignNameMap)}
               allItems={ownGroups}
               selectedIds={selectedGroupIds}
               onToggle={id => toggleId(setSelectedGroupIds, id)}
+              onSelectAll={() => setSelectedGroupIds(ownGroups.map(g => String(g.id)))}
               onClear={() => setSelectedGroupIds([])}
               search={groupSearch}
               onSearch={setGroupSearch}
@@ -3135,6 +3143,7 @@ ${buildChartScript(display, campaignNameMap)}
               allItems={ownCampaigns}
               selectedIds={selectedCampIds}
               onToggle={id => toggleId(setSelectedCampIds, id)}
+              onSelectAll={() => setSelectedCampIds(ownCampaigns.map(c => String(c.id)))}
               onClear={() => setSelectedCampIds([])}
               search={campSearch}
               onSearch={setCampSearch}
@@ -3160,6 +3169,7 @@ ${buildChartScript(display, campaignNameMap)}
                 allItems={ownAds}
                 selectedIds={selectedAdIds}
                 onToggle={id => toggleId(setSelectedAdIds, id)}
+                onSelectAll={() => setSelectedAdIds(ownAds.map(a => String(a.id)))}
                 onClear={() => setSelectedAdIds([])}
                 search={adSearch}
                 onSearch={setAdSearch}
