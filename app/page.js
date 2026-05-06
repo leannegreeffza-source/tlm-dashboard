@@ -1959,7 +1959,14 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ campaignIds: selectedCampIds })
         });
-        if (res.ok) setOwnAds(await res.json());
+        if (res.ok) {
+          const ads = await res.json();
+          // Normalise — ensure every ad has a usable name
+          setOwnAds(ads.map(a => ({
+            ...a,
+            name: a.name || a.adName || a.title || `Ad ${a.id}`,
+          })));
+        }
       } catch { console.error('ads fetch failed'); }
       setLoadingAds(false);
     }
@@ -1985,7 +1992,7 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     };
     if (reportLevel === 'groups')    return { ...base, campaignGroupIds: selectedGroupIds.length > 0 ? selectedGroupIds : null };
     if (reportLevel === 'campaigns') return { ...base, campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null };
-    if (reportLevel === 'ads')       return { ...base, campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null, adIds: selectedAdIds.length > 0 ? selectedAdIds : null };
+    if (reportLevel === 'ads')       return { ...base, campaignIds: selectedCampIds.length > 0 ? selectedCampIds : null };
     return base;
   }
 
@@ -2208,7 +2215,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
               if (!r.ok) return null;
               const d = await r.json();
               const cur = d.current || {};
-              if (!cur.impressions && !cur.clicks && !cur.spent) return null;
+              // Only skip if the API returned truly empty data
+              if (!cur.impressions && !cur.clicks && !cur.spent && !cur.leads) return null;
               return {
                 id:          camp.id,
                 name:        camp.name,
@@ -2221,6 +2229,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
                 likes:       cur.likes       || 0,
                 comments:    cur.comments    || 0,
                 shares:      cur.shares      || 0,
+                objectiveType: camp.objectiveType || camp.type || '',
+                status:      camp.status || 'ACTIVE',
               };
             } catch { return null; }
           })
@@ -2230,20 +2240,16 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         topCampaigns = results.filter(Boolean);
 
         // If selectedGroupIds are set on groups level, verify the totals match
-        // by checking if the sum of fetched ad sets matches liveData.current
-        // This validates we have the right scope
         if (selectedGroupIds.length > 0 && topCampaigns.length > 0) {
           const fetchedSpend = topCampaigns.reduce((s, c) => s + (c.spent || 0), 0);
           const liveSpend = liveData.current?.spent || 0;
-          // If fetched spend is much larger than live spend, we fetched too broadly —
-          // filter to only the top contributors that sum to ~live spend
-          if (fetchedSpend > liveSpend * 1.1 && liveSpend > 0) {
-            // Sort by spend desc, take only what fits within the known total
+          // Only trim if fetched spend is more than 200% of live spend (very conservative)
+          if (fetchedSpend > liveSpend * 2 && liveSpend > 0) {
             topCampaigns.sort((a, b) => (b.spent || 0) - (a.spent || 0));
             let runningTotal = 0;
             topCampaigns = topCampaigns.filter(c => {
               runningTotal += (c.spent || 0);
-              return runningTotal <= liveSpend * 1.05;
+              return runningTotal <= liveSpend * 1.1;
             });
           }
         }
@@ -3145,7 +3151,7 @@ ${buildChartScript(display, campaignNameMap)}
             <div>
               {selectedCampIds.length === 0 && (
                 <div className="mb-3 px-4 py-3 rounded-lg border text-xs" style={{background:'rgba(246,220,78,0.06)',borderColor:'rgba(246,220,78,0.2)',color:'#F6DC4E'}}>
-                  ⓘ Switch to the Campaigns level first and select the campaigns whose ads you want to report on. Ads will load automatically.
+                  ⓘ Switch to the Ad Sets level first and select the ad sets whose ads you want to report on. Ads will load automatically.
                 </div>
               )}
               <LevelSelector
