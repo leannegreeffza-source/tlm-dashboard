@@ -2328,10 +2328,27 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
     // Build per-campaign breakdown for the prompt
     const campaignBreakdown = (() => {
       const tc = liveData?.topCampaigns || [];
-      const display = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
+      let display = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
+
+      // Same fallback as purple report — build from liveData.current if no per-campaign data
+      if (!display.length && liveData?.current) {
+        const cur = liveData.current;
+        const names = selectedNames.length > 0 ? selectedNames : ['Selected Campaign'];
+        display = names.map((name, i) => ({
+          id:          selectedCampIds[i] || selectedGroupIds[i] || `camp_${i}`,
+          name,
+          impressions: Math.round((cur.impressions || 0) / names.length),
+          clicks:      Math.round((cur.clicks || 0) / names.length),
+          ctr:         parseFloat(cur.ctr || 0),
+          spent:       parseFloat(((cur.spent || 0) / names.length).toFixed(2)),
+          leads:       Math.round((cur.leads || 0) / names.length),
+          likes: 0, comments: 0, shares: 0, follows: 0,
+        }));
+      }
+
       if (!display.length) return '';
       return display.map((c, i) => {
-        const name   = campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
+        const name   = c.name || campaignNameMap?.[String(c.id)] || `Campaign ${c.id}`;
         const ctr    = c.impressions > 0 ? (c.clicks / c.impressions * 100).toFixed(2) : '0';
         const engR   = c.impressions > 0 ? (((c.clicks||0)+(c.likes||0)+(c.comments||0)+(c.shares||0)+(c.follows||0)) / c.impressions * 100).toFixed(2) : '0';
         const cpc    = c.clicks > 0 ? (c.spent / c.clicks).toFixed(2) : '0';
@@ -2342,8 +2359,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   - Impressions: ${fmtNum(c.impressions)} | Clicks: ${fmtNum(c.clicks)} | Leads: ${c.leads || 0}
   - CTR: ${ctr}% (benchmark median: ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : 'N/A'})
   - Engagement Rate: ${engR}% (benchmark median: ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : 'N/A'})
-  - CPC: $${cpc} | CPL: ${cpl !== 'N/A' ? '$'+cpl : 'N/A'}
-  - Spend: ${fmtCur(c.spent)}`;
+  - CPC: ${fmtLocal(parseFloat(cpc))} | CPL: ${cpl !== 'N/A' ? fmtLocal(parseFloat(cpl)) : 'N/A'}
+  - Spend: ${fmtLocal(c.spent)}`;
       }).join('\n\n');
     })();
 
