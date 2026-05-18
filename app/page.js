@@ -2262,25 +2262,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           );
           topCampaigns = results.filter(Boolean);
         }
-
-        // Final fallback: if still empty, build from liveData.current + selected names
-        // This guarantees the table always has data matching what the Report Generator shows
-        if (topCampaigns.length === 0 && liveData.current) {
-          const cur = liveData.current;
-          const names = selectedNames.length > 0 ? selectedNames : ['Selected Campaign'];
-          topCampaigns = names.map((name, i) => ({
-            id:           selectedCampIds[i] || selectedGroupIds[i] || `camp_${i}`,
-            name:         name,
-            impressions:  Math.round((cur.impressions || 0) / names.length),
-            clicks:       Math.round((cur.clicks || 0) / names.length),
-            ctr:          parseFloat(cur.ctr || 0),
-            spent:        parseFloat(((cur.spent || 0) / names.length).toFixed(2)),
-            leads:        Math.round((cur.leads || 0) / names.length),
-            engagements:  Math.round((cur.engagements || 0) / names.length),
-            objectiveType: '',
-            status:       'ACTIVE',
-          }));
-        }
       }
 
       // Step 3: Generate the AI report using liveData.current (already scoped correctly)
