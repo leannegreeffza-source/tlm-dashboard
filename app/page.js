@@ -2192,73 +2192,75 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
         if (f.length > 0) topCampaigns = f;
       }
 
-      // Step 2: If topCampaigns still empty, fetch each ad set individually.
-      // We determine which ad sets to fetch based on what's selected:
-      //   - Ad Sets level + selection → use selectedCampIds directly
-      //   - Campaigns level + selection → use selectedGroupIds to scope ownCampaigns
-      //   - No specific selection → fetch all ownCampaigns (already loaded for this account)
-      if (topCampaigns.length === 0 && ownCampaigns.length > 0) {
+      // Step 2: If topCampaigns still empty, fetch per-campaign data
+      if (topCampaigns.length === 0) {
+        // Determine which campaigns to fetch analytics for
         const adSetsToFetch = (() => {
+          // Ad Sets / Ads level with explicit selection
           if ((reportLevel === 'campaigns' || reportLevel === 'ads') && selectedCampIds.length > 0)
             return ownCampaigns.filter(c => selectedCampIds.includes(String(c.id)));
-          // For groups level, all ownCampaigns belong to this account —
-          // fetch them all and filter to those with actual activity
+          // Campaigns (groups) level — first try to get campaigns via group analytics
+          // then fall back to all ownCampaigns
           return ownCampaigns.slice(0, 30);
         })();
 
-        const results = await Promise.all(
-          adSetsToFetch.map(async (camp) => {
-            try {
-              const r = await fetch('/api/analytics', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accountIds:   [selectedAcctId],
-                  campaignIds:  [String(camp.id)],
-                  currentRange: { start: dateStart, end: dateEnd },
-                  previousRange: payload.previousRange,
-                  exchangeRate: parseFloat(fxRate) || 18.5,
-                })
-              });
-              if (!r.ok) return null;
-              const d = await r.json();
-              const cur = d.current || {};
-              // Only skip if the API returned truly empty data
-              if (!cur.impressions && !cur.clicks && !cur.spent && !cur.leads) return null;
-              return {
-                id:          camp.id,
-                name:        camp.name,
-                impressions: cur.impressions || 0,
-                clicks:      cur.clicks      || 0,
-                ctr:         cur.ctr         || (cur.impressions > 0 ? (cur.clicks / cur.impressions * 100) : 0),
-                spent:       cur.spent       || 0,
-                leads:       cur.leads       || 0,
-                engagements: cur.engagements || 0,
-                likes:       cur.likes       || 0,
-                comments:    cur.comments    || 0,
-                shares:      cur.shares      || 0,
-                objectiveType: camp.objectiveType || camp.type || '',
-                status:      camp.status || 'ACTIVE',
-              };
-            } catch { return null; }
-          })
-        );
-
-        // Only keep ad sets that had activity in this period
-        topCampaigns = results.filter(Boolean);
-
-        // If selectedGroupIds are set on groups level, verify the totals match
-        if (selectedGroupIds.length > 0 && topCampaigns.length > 0) {
-          const fetchedSpend = topCampaigns.reduce((s, c) => s + (c.spent || 0), 0);
-          const liveSpend = liveData.current?.spent || 0;
-          // Only trim if fetched spend is more than 200% of live spend (very conservative)
-          if (fetchedSpend > liveSpend * 2 && liveSpend > 0) {
-            topCampaigns.sort((a, b) => (b.spent || 0) - (a.spent || 0));
-            let runningTotal = 0;
-            topCampaigns = topCampaigns.filter(c => {
-              runningTotal += (c.spent || 0);
-              return runningTotal <= liveSpend * 1.1;
+        // First try a single scoped analytics call to get topCampaigns breakdown
+        if (reportLevel === 'groups' && selectedGroupIds.length > 0) {
+          try {
+            const gr = await fetch('/api/analytics', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accountIds:       [selectedAcctId],
+                campaignGroupIds: selectedGroupIds,
+                currentRange:     { start: dateStart, end: dateEnd },
+                previousRange:    payload.previousRange,
+                exchangeRate:     parseFloat(fxRate) || 18.5,
+              })
             });
-          }
+            if (gr.ok) {
+              const gd = await gr.json();
+              if (gd.topCampaigns && gd.topCampaigns.length > 0) {
+                topCampaigns = gd.topCampaigns;
+              }
+            }
+          } catch { /* fall through to individual fetches */ }
+        }
+
+        // If still empty, fetch each campaign individually in parallel
+        if (topCampaigns.length === 0 && adSetsToFetch.length > 0) {
+          const results = await Promise.all(
+            adSetsToFetch.map(async (camp) => {
+              try {
+                const r = await fetch('/api/analytics', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    accountIds:   [selectedAcctId],
+                    campaignIds:  [String(camp.id)],
+                    currentRange: { start: dateStart, end: dateEnd },
+                    previousRange: payload.previousRange,
+                    exchangeRate: parseFloat(fxRate) || 18.5,
+                  })
+                });
+                if (!r.ok) return null;
+                const d = await r.json();
+                const cur = d.current || {};
+                if (!cur.impressions && !cur.clicks && !cur.spent && !cur.leads) return null;
+                return {
+                  id:           camp.id,
+                  name:         camp.name,
+                  impressions:  cur.impressions || 0,
+                  clicks:       cur.clicks      || 0,
+                  ctr:          cur.ctr         || (cur.impressions > 0 ? (cur.clicks / cur.impressions * 100) : 0),
+                  spent:        cur.spent       || 0,
+                  leads:        cur.leads       || 0,
+                  engagements:  cur.engagements || 0,
+                  objectiveType: camp.objectiveType || camp.type || '',
+                  status:       camp.status || 'ACTIVE',
+                };
+              } catch { return null; }
+            })
+          );
+          topCampaigns = results.filter(Boolean);
         }
       }
 
@@ -2571,8 +2573,8 @@ Respond with EXACTLY these seven sections. Use "## " to start each header. Use "
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
           <div style="width:36px;height:36px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#0a1628;flex-shrink:0">AI</div>
           <div>
-            <div style="color:white;font-weight:700;font-size:15px">Claude AI Recommendations</div>
-            <div style="color:#888;font-size:12px">Powered by Claude Sonnet · ${benchDisplayName} Q1 2026 Benchmarks</div>
+            <div style="color:white;font-weight:700;font-size:15px">AI Recommendations</div>
+            <div style="color:#888;font-size:12px">Powered by AI · ${benchDisplayName} Q1 2026 Benchmarks</div>
           </div>
         </div>
         <div style="color:#d1cbc3;font-size:14px;line-height:1.8">${aiFormatted}</div>
@@ -2778,8 +2780,8 @@ ${forPrint ? '<scr'+'ipt>window.onload=function(){window.print();}<'+'/scr'+'ipt
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
         <div style="width:38px;height:38px;background:#F6DC4E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#272828;flex-shrink:0">AI</div>
         <div>
-          <div style="color:white;font-weight:700;font-size:16px">Claude AI Recommendations</div>
-          <div style="color:#888;font-size:12px">Powered by Claude Sonnet · ${benchDisplayName} Q1 2026 Benchmarks</div>
+          <div style="color:white;font-weight:700;font-size:16px">AI Recommendations</div>
+          <div style="color:#888;font-size:12px">Powered by AI · ${benchDisplayName} Q1 2026 Benchmarks</div>
         </div>
       </div>
       <div style="color:#d1cbc3;font-size:14px;line-height:1.9">${aiFormattedCombined}</div>
@@ -3507,8 +3509,8 @@ ${buildChartScript(display, campaignNameMap)}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-[#1e3a5f]">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0" style={{background:'#F6DC4E',color:'#272828'}}>AI</div>
                 <div>
-                  <div className="font-bold text-white text-sm">Claude AI Recommendations</div>
-                  <div className="text-xs" style={{color:'#888'}}>Powered by Claude Sonnet · {report.benchmarkLabel || BENCHMARK_TABLES[report.benchmarkTable]?.label || report.benchmarkTable || report.region} Q1 2026 · {selectedNames.length} campaign{selectedNames.length!==1?'s':''}</div>
+                  <div className="font-bold text-white text-sm">AI Recommendations</div>
+                  <div className="text-xs" style={{color:'#888'}}>Powered by AI · {report.benchmarkLabel || BENCHMARK_TABLES[report.benchmarkTable]?.label || report.benchmarkTable || report.region} Q1 2026 · {selectedNames.length} campaign{selectedNames.length!==1?'s':''}</div>
                 </div>
                 {aiText && !aiLoading && (
                   <button onClick={getAIInsights} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-[#2a4a6e] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
