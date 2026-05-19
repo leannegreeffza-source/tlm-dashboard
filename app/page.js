@@ -2265,7 +2265,6 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       }
 
       // Final fallback — always runs if topCampaigns still empty after all attempts
-      // Builds from liveData.current which always has data (it powered the KPI cards)
       if (topCampaigns.length === 0 && liveData.current) {
         const cur = liveData.current;
         const names = selectedNames.length > 0 ? selectedNames : ['Selected Campaign'];
@@ -2274,10 +2273,10 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
           name:         name,
           impressions:  Math.round((cur.impressions || 0) / names.length),
           clicks:       Math.round((cur.clicks || 0) / names.length),
-          ctr:          parseFloat(cur.ctr || 0),
+          ctr:          cur.ctr != null ? cur.ctr / 100 : 0,
           spent:        parseFloat(((cur.spent || 0) / names.length).toFixed(2)),
           leads:        Math.round((cur.leads || 0) / names.length),
-          engagements:  Math.round((cur.engagements || 0) / names.length),
+          engagements:  Math.round(((cur.engagements || 0)) / names.length),
           objectiveType: '',
           status:       'ACTIVE',
         }));
@@ -2330,18 +2329,17 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
       const tc = liveData?.topCampaigns || [];
       let display = campIds.length > 0 ? tc.filter(c => campIds.includes(String(c.id))) : tc;
 
-      // Same fallback as purple report — build from liveData.current if no per-campaign data
-      if (!display.length && liveData?.current) {
-        const cur = liveData.current;
+      // Same fallback as purple report — build from agg if no per-campaign data
+      if (!display.length && agg) {
         const names = selectedNames.length > 0 ? selectedNames : ['Selected Campaign'];
         display = names.map((name, i) => ({
           id:          selectedCampIds[i] || selectedGroupIds[i] || `camp_${i}`,
           name,
-          impressions: Math.round((cur.impressions || 0) / names.length),
-          clicks:      Math.round((cur.clicks || 0) / names.length),
-          ctr:         parseFloat(cur.ctr || 0),
-          spent:       parseFloat(((cur.spent || 0) / names.length).toFixed(2)),
-          leads:       Math.round((cur.leads || 0) / names.length),
+          impressions: Math.round((agg.impressions || 0) / names.length),
+          clicks:      Math.round((agg.clicks || 0) / names.length),
+          ctr:         agg.ctr || 0,
+          spent:       parseFloat(((agg.spend || 0) / names.length).toFixed(2)),
+          leads:       Math.round((agg.leads || 0) / names.length),
           likes: 0, comments: 0, shares: 0, follows: 0,
         }));
       }
