@@ -2359,8 +2359,8 @@ function TLMReportGenerator({ session, currentRange: parentRange }) {
   - Impressions: ${fmtNum(c.impressions)} | Clicks: ${fmtNum(c.clicks)} | Leads: ${c.leads || 0}
   - CTR: ${ctr}% (benchmark median: ${b['Sponsored Content CTR'] ? fmtPct(b['Sponsored Content CTR'].median) : 'N/A'})
   - Engagement Rate: ${engR}% (benchmark median: ${b['Sponsored Engagement Rate'] ? fmtPct(b['Sponsored Engagement Rate'].median) : 'N/A'})
-  - CPC: ${fmtLocal(parseFloat(cpc))} | CPL: ${cpl !== 'N/A' ? fmtLocal(parseFloat(cpl)) : 'N/A'}
-  - Spend: ${fmtLocal(c.spent)}`;
+  - CPC: ${fmtCur(parseFloat(cpc))} | CPL: ${cpl !== 'N/A' ? fmtCur(parseFloat(cpl)) : 'N/A'}
+  - Spend: ${fmtCur(c.spent)}`;
       }).join('\n\n');
     })();
 
