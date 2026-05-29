@@ -1782,7 +1782,6 @@ export default function ObjectiveTabs() {
               </div>
             </Card>
           )}
-          )}
 
           {demographics && demographics.rows.length > 0 && (
             <Card className="p-6 mb-4">
