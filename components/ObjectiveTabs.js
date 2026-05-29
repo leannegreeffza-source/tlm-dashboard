@@ -451,7 +451,7 @@ function parseAIResponse(text) {
    6. EXPORT HTML — email-ready document
    ==================================================================== */
 
-function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, narrative, currency, metricKeys }) {
+function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, narrative, currency, metricKeys, breakdownRows }) {
   const objLabel = OBJECTIVES[objective].label;
   const breakdownLabel = BREAKDOWNS.find(b => b.id === breakdownId)?.label || '';
 
@@ -509,23 +509,56 @@ function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, is
       </tr>`;
   }).join('');
 
-  /* ── Breakdown table (always primary cell, since breakdown is account-specific) ── */
-  const groupSrc = breakdownId === 'campaign'
-    ? primaryCell.topCampaigns
-    : breakdownId === 'ad'
-      ? (primaryCell.topAds?.length ? primaryCell.topAds : primaryCell.topCampaigns)
-      : [];
-  const groupHeaders = metricKeys.map(m =>
-    `<th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:right;">${METRIC_DEFS[m].label}</th>`).join('');
-  const groupRows = (groupSrc || []).slice(0, 30).map(g => {
-    const cellsHtml = metricKeys.map(m =>
-      `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:#0e1034;">${fmtMetric(m,g[m],currency)}</td>`).join('');
-    return `
-      <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;">${escapeHtml(g.name)}</td>
-        ${cellsHtml}
-      </tr>`;
-  }).join('');
+  /* ── Breakdown table — multi-cell aware, mirrors the in-page view ── */
+  let breakdownHtml = '';
+  if (breakdownRows && breakdownRows.length) {
+    if (!isMultiCell || breakdownId === 'date') {
+      const headerRow = metricKeys.map(m =>
+        `<th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:right;">${METRIC_DEFS[m].label}</th>`).join('');
+      const bodyRows = breakdownRows.slice(0, 30).map(r => {
+        const cellsHtml = metricKeys.map(m => {
+          const v = (r.primary || {})[m];
+          return `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:#0e1034;">${fmtMetric(m,v,currency)}</td>`;
+        }).join('');
+        return `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;">${escapeHtml(r.name)}</td>
+          ${cellsHtml}
+        </tr>`;
+      }).join('');
+      breakdownHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;">
+        <thead><tr><th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:left;">Name</th>${headerRow}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>`;
+    } else {
+      // Multi-cell: nested headers
+      const topRow = metricKeys.map(m =>
+        `<th colspan="${cells.length}" style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:center;border-left:1px solid #1e293b;">${METRIC_DEFS[m].label}</th>`).join('');
+      const subRow = metricKeys.map(m =>
+        cells.map((c, ci) =>
+          `<th style="padding:6px 8px;background:#0e1034;color:#94a3b8;text-align:right;font-weight:normal;font-size:10px;border-left:1px solid #1e293b;">${escapeHtml(ci === 0 ? c.accountName.slice(0,12) : (c.dateLabel || c.accountName.slice(0,12)))}</th>`).join('')
+      ).join('');
+      const bodyRows = breakdownRows.slice(0, 30).map(r => {
+        const cellsHtml = metricKeys.map(m =>
+          cells.map(c => {
+            const cellData = r.cellMetrics[c.id];
+            const v = cellData ? cellData[m] : null;
+            return `<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;color:#0e1034;font-size:11px;border-left:1px solid #f1f5f9;">${v != null ? fmtMetric(m,v,currency) : '—'}</td>`;
+          }).join('')
+        ).join('');
+        return `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;">${escapeHtml(r.name)}</td>
+          ${cellsHtml}
+        </tr>`;
+      }).join('');
+      breakdownHtml = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;">
+        <thead>
+          <tr><th rowspan="2" style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:left;vertical-align:bottom;">Name</th>${topRow}</tr>
+          <tr>${subRow}</tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>`;
+    }
+  }
 
   const demoBlock = demographics && demographics.rows.length ? `
     <div style="padding:0 30px 25px;">
@@ -587,16 +620,10 @@ function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, is
     <div style="font-size:11px;color:#64748b;margin-top:6px;">🔵 Above &nbsp; 🟡 Meets &nbsp; 🔴 Below</div>
   </div>` : ''}
 
-  ${groupRows ? `
+  ${breakdownHtml ? `
   <div style="padding:0 30px 25px;">
-    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">🔍 ${escapeHtml(breakdownLabel)}${isMultiCell ? ` (${escapeHtml(primaryCell.label)})` : ''}</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;">
-      <thead><tr>
-        <th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:left;">Name</th>
-        ${groupHeaders}
-      </tr></thead>
-      <tbody>${groupRows}</tbody>
-    </table>
+    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">🔍 ${escapeHtml(breakdownLabel)}</h2>
+    ${breakdownHtml}
   </div>` : ''}
 
   ${demoBlock}
@@ -1095,26 +1122,98 @@ export default function ObjectiveTabs() {
   const prevTotals = useMemo(() => primaryCell?.prevTotals || null, [primaryCell]);
   const isMultiCell = cells.length > 1;
 
-  const groups = useMemo(() => {
-    if (!primaryCell) return [];
-    if (breakdownId === 'campaign') {
-      return [...(primaryCell.topCampaigns || [])].sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-    }
-    if (breakdownId === 'ad') {
-      const src = primaryCell.topAds && primaryCell.topAds.length ? primaryCell.topAds : primaryCell.topCampaigns;
-      return [...(src || [])].sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-    }
+  /* ── Breakdown rows ──
+     For each cell we have `topCampaigns` and `topAds` arrays.
+     We want to produce ONE row per entity (campaign/ad), with each cell's
+     metrics for that entity as nested data: row.cellMetrics[cellId] = {ctr, ...}.
+
+     If the user filtered to specific IDs in the picker, only those entities appear.
+     Otherwise, fall back to the union of every cell's top-N entries. */
+  const breakdownRows = useMemo(() => {
+    if (!cells.length) return [];
+
+    // Build per-cell entity lookup tables
+    const cellEntityMaps = cells.map(cell => {
+      const map = new Map();
+      const src = breakdownId === 'ad'
+        ? (cell.topAds?.length ? cell.topAds : [])
+        : breakdownId === 'campaign'
+          ? (cell.topCampaigns || [])
+          : [];
+      for (const e of src) map.set(String(e.id), e);
+      return map;
+    });
+
     if (breakdownId === 'date') {
-      if (!totals) return [];
-      const rows = [{ id:'current', name:`Current (${primaryCell.dateRange.start} → ${primaryCell.dateRange.end})`, ...totals }];
-      if (prevTotals) {
-        const prev = previousRangeFor(primaryCell.dateRange.start, primaryCell.dateRange.end);
-        rows.push({ id:'previous', name:`Previous (${prev.start} → ${prev.end})`, ...prevTotals });
-      }
-      return rows;
+      // Date mode: one row per cell, showing its current totals + delta vs previous
+      return cells.map((c) => ({
+        id: c.id,
+        name: c.label,
+        primary: c.totals || {},
+        cellMetrics: { [c.id]: c.totals || {} },
+      }));
     }
-    return [];
-  }, [primaryCell, breakdownId, totals, prevTotals]);
+
+    // Build the set of entity IDs to show
+    let entityIds = [];
+    const filterIds = breakdownId === 'ad' ? selectedAdIds : selectedCampIds;
+
+    if (filterIds && filterIds.length) {
+      // User explicitly filtered — show those entities
+      entityIds = [...filterIds];
+    } else {
+      // No filter — fall back to union of top-N from all cells, deduped
+      const seen = new Set();
+      for (const map of cellEntityMaps) {
+        for (const id of map.keys()) {
+          if (!seen.has(id)) { seen.add(id); entityIds.push(id); }
+        }
+      }
+    }
+
+    // For each entity, gather its metrics from each cell
+    const rows = entityIds.map(id => {
+      const cellMetrics = {};
+      let name = `ID ${id}`;
+      let primaryImpressions = 0;
+      let primary = null;
+      for (let i = 0; i < cells.length; i++) {
+        const entity = cellEntityMaps[i].get(String(id));
+        if (entity) {
+          cellMetrics[cells[i].id] = entity;
+          if (entity.name) name = entity.name;
+          if (i === 0) {
+            primary = entity;
+            primaryImpressions = entity.impressions || 0;
+          } else if (!primary) {
+            // primary cell has no data for this entity — use first available
+            primary = entity;
+            primaryImpressions = entity.impressions || 0;
+          }
+        }
+      }
+      // If not even in the API response, look up name from the campaigns/ads list
+      if (name === `ID ${id}`) {
+        const lookup = breakdownId === 'ad' ? ads : campaigns;
+        const found = lookup.find(x => String(x.id) === String(id));
+        if (found?.name) name = found.name;
+      }
+      return { id, name, cellMetrics, primary: primary || {}, _sortKey: primaryImpressions };
+    });
+
+    // Sort by primary cell impressions, desc
+    rows.sort((a, b) => b._sortKey - a._sortKey);
+    return rows;
+  }, [cells, breakdownId, selectedAdIds, selectedCampIds, ads, campaigns]);
+
+  /* ── Legacy single-row group view (kept for AI prompt / export — primary cell only) ── */
+  const groups = useMemo(() => {
+    return breakdownRows.map(r => ({
+      id: r.id,
+      name: r.name,
+      ...(r.primary || {}),
+    }));
+  }, [breakdownRows]);
 
   /* ── AI narrative ── */
   const generateNarrative = useCallback(async () => {
@@ -1147,7 +1246,7 @@ export default function ObjectiveTabs() {
     const html = buildExportHTML({
       title: reportTitle || 'LinkedIn Campaign Report',
       objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode,
-      demographics, benchmarks, narrative, currency, metricKeys,
+      demographics, benchmarks, narrative, currency, metricKeys, breakdownRows,
     });
     if (mode === 'copy') {
       navigator.clipboard.writeText(html).then(() => {
@@ -1593,39 +1692,96 @@ export default function ObjectiveTabs() {
             </Card>
           )}
 
-          {groups.length > 0 && (
+          {breakdownRows.length > 0 && (
             <Card className="p-6 mb-4">
               <SectionHeader icon={BarChart3} title={BREAKDOWNS.find(b => b.id === breakdownId)?.label}
-                subtitle={isMultiCell ? `Primary cell: ${primaryCell.label} — change in Configuration above` : undefined} />
+                subtitle={isMultiCell
+                  ? `${breakdownRows.length} ${breakdownId === 'ad' ? 'ads' : 'campaigns'} across ${cells.length} cells${(breakdownId === 'campaign' && selectedCampIds.length) || (breakdownId === 'ad' && selectedAdIds.length) ? ' (filtered)' : ' (top by impressions)'}`
+                  : `${breakdownRows.length} ${breakdownId === 'date' ? 'periods' : breakdownId === 'ad' ? 'ads' : 'campaigns'}${(breakdownId === 'campaign' && selectedCampIds.length) || (breakdownId === 'ad' && selectedAdIds.length) ? ' (filtered)' : ''}`} />
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ background: '#0a1530' }}>
-                      <th className="text-left p-3 font-semibold" style={{ color: '#F6DC4E' }}>Name</th>
-                      {metricKeys.map(m => (
-                        <th key={m} className="text-right p-3 font-semibold" style={{ color: '#F6DC4E' }}>{METRIC_DEFS[m].label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.slice(0, 30).map((g, i) => (
-                      <tr key={g.id || i} style={{ background: i % 2 === 0 ? 'rgba(10,21,48,0.3)' : 'transparent' }}>
-                        <td className="p-3 font-medium text-white">{g.name}</td>
-                        {metricKeys.map(m => {
-                          const rating = benchmarks[m] != null ? rateValue(m, g[m], benchmarks[m]) : null;
-                          const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
-                          return (
-                            <td key={m} className="text-right p-3 text-slate-200">
-                              {fmtMetric(m, g[m], currency)} {dot && <span className="text-xs ml-1">{dot}</span>}
-                            </td>
-                          );
-                        })}
+                {!isMultiCell || breakdownId === 'date' ? (
+                  /* Single-cell OR date breakdown: simple flat table */
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ background: '#0a1530' }}>
+                        <th className="text-left p-3 font-semibold" style={{ color: '#F6DC4E' }}>
+                          {breakdownId === 'date' ? 'Period' : 'Name'}
+                        </th>
+                        {metricKeys.map(m => (
+                          <th key={m} className="text-right p-3 font-semibold" style={{ color: '#F6DC4E' }}>{METRIC_DEFS[m].label}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {breakdownRows.slice(0, 30).map((r, i) => (
+                        <tr key={r.id || i} style={{ background: i % 2 === 0 ? 'rgba(10,21,48,0.3)' : 'transparent' }}>
+                          <td className="p-3 font-medium text-white">{r.name}</td>
+                          {metricKeys.map(m => {
+                            const v = (r.primary || {})[m];
+                            const rating = benchmarks[m] != null ? rateValue(m, v, benchmarks[m]) : null;
+                            const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
+                            return (
+                              <td key={m} className="text-right p-3 text-slate-200">
+                                {fmtMetric(m, v, currency)} {dot && <span className="text-xs ml-1">{dot}</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  /* Multi-cell: nested headers — entity name × (metric · cell) */
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: '#0a1530' }}>
+                        <th rowSpan={2} className="text-left p-3 font-semibold align-bottom" style={{ color: '#F6DC4E', minWidth: '180px' }}>Name</th>
+                        {metricKeys.map(m => (
+                          <th key={m} colSpan={cells.length}
+                              className="text-center p-2 font-semibold border-l border-slate-700/50"
+                              style={{ color: '#F6DC4E' }}>
+                            {METRIC_DEFS[m].label}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr style={{ background: '#0a1530' }}>
+                        {metricKeys.map(m =>
+                          cells.map((c, ci) => (
+                            <th key={`${m}_${c.id}`}
+                                className="text-right p-2 font-normal text-[10px] border-l border-slate-700/30"
+                                style={{ color: '#94a3b8', minWidth: '70px' }}
+                                title={c.label}>
+                              {ci === 0 ? c.accountName.slice(0, 12) : c.dateLabel || c.accountName.slice(0, 12)}
+                            </th>
+                          ))
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {breakdownRows.slice(0, 30).map((r, i) => (
+                        <tr key={r.id || i} style={{ background: i % 2 === 0 ? 'rgba(10,21,48,0.3)' : 'transparent' }}>
+                          <td className="p-3 font-medium text-white">{r.name}</td>
+                          {metricKeys.map(m =>
+                            cells.map((c) => {
+                              const cellData = r.cellMetrics[c.id];
+                              const v = cellData ? cellData[m] : null;
+                              const rating = benchmarks[m] != null ? rateValue(m, v, benchmarks[m]) : null;
+                              const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
+                              return (
+                                <td key={`${r.id}_${m}_${c.id}`} className="text-right p-2 text-slate-200 border-l border-slate-700/30">
+                                  {v != null ? fmtMetric(m, v, currency) : '—'} {dot && <span className="text-[10px]">{dot}</span>}
+                                </td>
+                              );
+                            })
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </Card>
+          )}
           )}
 
           {demographics && demographics.rows.length > 0 && (
