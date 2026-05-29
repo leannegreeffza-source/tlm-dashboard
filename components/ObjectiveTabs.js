@@ -356,22 +356,25 @@ function toNum(v) {
    5. AI PROMPT
    ==================================================================== */
 
-function buildAIPrompt({ objective, breakdownId, totals, prevTotals, groups, demographics, benchmarks, currency, periodLabel, accountName }) {
+function buildAIPrompt({ objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, currency }) {
+  const metricKeys = OBJECTIVES[objective].metrics;
   const benchTable = Object.entries(benchmarks).filter(([, v]) => v != null)
     .map(([m, v]) => `  ${METRIC_DEFS[m]?.label || m}: ${fmtMetric(m, v, currency)}`).join('\n');
 
-  const totalsTable = OBJECTIVES[objective].metrics
-    .map(m => `  ${METRIC_DEFS[m].label}: ${fmtMetric(m, totals[m], currency)}`).join('\n');
+  const cellSection = cells.map((c, i) => {
+    const rows = metricKeys
+      .map(m => `    ${METRIC_DEFS[m].label}: ${fmtMetric(m, c.totals?.[m], currency)}`).join('\n');
+    return `  CELL ${i + 1}: ${c.label}\n${rows}`;
+  }).join('\n\n');
 
-  const prevTable = prevTotals
-    ? '\nPREVIOUS PERIOD:\n' + OBJECTIVES[objective].metrics
-        .map(m => `  ${METRIC_DEFS[m].label}: ${fmtMetric(m, prevTotals[m], currency)}`).join('\n')
-    : '';
-
-  const groupTable = groups.slice(0, 20).map(g => {
-    const metrics = OBJECTIVES[objective].metrics
-      .map(m => `${METRIC_DEFS[m].label}=${fmtMetric(m, g[m], currency)}`).join(', ');
-    return `  • ${g.name}: ${metrics}`;
+  const primaryGroups = primaryCell ? (
+    breakdownId === 'campaign' ? primaryCell.topCampaigns :
+    breakdownId === 'ad'       ? (primaryCell.topAds?.length ? primaryCell.topAds : primaryCell.topCampaigns) :
+    []
+  ) : [];
+  const groupTable = (primaryGroups || []).slice(0, 15).map(g => {
+    const m = metricKeys.map(k => `${METRIC_DEFS[k].label}=${fmtMetric(k, g[k], currency)}`).join(', ');
+    return `  • ${g.name}: ${m}`;
   }).join('\n');
 
   const demoTable = demographics && demographics.rows.length
@@ -383,33 +386,39 @@ function buildAIPrompt({ objective, breakdownId, totals, prevTotals, groups, dem
     : '';
 
   const breakdownLabel = BREAKDOWNS.find(b => b.id === breakdownId)?.label || breakdownId;
+  const comparisonContext = isMultiCell
+    ? layoutMode === 'primary'
+      ? `\nLAYOUT: Primary + Reference. The primary cell is "${primaryCell.label}"; the others are comparison references. The narrative should focus on the primary, citing references for context.`
+      : `\nLAYOUT: Side-by-side comparison of ${cells.length} cells. The narrative should compare them on equal footing — highlight which cell performs best on each metric, identify patterns, and call out outliers.`
+    : '';
 
-  return `You are a senior performance marketing analyst at Turn Left Media writing a LinkedIn campaign report for a client. The campaign objective is ${OBJECTIVES[objective].label}. Breakdown: ${breakdownLabel}.${periodLabel ? ` Period: ${periodLabel}.` : ''}${accountName ? ` Account: ${accountName}.` : ''}
+  return `You are a senior performance marketing analyst at Turn Left Media writing a LinkedIn campaign report for a client. Campaign objective: ${OBJECTIVES[objective].label}. Breakdown for the primary cell: ${breakdownLabel}.${comparisonContext}
 
-CAMPAIGN TOTALS (current period):
-${totalsTable}
-${prevTable}
+DATA CELLS (each is one account × date range):
+${cellSection}
 
 BENCHMARKS:
 ${benchTable || '  (none set)'}
 
-PER-GROUP PERFORMANCE (${breakdownLabel}):
+PER-GROUP PERFORMANCE for primary cell (${breakdownLabel}):
 ${groupTable || '  (none)'}
 ${demoTable}
 
 Respond with EXACTLY four sections in this format, with NO other preamble or commentary:
 
 ===EXEC_SUMMARY===
-2-3 sentences. Lead with the strongest finding. Call out a specific number.
+${isMultiCell
+  ? '2-3 sentences comparing the cells. Lead with the most striking difference or pattern across them.'
+  : '2-3 sentences. Lead with the strongest finding. Call out a specific number.'}
 
 ===WHATS_WORKING===
-4-6 bullets, each starting with "—". Cite specific metrics with values. Compare to benchmarks where relevant.
+4-6 bullets, each starting with "—". ${isMultiCell ? 'For each win, name which cell it applies to.' : 'Cite specific metrics with values.'} Compare to benchmarks where relevant.
 
 ===WHATS_NOT_WORKING===
-2-4 bullets, each starting with "—". Be diplomatic but honest.
+2-4 bullets, each starting with "—". Be diplomatic but honest. ${isMultiCell ? 'Name the cell when calling out an issue.' : ''}
 
 ===RECOMMENDATIONS===
-3-5 actionable recommendations. Each starts with a short action verb followed by ":" then the recommendation.
+3-5 actionable recommendations. Each starts with a short action verb followed by ":" then the recommendation. ${isMultiCell ? 'Where relevant, frame in terms of one cell learning from another.' : ''}
 
 Use Turn Left's voice: data-led, decisive, no fluff. Use 🔵 / 🟡 / 🔴 emoji tags inline when calling out metrics vs benchmark.`;
 }
@@ -433,45 +442,80 @@ function parseAIResponse(text) {
    6. EXPORT HTML — email-ready document
    ==================================================================== */
 
-function buildExportHTML({ title, periodLabel, objective, breakdownId, totals, prevTotals, groups, demographics, benchmarks, narrative, currency, accountName }) {
-  const breakdownLabel = BREAKDOWNS.find(b => b.id === breakdownId)?.label || '';
+function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, narrative, currency }) {
   const objLabel = OBJECTIVES[objective].label;
+  const breakdownLabel = BREAKDOWNS.find(b => b.id === breakdownId)?.label || '';
   const metricKeys = OBJECTIVES[objective].metrics;
 
-  const totalsRows = metricKeys.map(m => {
-    const delta = prevTotals ? fmtDelta(totals[m], prevTotals[m], m) : null;
-    const deltaStr = delta
-      ? ` <span style="color:${delta.good===true?'#22c55e':delta.good===false?'#ef4444':'#64748b'};font-size:11px;">${delta.direction==='up'?'↑':delta.direction==='down'?'↓':'→'} ${Math.abs(delta.pct).toFixed(1)}%</span>`
-      : '';
-    return `
-      <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#475569;">${METRIC_DEFS[m].label}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;text-align:right;">${fmtMetric(m,totals[m],currency)}${deltaStr}</td>
-      </tr>`;
-  }).join('');
+  /* ── Totals section: single-cell vs multi-cell ── */
+  let totalsBlock;
+  if (!isMultiCell) {
+    const c = primaryCell;
+    const totals = c.totals, prevTotals = c.prevTotals;
+    const rows = metricKeys.map(m => {
+      const delta = prevTotals ? fmtDelta(totals[m], prevTotals[m], m) : null;
+      const deltaStr = delta
+        ? ` <span style="color:${delta.good===true?'#22c55e':delta.good===false?'#ef4444':'#64748b'};font-size:11px;">${delta.direction==='up'?'↑':delta.direction==='down'?'↓':'→'} ${Math.abs(delta.pct).toFixed(1)}%</span>`
+        : '';
+      return `
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#475569;">${METRIC_DEFS[m].label}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;text-align:right;">${fmtMetric(m,totals[m],currency)}${deltaStr}</td>
+        </tr>`;
+    }).join('');
+    totalsBlock = `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;"><tbody>${rows}</tbody></table>`;
+  } else {
+    // Multi-cell: metric rows × cell columns
+    const headerCells = cells.map(c =>
+      `<th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:right;font-size:11px;">${escapeHtml(c.label)}</th>`).join('');
+    const rows = metricKeys.map(m => {
+      const cellCells = cells.map(c => {
+        const v = c.totals?.[m];
+        const benchmark = benchmarks[m];
+        const rating = benchmark != null ? rateValue(m, v, benchmark) : null;
+        const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
+        return `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;text-align:right;">${fmtMetric(m,v,currency)} ${dot}</td>`;
+      }).join('');
+      return `
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#475569;font-weight:600;">${METRIC_DEFS[m].label}</td>
+          ${cellCells}
+        </tr>`;
+    }).join('');
+    totalsBlock = `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+      <thead><tr><th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:left;">Metric</th>${headerCells}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
 
-  const benchRows = metricKeys.filter(m => benchmarks[m] != null).map(m => {
-    const rating = rateValue(m, totals[m], benchmarks[m]);
+  /* ── Benchmark comparison (uses primary cell's totals) ── */
+  const benchRows = primaryCell.totals && metricKeys.filter(m => benchmarks[m] != null).map(m => {
+    const rating = rateValue(m, primaryCell.totals[m], benchmarks[m]);
     const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
     return `
       <tr>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#475569;">${METRIC_DEFS[m].label}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#0e1034;">${fmtMetric(m,totals[m],currency)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#0e1034;">${fmtMetric(m,primaryCell.totals[m],currency)}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:#475569;">${fmtMetric(m,benchmarks[m],currency)}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${dot}</td>
       </tr>`;
   }).join('');
 
+  /* ── Breakdown table (always primary cell, since breakdown is account-specific) ── */
+  const groupSrc = breakdownId === 'campaign'
+    ? primaryCell.topCampaigns
+    : breakdownId === 'ad'
+      ? (primaryCell.topAds?.length ? primaryCell.topAds : primaryCell.topCampaigns)
+      : [];
   const groupHeaders = metricKeys.map(m =>
     `<th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:right;">${METRIC_DEFS[m].label}</th>`).join('');
-
-  const groupRows = groups.slice(0, 30).map(g => {
-    const cells = metricKeys.map(m =>
+  const groupRows = (groupSrc || []).slice(0, 30).map(g => {
+    const cellsHtml = metricKeys.map(m =>
       `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:#0e1034;">${fmtMetric(m,g[m],currency)}</td>`).join('');
     return `
       <tr>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#0e1034;">${escapeHtml(g.name)}</td>
-        ${cells}
+        ${cellsHtml}
       </tr>`;
   }).join('');
 
@@ -499,13 +543,15 @@ function buildExportHTML({ title, periodLabel, objective, breakdownId, totals, p
       </table>
     </div>` : '';
 
+  const cellsSubtitle = cells.map(c => escapeHtml(c.label)).join(' · ');
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
 <body style="margin:0;padding:30px;background:#f9fafb;font-family:Arial,Helvetica,sans-serif;color:#0e1034;">
-<div style="max-width:920px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+<div style="max-width:1100px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
   <div style="background:#0e1034;color:#fff;padding:30px;">
     <div style="font-size:22px;font-weight:700;">${escapeHtml(title)}</div>
-    <div style="font-size:13px;color:#F6DC4E;margin-top:6px;">${escapeHtml(periodLabel||'')} · ${escapeHtml(accountName||'')} · Objective: ${escapeHtml(objLabel)} · ${escapeHtml(breakdownLabel)}</div>
+    <div style="font-size:12px;color:#F6DC4E;margin-top:6px;">${cellsSubtitle} · Objective: ${escapeHtml(objLabel)} · Breakdown: ${escapeHtml(breakdownLabel)}</div>
   </div>
 
   <div style="padding:25px 30px;">
@@ -514,15 +560,13 @@ function buildExportHTML({ title, periodLabel, objective, breakdownId, totals, p
   </div>
 
   <div style="padding:0 30px 25px;">
-    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">📊 Performance Totals</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
-      <tbody>${totalsRows}</tbody>
-    </table>
+    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">📊 Performance Totals${isMultiCell ? ' — Side-by-side' : ''}</h2>
+    ${totalsBlock}
   </div>
 
   ${benchRows ? `
   <div style="padding:0 30px 25px;">
-    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">🎯 Benchmark Comparison</h2>
+    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">🎯 Benchmark Comparison${isMultiCell ? ` (${escapeHtml(primaryCell.label)})` : ''}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
       <thead><tr>
         <th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:left;">Metric</th>
@@ -537,7 +581,7 @@ function buildExportHTML({ title, periodLabel, objective, breakdownId, totals, p
 
   ${groupRows ? `
   <div style="padding:0 30px 25px;">
-    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">🔍 ${escapeHtml(breakdownLabel)}</h2>
+    <h2 style="font-size:16px;color:#0e1034;border-bottom:2px solid #F6DC4E;padding-bottom:6px;">🔍 ${escapeHtml(breakdownLabel)}${isMultiCell ? ` (${escapeHtml(primaryCell.label)})` : ''}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;">
       <thead><tr>
         <th style="padding:8px 12px;background:#0e1034;color:#F6DC4E;text-align:left;">Name</th>
@@ -798,7 +842,7 @@ function DemoUploader({ value, onUpload, onClear, loading, error }) {
 export default function ObjectiveTabs() {
   // ── Scope / filter state ──
   const [accounts, setAccounts] = useState([]);
-  const [selectedAcctId, setSelectedAcctId] = useState('');
+  const [selectedAcctIds, setSelectedAcctIds] = useState([]);
   const [campaignGroups, setCampaignGroups] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [ads, setAds] = useState([]);
@@ -806,10 +850,23 @@ export default function ObjectiveTabs() {
   const [selectedCampIds, setSelectedCampIds] = useState([]);
   const [selectedAdIds,   setSelectedAdIds]   = useState([]);
   const [reportLevel, setReportLevel] = useState('campaigns');
+
+  // Date ranges: primary always present, secondary optional (comparison)
   const [dateRange, setDateRange] = useState(() => {
-    const lm = lastMonth();
-    return { start: lm.start, end: lm.end };
+    const lm = lastMonth(); return { start: lm.start, end: lm.end };
   });
+  const [compareDateEnabled, setCompareDateEnabled] = useState(false);
+  const [compareDateRange, setCompareDateRange] = useState(() => {
+    // Default to the period before primary
+    const lm = lastMonth();
+    return previousRangeFor(lm.start, lm.end);
+  });
+
+  // Layout mode for multi-cell reports
+  // 'primary' = primary + reference deltas (one main story)
+  // 'sideby'  = equal columns per cell
+  const [layoutMode, setLayoutMode] = useState('sideby');
+
   const [fxRate, setFxRate] = useState('18.5');
   const [currency, setCurrency] = useState('R');
 
@@ -822,7 +879,10 @@ export default function ObjectiveTabs() {
   const [fetchError,       setFetchError]       = useState(null);
 
   // ── Report data ──
-  const [reportData, setReportData] = useState(null);
+  // Multi-cell model: each cell is one (account × dateRange) result from /api/analytics
+  // For backward compat with the legacy 1-account flow, cells.length can be 1
+  const [cells, setCells] = useState([]);  // [{id, accountId, accountName, dateRange, label, raw, totals, prevTotals, topCampaigns, topAds}]
+  const [loadProgress, setLoadProgress] = useState({ done: 0, total: 0 });
 
   // ── Configuration ──
   const [reportTitle, setReportTitle] = useState('');
@@ -861,20 +921,26 @@ export default function ObjectiveTabs() {
     return () => { cancelled = true; };
   }, []);
 
-  /* ── When account changes, load campaign groups + campaigns ── */
+  /* ── When account selection changes ──
+     Groups/campaigns/ads pickers only apply when exactly ONE account is selected.
+     With multiple accounts, the report is always at account level. */
   useEffect(() => {
-    if (!selectedAcctId) {
+    if (selectedAcctIds.length !== 1) {
       setCampaignGroups([]); setCampaigns([]); setAds([]);
       setSelectedGroupIds([]); setSelectedCampIds([]); setSelectedAdIds([]);
+      if (selectedAcctIds.length > 1 && reportLevel !== 'account') {
+        setReportLevel('account');
+      }
       return;
     }
+    const acctId = selectedAcctIds[0];
     let cancelled = false;
     (async () => {
       setLoadingGroups(true); setLoadingCampaigns(true);
       try {
         const [gRes, cRes] = await Promise.all([
-          fetch('/api/campaigngroups', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountIds: [selectedAcctId] }) }),
-          fetch('/api/campaigns',      { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountIds: [selectedAcctId] }) }),
+          fetch('/api/campaigngroups', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountIds: [acctId] }) }),
+          fetch('/api/campaigns',      { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountIds: [acctId] }) }),
         ]);
         if (!cancelled) {
           if (gRes.ok) setCampaignGroups(await gRes.json() || []);
@@ -884,7 +950,7 @@ export default function ObjectiveTabs() {
       finally { if (!cancelled) { setLoadingGroups(false); setLoadingCampaigns(false); } }
     })();
     return () => { cancelled = true; };
-  }, [selectedAcctId]);
+  }, [selectedAcctIds, reportLevel]);
 
   /* ── When campaigns selected, load ads ── */
   useEffect(() => {
@@ -901,37 +967,102 @@ export default function ObjectiveTabs() {
     return () => { cancelled = true; };
   }, [selectedCampIds]);
 
-  /* ── Load report data from /api/analytics ── */
+  /* ── Load report data from /api/analytics ──
+     Builds a list of (account × dateRange) combinations and fires them
+     in parallel. Each result becomes one "cell" in the report. */
   const loadReportData = useCallback(async () => {
-    if (!selectedAcctId) { setFetchError('Select an account first.'); return; }
+    if (!selectedAcctIds.length) { setFetchError('Select at least one account.'); return; }
+
+    // Build the cell list: every account × every date range
+    const dateRanges = [{ label: 'Primary', range: dateRange }];
+    if (compareDateEnabled) dateRanges.push({ label: 'Comparison', range: compareDateRange });
+
+    const cellSpecs = [];
+    for (const acctId of selectedAcctIds) {
+      const acc = accounts.find(a => String(a.id) === String(acctId));
+      const accName = acc?.name || `Account ${acctId}`;
+      for (const dr of dateRanges) {
+        cellSpecs.push({
+          id: `${acctId}__${dr.range.start}_${dr.range.end}`,
+          accountId: acctId,
+          accountName: accName,
+          dateRange: dr.range,
+          dateLabel: dr.label,
+          label: dateRanges.length > 1
+            ? `${accName} · ${dr.label} (${dr.range.start} → ${dr.range.end})`
+            : accName,
+        });
+      }
+    }
+
     setLoadingReport(true); setFetchError(null);
-    try {
-      const payload = {
-        accountIds: [selectedAcctId],
-        currentRange:  { start: dateRange.start, end: dateRange.end },
-        previousRange: previousRangeFor(dateRange.start, dateRange.end),
-        exchangeRate:  parseFloat(fxRate) || 18.5,
-      };
-      if (reportLevel === 'groups')    payload.campaignGroupIds = selectedGroupIds.length ? selectedGroupIds : null;
-      if (reportLevel === 'campaigns') payload.campaignIds      = selectedCampIds.length  ? selectedCampIds  : null;
-      if (reportLevel === 'ads') {
-        payload.campaignIds = selectedCampIds.length ? selectedCampIds : null;
-        payload.adIds       = selectedAdIds.length   ? selectedAdIds   : null;
+    setLoadProgress({ done: 0, total: cellSpecs.length });
+
+    // Fire one fetch per cell, in parallel.
+    let done = 0;
+    const results = await Promise.all(cellSpecs.map(async (spec) => {
+      try {
+        const payload = {
+          accountIds: [spec.accountId],
+          currentRange:  { start: spec.dateRange.start, end: spec.dateRange.end },
+          previousRange: previousRangeFor(spec.dateRange.start, spec.dateRange.end),
+          exchangeRate:  parseFloat(fxRate) || 18.5,
+        };
+        // Per-entity scoping only when ONE account selected (otherwise no shared meaning)
+        if (selectedAcctIds.length === 1) {
+          if (reportLevel === 'groups')    payload.campaignGroupIds = selectedGroupIds.length ? selectedGroupIds : null;
+          if (reportLevel === 'campaigns') payload.campaignIds      = selectedCampIds.length  ? selectedCampIds  : null;
+          if (reportLevel === 'ads') {
+            payload.campaignIds = selectedCampIds.length ? selectedCampIds : null;
+            payload.adIds       = selectedAdIds.length   ? selectedAdIds   : null;
+          }
+        }
+        const res = await fetch('/api/analytics', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`API ${res.status}`);
+        const data = await res.json();
+        done++;
+        setLoadProgress({ done, total: cellSpecs.length });
+        return {
+          ...spec,
+          raw: data,
+          totals:     data.current  ? normalizePeriod(data.current)  : null,
+          prevTotals: data.previous ? normalizePeriod(data.previous) : null,
+          topCampaigns: (data.topCampaigns || []).map(normalizeEntity).filter(Boolean),
+          topAds:       (data.topAds       || []).map(normalizeEntity).filter(Boolean),
+        };
+      } catch (e) {
+        done++;
+        setLoadProgress({ done, total: cellSpecs.length });
+        return { ...spec, error: e.message };
       }
-      const res = await fetch('/api/analytics', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(`/api/analytics returned ${res.status}`);
-      const data = await res.json();
-      setReportData(data);
-      if (!reportTitle) {
-        const acc = accounts.find(a => String(a.id) === String(selectedAcctId));
-        const accName = acc?.name || 'Account';
-        setReportTitle(`${accName} – ${dateRange.start} to ${dateRange.end}`);
-      }
-    } catch (e) { setFetchError(e.message); }
-    finally { setLoadingReport(false); }
-  }, [selectedAcctId, dateRange, fxRate, reportLevel, selectedGroupIds, selectedCampIds, selectedAdIds, accounts, reportTitle]);
+    }));
+
+    setLoadingReport(false);
+
+    // Check for errors
+    const errors = results.filter(r => r.error);
+    if (errors.length === results.length) {
+      setFetchError(`All ${errors.length} requests failed. ${errors[0].error}`);
+      setCells([]);
+      return;
+    } else if (errors.length) {
+      setFetchError(`${errors.length} of ${results.length} requests failed — showing partial results.`);
+    }
+
+    setCells(results.filter(r => !r.error));
+
+    // Auto-fill the report title if blank
+    if (!reportTitle) {
+      const accNames = [...new Set(selectedAcctIds.map(id => accounts.find(a => String(a.id) === String(id))?.name).filter(Boolean))];
+      const accLabel = accNames.length === 1 ? accNames[0] : accNames.length === 2 ? `${accNames[0]} vs ${accNames[1]}` : `${accNames.length} accounts`;
+      const dateLabel = compareDateEnabled
+        ? `${dateRange.start} to ${dateRange.end} vs ${compareDateRange.start} to ${compareDateRange.end}`
+        : `${dateRange.start} to ${dateRange.end}`;
+      setReportTitle(`${accLabel} – ${dateLabel}`);
+    }
+  }, [selectedAcctIds, dateRange, compareDateEnabled, compareDateRange, fxRate, reportLevel, selectedGroupIds, selectedCampIds, selectedAdIds, accounts, reportTitle]);
 
   /* ── Demographics upload ── */
   const handleDemoUpload = useCallback(async (file) => {
@@ -944,43 +1075,43 @@ export default function ObjectiveTabs() {
     finally { setDemoLoading(false); }
   }, []);
 
-  /* ── Derived: normalised totals + breakdown groups ── */
-  const totals     = useMemo(() => reportData?.current  ? normalizePeriod(reportData.current)  : null, [reportData]);
-  const prevTotals = useMemo(() => reportData?.previous ? normalizePeriod(reportData.previous) : null, [reportData]);
+  /* ── Derived: a "primary cell" is the first one — used for the single-cell summary
+     and as the basis for the AI narrative and old-style single-account views.
+     Multi-cell rendering iterates over `cells` directly. */
+  const primaryCell = useMemo(() => cells[0] || null, [cells]);
+  const totals     = useMemo(() => primaryCell?.totals     || null, [primaryCell]);
+  const prevTotals = useMemo(() => primaryCell?.prevTotals || null, [primaryCell]);
+  const isMultiCell = cells.length > 1;
 
   const groups = useMemo(() => {
-    if (!reportData) return [];
+    if (!primaryCell) return [];
     if (breakdownId === 'campaign') {
-      return (reportData.topCampaigns || []).map(normalizeEntity).filter(Boolean)
-        .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+      return [...(primaryCell.topCampaigns || [])].sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
     }
     if (breakdownId === 'ad') {
-      return (reportData.topAds || reportData.topCampaigns || []).map(normalizeEntity).filter(Boolean)
-        .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+      const src = primaryCell.topAds && primaryCell.topAds.length ? primaryCell.topAds : primaryCell.topCampaigns;
+      return [...(src || [])].sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
     }
     if (breakdownId === 'date') {
       if (!totals) return [];
-      const rows = [{ id:'current', name:`Current (${dateRange.start} → ${dateRange.end})`, ...totals }];
+      const rows = [{ id:'current', name:`Current (${primaryCell.dateRange.start} → ${primaryCell.dateRange.end})`, ...totals }];
       if (prevTotals) {
-        const prev = previousRangeFor(dateRange.start, dateRange.end);
+        const prev = previousRangeFor(primaryCell.dateRange.start, primaryCell.dateRange.end);
         rows.push({ id:'previous', name:`Previous (${prev.start} → ${prev.end})`, ...prevTotals });
       }
       return rows;
     }
     return [];
-  }, [reportData, breakdownId, totals, prevTotals, dateRange]);
+  }, [primaryCell, breakdownId, totals, prevTotals]);
 
   /* ── AI narrative ── */
   const generateNarrative = useCallback(async () => {
     if (!totals) return;
     setGeneratingAI(true); setAiError(null);
     try {
-      const acc = accounts.find(a => String(a.id) === String(selectedAcctId));
       const prompt = buildAIPrompt({
-        objective, breakdownId, totals, prevTotals, groups,
+        objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode,
         demographics, benchmarks, currency,
-        periodLabel: `${dateRange.start} to ${dateRange.end}`,
-        accountName: acc?.name,
       });
       const res = await fetch('/api/ai-recommendations', {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt }),
@@ -990,7 +1121,7 @@ export default function ObjectiveTabs() {
       setNarrative(parseAIResponse(data.text || ''));
     } catch (e) { setAiError(e.message); }
     finally { setGeneratingAI(false); }
-  }, [totals, prevTotals, groups, demographics, benchmarks, currency, dateRange, objective, breakdownId, accounts, selectedAcctId]);
+  }, [totals, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, currency, objective, breakdownId]);
 
   /* ── Auto-generate AI narrative once data first appears ── */
   useEffect(() => {
@@ -1001,13 +1132,10 @@ export default function ObjectiveTabs() {
   /* ── Export ── */
   const exportReport = (mode) => {
     if (!totals) return;
-    const acc = accounts.find(a => String(a.id) === String(selectedAcctId));
     const html = buildExportHTML({
       title: reportTitle || 'LinkedIn Campaign Report',
-      periodLabel: `${dateRange.start} to ${dateRange.end}`,
-      objective, breakdownId, totals, prevTotals, groups,
+      objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode,
       demographics, benchmarks, narrative, currency,
-      accountName: acc?.name,
     });
     if (mode === 'copy') {
       navigator.clipboard.writeText(html).then(() => {
@@ -1053,23 +1181,41 @@ export default function ObjectiveTabs() {
         <SectionHeader icon={Filter} title="Scope & Filters" subtitle="Choose what to include in the report" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>Account</label>
-            <select value={selectedAcctId} onChange={e => setSelectedAcctId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-600 text-sm"
-                    style={{ background: '#0a1530', color: '#fff' }}>
-              <option value="">{loadingAccounts ? 'Loading…' : `Select account (${accounts.length} available)`}</option>
-              {accounts.map(a => (
-                <option key={a.id} value={String(a.id)}>{a.name} · {a.id}</option>
-              ))}
-            </select>
+          <div className="lg:col-span-1">
+            <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>
+              Accounts {selectedAcctIds.length > 0 && <span style={{ color:'#F6DC4E' }}>· {selectedAcctIds.length} selected</span>}
+            </label>
+            {loadingAccounts
+              ? <div className="px-3 py-2 text-sm text-slate-400 rounded-lg border border-slate-600" style={{ background:'#0a1530' }}>Loading accounts…</div>
+              : <MultiSelect items={accounts} selected={selectedAcctIds} onChange={setSelectedAcctIds}
+                             placeholder={`Search ${accounts.length} accounts…`} />
+            }
           </div>
 
-          <div>
-            <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>Date Range</label>
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <div className="lg:col-span-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs uppercase tracking-wider" style={{ color: '#94a3b8' }}>Date Range</label>
+              <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                <input type="checkbox" checked={compareDateEnabled} onChange={e => setCompareDateEnabled(e.target.checked)} className="rounded" />
+                <span>Compare to another date range</span>
+              </label>
+            </div>
+            <div className={`grid gap-2 ${compareDateEnabled ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+              <div>
+                {compareDateEnabled && <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Primary</div>}
+                <DateRangePicker value={dateRange} onChange={setDateRange} />
+              </div>
+              {compareDateEnabled && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Comparison</div>
+                  <DateRangePicker value={compareDateRange} onChange={setCompareDateRange} />
+                </div>
+              )}
+            </div>
           </div>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>USD → ZAR rate</label>
             <div className="flex gap-2">
@@ -1081,9 +1227,28 @@ export default function ObjectiveTabs() {
                      style={{ background: '#0a1530', color: '#fff' }} title="Currency symbol" />
             </div>
           </div>
+          {selectedAcctIds.length >= 2 && (
+            <div>
+              <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>Comparison Layout</label>
+              <div className="flex gap-2">
+                {[
+                  { id: 'sideby',  label: 'Side-by-side' },
+                  { id: 'primary', label: 'Primary + Reference' },
+                ].map(l => (
+                  <button key={l.id} onClick={() => setLayoutMode(l.id)}
+                          className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition-all"
+                          style={layoutMode === l.id
+                            ? { background:'rgba(246,220,78,0.15)', borderColor:'#F6DC4E', color:'#F6DC4E' }
+                            : { background:'transparent', borderColor:'#334155', color:'#cbd5e1' }}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {selectedAcctId && (
+        {selectedAcctIds.length === 1 && (
           <div className="mb-4">
             <label className="text-xs uppercase tracking-wider block mb-2" style={{ color: '#94a3b8' }}>Report Level</label>
             <div className="flex gap-2 flex-wrap">
@@ -1104,20 +1269,25 @@ export default function ObjectiveTabs() {
             </div>
           </div>
         )}
+        {selectedAcctIds.length > 1 && (
+          <div className="mb-4 p-3 rounded-lg text-xs" style={{ background:'rgba(246,220,78,0.05)', border:'1px solid rgba(246,220,78,0.2)', color:'#cbd5e1' }}>
+            Multiple accounts selected — the report runs at account level. Pick a single account to drill down to campaign groups / campaigns / ads.
+          </div>
+        )}
 
-        {selectedAcctId && reportLevel === 'groups' && (
+        {selectedAcctIds.length === 1 && reportLevel === 'groups' && (
           <div className="mb-4">
             <label className="text-xs uppercase tracking-wider block mb-2" style={{ color: '#94a3b8' }}>Campaign Groups · {loadingGroups ? 'loading…' : `${campaignGroups.length} available`}</label>
             <MultiSelect items={campaignGroups} selected={selectedGroupIds} onChange={setSelectedGroupIds} placeholder="Search groups…" />
           </div>
         )}
-        {selectedAcctId && (reportLevel === 'campaigns' || reportLevel === 'ads') && (
+        {selectedAcctIds.length === 1 && (reportLevel === 'campaigns' || reportLevel === 'ads') && (
           <div className="mb-4">
             <label className="text-xs uppercase tracking-wider block mb-2" style={{ color: '#94a3b8' }}>Campaigns · {loadingCampaigns ? 'loading…' : `${campaigns.length} available`}</label>
             <MultiSelect items={campaigns} selected={selectedCampIds} onChange={setSelectedCampIds} placeholder="Search campaigns…" />
           </div>
         )}
-        {selectedAcctId && reportLevel === 'ads' && selectedCampIds.length > 0 && (
+        {selectedAcctIds.length === 1 && reportLevel === 'ads' && selectedCampIds.length > 0 && (
           <div className="mb-4">
             <label className="text-xs uppercase tracking-wider block mb-2" style={{ color: '#94a3b8' }}>Ads · {loadingAds ? 'loading…' : `${ads.length} available`}</label>
             <MultiSelect items={ads} selected={selectedAdIds} onChange={setSelectedAdIds} placeholder="Search ads…" />
@@ -1125,11 +1295,17 @@ export default function ObjectiveTabs() {
         )}
 
         <div className="flex items-center gap-3 mt-2">
-          <button onClick={loadReportData} disabled={!selectedAcctId || loadingReport}
+          <button onClick={loadReportData} disabled={!selectedAcctIds.length || loadingReport}
                   className="px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-40"
                   style={{ background: '#F6DC4E', color: '#0e1034' }}>
             {loadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
-            {loadingReport ? 'Loading from LinkedIn…' : 'Load Report Data'}
+            {loadingReport
+              ? loadProgress.total > 1
+                ? `Loading… ${loadProgress.done}/${loadProgress.total}`
+                : 'Loading from LinkedIn…'
+              : selectedAcctIds.length > 1 || compareDateEnabled
+                ? `Load Report Data (${selectedAcctIds.length} accounts × ${compareDateEnabled ? 2 : 1} date${compareDateEnabled ? 's' : ''})`
+                : 'Load Report Data'}
           </button>
           {fetchError && (
             <div className="flex items-center gap-2 text-sm" style={{ color: '#fecaca' }}>
@@ -1262,34 +1438,91 @@ export default function ObjectiveTabs() {
       {/* ─────────── REPORT OUTPUT ─────────── */}
       {totals && (
         <>
-          <Card className="p-6 mb-4">
-            <SectionHeader icon={TrendingUp} title="Performance Totals"
-              subtitle={prevTotals ? 'vs. previous period' : undefined} />
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {metricKeys.map(m => {
-                const delta = prevTotals ? fmtDelta(totals[m], prevTotals[m], m) : null;
-                const rating = benchmarks[m] != null ? rateValue(m, totals[m], benchmarks[m]) : null;
-                const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
-                return (
-                  <div key={m} className="p-3 rounded-lg border border-slate-700/50"
-                       style={{ background:'rgba(10,21,48,0.5)' }}>
-                    <div className="text-xs text-slate-400">{METRIC_DEFS[m].label} {dot}</div>
-                    <div className="text-xl font-bold text-white mt-1">{fmtMetric(m, totals[m], currency)}</div>
-                    {delta && (
-                      <div className="text-xs mt-1"
-                           style={{ color: delta.good === true ? '#22c55e' : delta.good === false ? '#ef4444' : '#94a3b8' }}>
-                        {delta.direction === 'up' ? '↑' : delta.direction === 'down' ? '↓' : '→'} {Math.abs(delta.pct).toFixed(1)}%
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+          {!isMultiCell ? (
+            <Card className="p-6 mb-4">
+              <SectionHeader icon={TrendingUp} title="Performance Totals"
+                subtitle={prevTotals ? 'vs. previous period (LinkedIn auto-comparison)' : undefined} />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                {metricKeys.map(m => {
+                  const delta = prevTotals ? fmtDelta(totals[m], prevTotals[m], m) : null;
+                  const rating = benchmarks[m] != null ? rateValue(m, totals[m], benchmarks[m]) : null;
+                  const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
+                  return (
+                    <div key={m} className="p-3 rounded-lg border border-slate-700/50"
+                         style={{ background:'rgba(10,21,48,0.5)' }}>
+                      <div className="text-xs text-slate-400">{METRIC_DEFS[m].label} {dot}</div>
+                      <div className="text-xl font-bold text-white mt-1">{fmtMetric(m, totals[m], currency)}</div>
+                      {delta && (
+                        <div className="text-xs mt-1"
+                             style={{ color: delta.good === true ? '#22c55e' : delta.good === false ? '#ef4444' : '#94a3b8' }}>
+                          {delta.direction === 'up' ? '↑' : delta.direction === 'down' ? '↓' : '→'} {Math.abs(delta.pct).toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-6 mb-4">
+              <SectionHeader icon={TrendingUp} title="Performance Totals — Comparison"
+                subtitle={`${cells.length} cells · ${layoutMode === 'sideby' ? 'Side-by-side' : 'Primary + Reference'}`} />
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ background: '#0a1530' }}>
+                      <th className="text-left p-3 font-semibold" style={{ color: '#F6DC4E' }}>Metric</th>
+                      {cells.map((c, i) => (
+                        <th key={c.id} className="text-right p-3 font-semibold text-xs"
+                            style={{ color: i === 0 && layoutMode === 'primary' ? '#F6DC4E' : '#cbd5e1' }}>
+                          {c.label}
+                          {i === 0 && layoutMode === 'primary' && <div className="text-[10px] opacity-70">PRIMARY</div>}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metricKeys.map(m => (
+                      <tr key={m}>
+                        <td className="p-3 font-medium text-slate-300">{METRIC_DEFS[m].label}</td>
+                        {cells.map((c, i) => {
+                          const v = c.totals?.[m];
+                          const rating = benchmarks[m] != null ? rateValue(m, v, benchmarks[m]) : null;
+                          const dot = rating === 'above' ? '🔵' : rating === 'meets' ? '🟡' : rating === 'below' ? '🔴' : '';
+                          // In primary mode, show delta vs primary cell on non-primary cells
+                          let deltaEl = null;
+                          if (layoutMode === 'primary' && i > 0) {
+                            const primVal = cells[0].totals?.[m];
+                            const delta = fmtDelta(v, primVal, m);
+                            if (delta) {
+                              deltaEl = (
+                                <div className="text-[10px] mt-0.5"
+                                     style={{ color: delta.good === true ? '#22c55e' : delta.good === false ? '#ef4444' : '#94a3b8' }}>
+                                  {delta.direction === 'up' ? '↑' : delta.direction === 'down' ? '↓' : '→'} {Math.abs(delta.pct).toFixed(1)}% vs primary
+                                </div>
+                              );
+                            }
+                          }
+                          return (
+                            <td key={c.id} className="text-right p-3"
+                                style={{ background: i === 0 && layoutMode === 'primary' ? 'rgba(246,220,78,0.05)' : 'transparent' }}>
+                              <div className="font-semibold text-white">{fmtMetric(m, v, currency)} {dot && <span className="text-xs">{dot}</span>}</div>
+                              {deltaEl}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
 
           {groups.length > 0 && (
             <Card className="p-6 mb-4">
-              <SectionHeader icon={BarChart3} title={BREAKDOWNS.find(b => b.id === breakdownId)?.label} />
+              <SectionHeader icon={BarChart3} title={BREAKDOWNS.find(b => b.id === breakdownId)?.label}
+                subtitle={isMultiCell ? `Primary cell: ${primaryCell.label} — change in Configuration above` : undefined} />
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
