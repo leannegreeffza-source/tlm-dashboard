@@ -39,7 +39,17 @@ const OBJECTIVES = {
   leads:      { label: 'Lead Generation',  metrics: ['ctr','leads','cpl','engagementRate','frequency','cpm'],          description: 'Leads, CPL, Engagement Rate' },
   video:      { label: 'Video Views',      metrics: ['videoViewRate','videoCompletionRate','cpm','ctr','engagementRate','frequency'], description: 'Video View Rate, Completion Rate' },
   awareness:  { label: 'Awareness / Brand',metrics: ['cpm','reach','frequency','impressions','ctr','engagementRate'],  description: 'CPM, Reach, Frequency' },
+  combined:   { label: 'Combined',         metrics: ['ctr','engagementRate','cpm','cpc'],                              description: 'Custom — pick the metrics you want below' },
 };
+
+// Default custom mix for "Combined" objective (sensible starting point — user can change)
+const DEFAULT_COMBINED_METRICS = ['ctr','engagementRate','cpm','cpc'];
+
+// All metric IDs the user can pick in Combined mode (filters out non-metric/derived ones)
+const PICKABLE_METRICS = [
+  'impressions','clicks','ctr','engagements','engagementRate','spend',
+  'cpm','cpc','reach','frequency','videoViewRate','videoCompletionRate','leads','cpl',
+];
 
 const METRIC_DEFS = {
   impressions:         { label: 'Impressions',           format: 'num', higherIsBetter: true  },
@@ -356,8 +366,7 @@ function toNum(v) {
    5. AI PROMPT
    ==================================================================== */
 
-function buildAIPrompt({ objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, currency }) {
-  const metricKeys = OBJECTIVES[objective].metrics;
+function buildAIPrompt({ objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, currency, metricKeys }) {
   const benchTable = Object.entries(benchmarks).filter(([, v]) => v != null)
     .map(([m, v]) => `  ${METRIC_DEFS[m]?.label || m}: ${fmtMetric(m, v, currency)}`).join('\n');
 
@@ -442,10 +451,9 @@ function parseAIResponse(text) {
    6. EXPORT HTML — email-ready document
    ==================================================================== */
 
-function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, narrative, currency }) {
+function buildExportHTML({ title, objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode, demographics, benchmarks, narrative, currency, metricKeys }) {
   const objLabel = OBJECTIVES[objective].label;
   const breakdownLabel = BREAKDOWNS.find(b => b.id === breakdownId)?.label || '';
-  const metricKeys = OBJECTIVES[objective].metrics;
 
   /* ── Totals section: single-cell vs multi-cell ── */
   let totalsBlock;
@@ -868,7 +876,11 @@ export default function ObjectiveTabs() {
   const [layoutMode, setLayoutMode] = useState('sideby');
 
   const [fxRate, setFxRate] = useState('18.5');
+  const [fxMode, setFxMode] = useState('usd-zar'); // 'usd-only' | 'usd-zar' | 'usd-kes'
   const [currency, setCurrency] = useState('R');
+
+  // Custom metrics list used when Objective = 'combined'
+  const [combinedMetrics, setCombinedMetrics] = useState(DEFAULT_COMBINED_METRICS);
 
   // ── Loading / error state ──
   const [loadingAccounts,  setLoadingAccounts]  = useState(false);
@@ -1006,7 +1018,7 @@ export default function ObjectiveTabs() {
           accountIds: [spec.accountId],
           currentRange:  { start: spec.dateRange.start, end: spec.dateRange.end },
           previousRange: previousRangeFor(spec.dateRange.start, spec.dateRange.end),
-          exchangeRate:  parseFloat(fxRate) || 18.5,
+          exchangeRate:  fxMode === 'usd-only' ? 1 : (parseFloat(fxRate) || 18.5),
         };
         // Per-entity scoping only when ONE account selected (otherwise no shared meaning)
         if (selectedAcctIds.length === 1) {
@@ -1062,7 +1074,7 @@ export default function ObjectiveTabs() {
         : `${dateRange.start} to ${dateRange.end}`;
       setReportTitle(`${accLabel} – ${dateLabel}`);
     }
-  }, [selectedAcctIds, dateRange, compareDateEnabled, compareDateRange, fxRate, reportLevel, selectedGroupIds, selectedCampIds, selectedAdIds, accounts, reportTitle]);
+  }, [selectedAcctIds, dateRange, compareDateEnabled, compareDateRange, fxRate, fxMode, reportLevel, selectedGroupIds, selectedCampIds, selectedAdIds, accounts, reportTitle]);
 
   /* ── Demographics upload ── */
   const handleDemoUpload = useCallback(async (file) => {
@@ -1111,7 +1123,7 @@ export default function ObjectiveTabs() {
     try {
       const prompt = buildAIPrompt({
         objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode,
-        demographics, benchmarks, currency,
+        demographics, benchmarks, currency, metricKeys,
       });
       const res = await fetch('/api/ai-recommendations', {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt }),
@@ -1135,7 +1147,7 @@ export default function ObjectiveTabs() {
     const html = buildExportHTML({
       title: reportTitle || 'LinkedIn Campaign Report',
       objective, breakdownId, cells, primaryCell, isMultiCell, layoutMode,
-      demographics, benchmarks, narrative, currency,
+      demographics, benchmarks, narrative, currency, metricKeys,
     });
     if (mode === 'copy') {
       navigator.clipboard.writeText(html).then(() => {
@@ -1158,7 +1170,7 @@ export default function ObjectiveTabs() {
     setBenchmarks({ ...BENCHMARK_PRESETS[k].values });
   };
 
-  const metricKeys = OBJECTIVES[objective].metrics;
+  const metricKeys = objective === 'combined' ? combinedMetrics : OBJECTIVES[objective].metrics;
 
   /* ====================================================================
      RENDER
@@ -1217,15 +1229,35 @@ export default function ObjectiveTabs() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>USD → ZAR rate</label>
-            <div className="flex gap-2">
-              <input type="number" step="0.01" value={fxRate} onChange={e => setFxRate(e.target.value)}
-                     className="flex-1 px-3 py-2 rounded-lg border border-slate-600 text-sm"
-                     style={{ background: '#0a1530', color: '#fff' }} />
-              <input type="text" value={currency} onChange={e => setCurrency(e.target.value)}
-                     className="w-14 px-2 py-2 rounded-lg border border-slate-600 text-sm text-center"
-                     style={{ background: '#0a1530', color: '#fff' }} title="Currency symbol" />
+            <label className="text-xs uppercase tracking-wider block mb-1" style={{ color: '#94a3b8' }}>Currency Conversion</label>
+            <div className="flex gap-1 rounded-lg border border-slate-700/50 p-1" style={{ background:'#0a1530' }}>
+              {[
+                { id: 'usd-only', label: 'USD only',     curr: '$', rate: '1' },
+                { id: 'usd-zar',  label: 'USD → ZAR',    curr: 'R', rate: '18.5' },
+                { id: 'usd-kes',  label: 'USD → KES',    curr: 'KSh', rate: '130' },
+              ].map(m => (
+                <button key={m.id} onClick={() => {
+                  setFxMode(m.id);
+                  setCurrency(m.curr);
+                  if (m.id !== 'usd-only') setFxRate(m.rate);
+                }}
+                  className="flex-1 px-3 py-1.5 rounded text-sm font-semibold transition-all"
+                  style={fxMode === m.id
+                    ? { background: '#F6DC4E', color: '#0e1034' }
+                    : { background: 'transparent', color: '#cbd5e1' }}>
+                  {m.label}
+                </button>
+              ))}
             </div>
+            {fxMode !== 'usd-only' && (
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <span className="text-slate-400">Rate:</span>
+                <input type="number" step="0.01" value={fxRate} onChange={e => setFxRate(e.target.value)}
+                       className="w-24 px-2 py-1 rounded border border-slate-600"
+                       style={{ background: '#0a1530', color: '#fff' }} />
+                <span className="text-slate-500">$1 = {currency}{fxRate}</span>
+              </div>
+            )}
           </div>
           {selectedAcctIds.length >= 2 && (
             <div>
@@ -1331,7 +1363,7 @@ export default function ObjectiveTabs() {
 
           <div className="mb-4">
             <label className="text-xs uppercase tracking-wider block mb-2" style={{ color: '#94a3b8' }}>Objective</label>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
               {Object.entries(OBJECTIVES).map(([id, o]) => (
                 <button key={id} onClick={() => setObjective(id)}
                         className="px-3 py-2 rounded-lg text-sm font-semibold border transition-all"
@@ -1343,6 +1375,48 @@ export default function ObjectiveTabs() {
               ))}
             </div>
             <p className="text-xs text-slate-500 mt-2">{OBJECTIVES[objective].description}</p>
+
+            {objective === 'combined' && (
+              <div className="mt-3 p-4 rounded-lg border border-slate-700/50" style={{ background: 'rgba(10,21,48,0.4)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs uppercase tracking-wider" style={{ color: '#F6DC4E' }}>Pick your metrics</div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setCombinedMetrics([...PICKABLE_METRICS])}
+                            className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-400 hover:text-white">
+                      Select all
+                    </button>
+                    <button onClick={() => setCombinedMetrics([])}
+                            className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-400 hover:text-white">
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {PICKABLE_METRICS.map(m => {
+                    const checked = combinedMetrics.includes(m);
+                    return (
+                      <label key={m} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-slate-700/30">
+                        <input type="checkbox" checked={checked}
+                               onChange={() => {
+                                 if (checked) setCombinedMetrics(combinedMetrics.filter(x => x !== m));
+                                 else setCombinedMetrics([...combinedMetrics, m]);
+                               }}
+                               className="rounded" />
+                        <span className="text-xs text-slate-200">{METRIC_DEFS[m].label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {combinedMetrics.length === 0 && (
+                  <div className="mt-2 text-xs" style={{ color: '#fecaca' }}>
+                    Select at least one metric to show in the report.
+                  </div>
+                )}
+                <div className="mt-2 text-xs text-slate-500">
+                  {combinedMetrics.length} metric{combinedMetrics.length === 1 ? '' : 's'} selected. Order in the report follows the order shown above.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mb-4">
